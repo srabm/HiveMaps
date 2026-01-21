@@ -1,0 +1,41 @@
+name: User Story
+description: Create a user story with clear acceptance criteria
+title: "US-?.?: "
+labels: ["user-story"]
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      description: "As a [user], I want to [functionality], so that [benefit]."
+      placeholder: "As a ..., I want to ..., so that ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: "Crystal clear, testable criteria (bullets)."
+      placeholder: "- Given ... when ... then ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 (Must)
+        - P1 (Should)
+        - P2 (Could)
+    validations:
+      required: true
+
+  - type: input
+    id: estimate
+    attributes:
+      label: Estimate (story points)
+      placeholder: "e.g., 1, 2, 3, 5, 8"
+    validations:
+      required: false

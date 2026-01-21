@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: hivemaps
+      POSTGRES_USER: hivemaps
+      POSTGRES_PASSWORD: hivemaps
+    ports:
+      - "5432:5432"
+    volumes:
+      - hivemaps_pg:/var/lib/postgresql/data
+
+volumes:
+  hivemaps_pg:

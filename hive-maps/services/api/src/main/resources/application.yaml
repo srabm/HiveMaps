@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/hivemaps
+    username: hivemaps
+    password: hivemaps
+
+  jpa:
+    hibernate:
+      ddl-auto: update

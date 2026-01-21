@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / React Native
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.expo/
+.expo-shared/
+.expo/web-build/
+web-build/
+dist/
+build/
+coverage/
+.metro-cache/
+android/
+ios/
+*.apk
+*.aab
+*.ipa
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# Gradle / Kotlin
+.gradle/
+**/build/
+!**/src/**/build/
+out/
+*.iml
+.idea/
+*.class
+logs/
+
+# Env
+.env
+.env.*
+.vscode/
