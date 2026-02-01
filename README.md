@@ -1,5 +1,6 @@
 # HiveMaps
-Cross-platform mobile app (Expo/TypeScript) with a Kotlin/Spring Boot backend. Use this guide to set up local dev, run services, and execute tests/CI.
+
+HiveMaps is a React Native (Expo + TypeScript) mobile app backed by a Kotlin/Spring Boot API. The Map tab uses Mapbox to display Concordia's SGW and Loyola campuses with a campus switch toggle and persisted selection.
 
 ## Team
 O(n) My Way
@@ -17,38 +18,70 @@ O(n) My Way
 | Srabanti Mazumdar       |40263255| TBD     |[@srabm](https://github.com/srabm)|
 | Thi Hong Mai Nguyen     |40248343| TBD     |[@miiyao7](https://github.com/miiyao7)|
 | Jovan Gavranovic        |40282175| TBD     |[@jGavranovic](https://github.com/jGavranovic)|
-
 ## Repository Layout
-- `hive-maps/apps/mobile`: React Native app using Expo Router, TypeScript, ESLint.
-- `hive-maps/services/api`: Spring Boot API in Kotlin. Config in `src/main/resources/application.yaml`, controllers in `src/main/kotlin/com/hivemaps/api`.
-- `docker-compose.yml` (under `services/api`): Postgres for local dev. Tests use in-memory H2 via `src/test/resources/application.yml`.
+- `hive-maps/apps/mobile`: Expo Router app (UI + client orchestration).
+- `hive-maps/services/api`: Spring Boot API (REST + Postgres + Flyway migrations).
+- `design_docs/`: Architecture + design-pattern references for structure decisions.
 
 ## Prerequisites
-- Node 18+ with npm, Expo CLI (installed by `npm install`).
-- Java 21+, Gradle wrapper (use `./gradlew`), Docker & Docker Compose for Postgres.
-- Android Studio / Xcode simulators or Expo Go for device testing.
+- Node.js 18+ and npm
+- Docker + Docker Compose (for API + Postgres)
+- Android Studio (recommended for Android emulator) and/or Xcode (iOS simulator)
 
-## Run the Backend (API)
+## Quick Start (Backend + Mobile)
+
+### 1) Start the backend (API + Postgres)
 ```bash
 cd hive-maps/services/api
-docker compose up -d db   # start Postgres
-./gradlew bootRun         # start API on port 8080
+docker compose up --build -d
 ```
-- Tests: `./gradlew test` (JUnit 5 + Spring Boot Test, H2 profile). Coverage: `./gradlew jacocoTestReport`.
 
-## Run the Mobile App
+Verify from your host machine:
+- `http://localhost:8080/api/hello`
+- `http://localhost:8080/api/campuses`
+
+If you see DB errors like `relation "campus" does not exist`, reset the dev DB volume and restart:
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+Stop gracefully:
+```bash
+docker compose down
+```
+
+### 2) Start the mobile app (Android/iOS)
 ```bash
 cd hive-maps/apps/mobile
 npm install
-npm start                 # Expo dev server with QR code
+cp .env.example .env
+npx expo prebuild --clean
+npx expo run:android   # or: npx expo run:ios
 ```
-- Platform shortcuts: `npm run android` / `npm run ios` / `npm run web`.
-- Lint: `npm run lint`. Tests: `npm test` (Jest + React Native Testing Library; Jest config is in `jest.config.js`). Install platform SDKs or use Expo Go for device runs.
 
-## Testing & QA
-- Frontend: Jest + React Native Testing Library (`@testing-library/react-native`), jest-expo preset. Add component tests under `__tests__` or alongside components with `.test.tsx` suffix.
-- Backend: Spring Boot Test with JUnit 5. Use constructor injection, keep controller tests lightweight, and mock external IO. H2 profile resets schema per run.
-- Maestro (planned): add UI flows under `apps/mobile/maestro` and wire into CI once available.
+Stop Metro (gracefully): press `Ctrl+C` in the terminal running Expo.
 
-## CI/CD
-- GitHub Actions should run lint and tests for both mobile and API. Add new checks to keep pipelines green. Keep PRs small, include test output, and call out DB/schema or API contract changes.
+## Configuration (.env)
+Mobile reads config from `hive-maps/apps/mobile/.env`:
+- `EXPO_PUBLIC_API_BASE_URL`
+  - Android emulator: `http://10.0.2.2:8080` (host alias)
+  - iOS simulator: `http://localhost:8080`
+- `EXPO_PUBLIC_MAPBOX_TOKEN`: Mapbox access token (required to render maps + geocode markers).
+- `RNMAPBOX_MAPS_DOWNLOAD_TOKEN`: Mapbox “downloads:read” token (required for native builds with `@rnmapbox/maps`).
+
+## Campus Data & Endpoints
+The API is the source of truth for campuses/buildings:
+- `GET /api/campuses`
+- `GET /api/campuses/{SGW|LOY}`
+- `GET /api/campuses/{SGW|LOY}/buildings`
+
+The mobile app fetches buildings from the API and geocodes addresses via Mapbox to place markers (cached locally).
+
+## Web Support
+`npm run web` is available for the Expo app, but the Map tab renders a fallback screen because Mapbox RN is native-only in this repo.
+
+## Project Docs
+- Team list: `docs/TEAM.md`
+- Contributor guide: `AGENTS.md`
+

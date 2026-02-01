@@ -39,4 +39,5 @@ logs/
 # Env
 .env
 .env.*
+!.env.example
 .vscode/
