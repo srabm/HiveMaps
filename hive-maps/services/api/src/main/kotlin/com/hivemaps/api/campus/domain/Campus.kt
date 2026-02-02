@@ -12,7 +12,8 @@ data class Building(
     val campus: CampusId,
     val code: String,
     val name: String,
-    val addresses: List<String>
+    val addresses: List<String>,
+    val location: Map<String, Any>? = null
 )
 
 data class Coordinate(

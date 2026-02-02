@@ -34,5 +34,6 @@ private fun com.hivemaps.api.campus.persistence.BuildingEntity.toDomain() = Buil
     campus = campus.id,
     code = code,
     name = name,
-    addresses = addresses
+    addresses = addresses,
+    location = location
 )
