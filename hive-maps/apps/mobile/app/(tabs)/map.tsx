@@ -10,7 +10,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
 
-// --- LOAD LOCAL IMAGE ---
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 
 export default function MapScreen() {
@@ -52,7 +51,6 @@ export default function MapScreen() {
       const loc = point.building.location as any;
       if (loc && loc.type === 'Polygon' && loc.coordinates) {
         let coords = loc.coordinates;
-        // Bracket Fixer
         let depth = 0;
         let current = coords;
         while (Array.isArray(current)) { depth++; current = current[0]; }
@@ -100,7 +98,7 @@ export default function MapScreen() {
            images={{ 
              honeycomb: { 
                 uri: Image.resolveAssetSource(HONEYCOMB_IMAGE).uri, 
-                scale: 10.0 // <--- THIS IS THE MAGIC! It shrinks the image by 10x.
+                scale: 10.0
              } 
            }} 
         />
@@ -166,7 +164,6 @@ export default function MapScreen() {
       <View style={[styles.footer, { backgroundColor: theme.background }]}>
         <ThemedText type="subtitle">{campusTitle}</ThemedText>
         
-        {/* --- DEBUG: We shrink the preview too so you can verify --- */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
            <ThemedText style={{fontSize: 10, marginRight: 5}}>Pattern Check:</ThemedText>
            <View style={{ backgroundColor: '#9d1e30', padding: 2, borderWidth: 1, borderColor: 'white' }}>

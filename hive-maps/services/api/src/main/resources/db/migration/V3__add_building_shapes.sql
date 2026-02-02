@@ -1,7 +1,7 @@
 ALTER TABLE building
 ADD COLUMN IF NOT EXISTS location JSONB;
 
--- 1. HALL BUILDING (H) - Validated
+-- 1. HALL BUILDING (H) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -13,7 +13,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'H';
 
--- 2. LIBRARY BUILDING (LB) - Using your custom points
+-- 2. LIBRARY BUILDING (LB) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -25,7 +25,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'LB';
 
--- 3. EV BUILDING (EV) - Using your custom points
+-- 3. EV BUILDING (EV) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -37,7 +37,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'EV';
 
--- 4. MOLSON BUILDING (MB) - Using your custom points
+-- 4. MOLSON BUILDING (MB) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -49,7 +49,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'MB';
 
--- 5. FAUBOURG TOWER (FB) - Using your custom points
+-- 5. FAUBOURG TOWER (FB) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -61,7 +61,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'FB';
 
--- 6. FAUBOURG ST-CATHERINE (FG) - Using your custom points
+-- 6. FAUBOURG ST-CATHERINE (FG) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -73,7 +73,7 @@ UPDATE building SET location = '{
   ]]]
 }' WHERE code = 'FG';
 
--- 7. GUY-METRO (GM) - Using your custom points
+-- 7. GUY-METRO (GM) --
 UPDATE building SET location = '{
   "type": "Polygon",
   "coordinates": [[[
@@ -84,3 +84,131 @@ UPDATE building SET location = '{
     [-73.57911546554347, 45.49578550089092]
   ]]]
 }' WHERE code = 'GM';
+
+-- 8. LS Building (LS) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.57926079428586, 45.496380455585296],
+    [-73.57956111151397, 45.49652609801515],
+    [-73.57967111142842, 45.496412276652364],
+    [-73.5796623812769, 45.49627030559776],
+    [-73.579575079757, 45.49635842560468],
+    [-73.57946333381176, 45.49617728988531],
+    [-73.57926079428586, 45.496380455585296]
+  ]]]
+}' WHERE code = 'LS';
+
+-- 9. CL Building (CL) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.57928087820103, 45.49446825304483],
+    [-73.57963781427947, 45.49416619202222],
+    [-73.57931046875652, 45.49396913846431],
+    [-73.57893503858094, 45.49425694013914],
+    [-73.57928087820103, 45.49446825304483]
+  ]]]
+}' WHERE code = 'CL';
+
+-- 10. B Annex (B) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.57946841669738, 45.49791957110679],
+    [-73.57939079491405, 45.497885966256206],
+    [-73.57955973644178, 45.497719541938835],
+    [-73.57963050924376, 45.49775314688878],
+    [-73.57946841669738, 45.49791957110679]
+  ]]]
+}' WHERE code = 'B';
+
+-- 11. CI Annex (CI) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.5798414632673, 45.497578885680525],
+    [-73.57975998931079, 45.49754013360268],
+    [-73.57980266614513, 45.49748982384665],
+    [-73.5799190575112, 45.4973633693979],
+    [-73.57995106513687, 45.4973626895347],
+    [-73.57997240355428, 45.49737560693788],
+    [-73.57997240355428, 45.49738716461155],
+    [-73.58001217060426, 45.49740416118692],
+    [-73.5798414632673, 45.497578885680525]
+  ]]]
+}' WHERE code = 'CI';
+
+-- 12. S Annex (S) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.57980266614513, 45.49748982384665],
+    [-73.57973671103773, 45.49745787033004],
+    [-73.57975998931079, 45.49743203555852],
+    [-73.57974253060598, 45.497420477893996],
+    [-73.57983758355513, 45.49732189771629],
+    [-73.57985407233207, 45.49732257757998],
+    [-73.5798802603895, 45.49733549499237],
+    [-73.57988317017339, 45.49734909226518],
+    [-73.5799190575112, 45.4973633693979],
+    [-73.57980266614513, 45.49748982384665]
+  ]]]
+}' WHERE code = 'S';
+
+-- 13. M Annex (M) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.5797318613973, 45.49742387720724],
+    [-73.57966299650602, 45.49738716461155],
+    [-73.57975901938295, 45.49728654478244],
+    [-73.5797793878721, 45.49728382532513],
+    [-73.57980363607338, 45.4972933434255],
+    [-73.57981139549773, 45.497311019892436],
+    [-73.57983330440156, 45.49732317550081],
+    [-73.5797318613973, 45.49742387720724]
+  ]]]
+}' WHERE code = 'M';
+
+-- 14. Central Building (CC) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.64070365865526, 45.45845304348953],
+    [-73.6408443653494, 45.45831754666156],
+    [-73.64003398506502, 45.45800354419538],
+    [-73.63991001754268, 45.45814846862771],
+    [-73.64070365865526, 45.45845304348953]
+  ]]]
+}' WHERE code = 'CC';
+
+-- 15. Vanier Extension (VE) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.63884360869086, 45.45902675542587],
+    [-73.63828562448569, 45.45881327458352],
+    [-73.63843780199592, 45.458618769112206],
+    [-73.63899578620187, 45.4588298786779],
+    [-73.63884360869086, 45.45902675542587]
+  ]]]
+}' WHERE code = 'VE';
+
+-- 16. Vanier Library (VL) --
+UPDATE building SET location = '{
+  "type": "Polygon",
+  "coordinates": [[[
+    [-73.63865642189958, 45.45928583879365],
+    [-73.63822075341929, 45.45910647351212],
+    [-73.63814498498795, 45.45919283464488],
+    [-73.63793351580557, 45.4591099506265],
+    [-73.63807545671666, 45.458920258304516],
+    [-73.63810379490042, 45.458927011894275],
+    [-73.63813048309068, 45.458905618015336],
+    [-73.63819910986624, 45.45893663913742],
+    [-73.63828562448569, 45.45881327458352],
+    [-73.63884360869086, 45.45902675542587],
+    [-73.63865642189958, 45.45928583879365]
+  ]]]
+}' WHERE code = 'VL';
