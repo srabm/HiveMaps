@@ -8,6 +8,15 @@ cd hive-maps/services/api
 docker compose up --build -d
 ```
 
+Verify from your host machine:
+- `http://localhost:8080/api/hello`
+- `http://localhost:8080/api/campuses`
+
+Logs:
+```bash
+docker compose logs -f
+```
+
 Stop:
 ```bash
 docker compose down
@@ -26,4 +35,3 @@ docker compose down -v
 
 ## Migrations
 Flyway migrations live in `src/main/resources/db/migration/` (e.g., `V1__*.sql`). Add new migrations rather than editing old ones.
-

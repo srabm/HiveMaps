@@ -13,6 +13,9 @@ npx expo run:android   # or: npx expo run:ios
 
 Stop Metro (gracefully): press `Ctrl+C`.
 
+## Android Studio / Android SDK (required for `run:android`)
+See the root setup guide in `README.md` → **Android Studio Setup (Windows/macOS)**.
+
 ## Environment
 Configure `hive-maps/apps/mobile/.env`:
 - `EXPO_PUBLIC_API_BASE_URL`
@@ -20,6 +23,8 @@ Configure `hive-maps/apps/mobile/.env`:
   - iOS simulator: `http://localhost:8080`
 - `EXPO_PUBLIC_MAPBOX_TOKEN` (required to render maps + geocode markers)
 - `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` (required for native builds; Mapbox “downloads:read”)
+
+Alternatively, you can set defaults in `app.json` under `expo.extra` (`apiBaseUrl`, `mapboxAccessToken`), but `.env` is preferred for local dev.
 
 ## Map Behavior
 - The campus badge and toggle live on the Map screen (`app/(tabs)/map.tsx`).
@@ -31,4 +36,3 @@ Configure `hive-maps/apps/mobile/.env`:
 ## Troubleshooting
 - If the Map tab says the backend is unreachable, confirm the API is running and reachable from your device/emulator (Android uses `10.0.2.2`).
 - If you change native Mapbox config or tokens, rerun `npx expo prebuild` before `expo run:*`.
-
