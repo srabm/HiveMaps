@@ -14,6 +14,7 @@ import { MapboxGL } from '@/services/mapbox';
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 
 export default function MapScreen() {
+  const SHOW_FOOTER = false;
   const {
     campus,
     setCampus,
@@ -160,24 +161,27 @@ export default function MapScreen() {
 
       <View style={styles.topBar}>
         <CampusBadge campus={campus} />
+      </View>
+
+      <View style={styles.switchContainer}>
         <CampusSwitch value={campus} onChange={setCampus} colorScheme={colorScheme} />
       </View>
 
-      <View style={[styles.footer, { backgroundColor: theme.background }]}>
-        <ThemedText type="subtitle">{campusTitle}</ThemedText>
-        
-        {/* --- DEBUG: We shrink the preview too so you can verify --- */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-           <ThemedText style={{fontSize: 10, marginRight: 5}}>Pattern Check:</ThemedText>
-           <View style={{ backgroundColor: '#9d1e30', padding: 2, borderWidth: 1, borderColor: 'white' }}>
-             <Image 
-                source={HONEYCOMB_IMAGE} 
-                // We fake the shrinking here using 'contain' so you can see if the file exists
-                style={{ width: 40, height: 40, resizeMode: 'contain' }} 
-             />
-           </View>
+      {SHOW_FOOTER && (
+        <View style={[styles.footer, { backgroundColor: theme.background }]}>
+          <ThemedText type="subtitle">{campusTitle}</ThemedText>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <ThemedText style={{ fontSize: 10, marginRight: 5 }}>Pattern Check:</ThemedText>
+            <View style={{ backgroundColor: '#9d1e30', padding: 2, borderWidth: 1, borderColor: 'white' }}>
+              <Image
+                source={HONEYCOMB_IMAGE}
+                style={{ width: 40, height: 40, resizeMode: 'contain' }}
+              />
+            </View>
+          </View>
         </View>
-      </View>
+      )}
     </ThemedView>
   );
 }
@@ -195,6 +199,13 @@ const styles = StyleSheet.create({
   topBar: {
     position: 'absolute', top: 20, left: 16, right: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
+  },
+  switchContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: 'center',
   },
   footer: {
     position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16,
