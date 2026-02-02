@@ -1,69 +1,135 @@
+import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CampusId, campuses } from '@/constants/campus';
-import { Colors } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type Props = {
   value: CampusId;
   onChange: (campus: CampusId) => void;
-  colorScheme?: 'light' | 'dark' | null;
 };
 
 const options: CampusId[] = ['SGW', 'LOY'];
 
-export function CampusSwitch({ value, onChange, colorScheme }: Props) {
-  const theme = Colors[colorScheme ?? 'light'];
+export function CampusSwitch({ value, onChange }: Props) {
   return (
-    <View style={[styles.segment, { borderColor: theme.tint }]}>
-      {options.map((option) => {
-        const selected = value === option;
-        return (
-          <Pressable
-            key={option}
-            accessibilityRole="button"
-            accessibilityState={{ selected }}
-            onPress={() => onChange(option)}
-            style={[
-              styles.option,
-              selected && { backgroundColor: theme.tint },
-              selected && styles.selectedShadow,
-            ]}>
-            <ThemedText
-              style={[
-                styles.label,
-                { color: selected ? '#fff' : theme.text },
-                selected && styles.bold,
-              ]}>
-              {campuses[option].label}
-            </ThemedText>
-          </Pressable>
-        );
-      })}
-    </View>
+      // Shadow wrapper
+      <View style={styles.shadowWrap}>
+        <View style={styles.pill}>
+          {options.map((option, index) => {
+            const selected = value === option;
+            const isFirst = index === 0;
+            const isLast = index === options.length - 1;
+
+            return (
+                <View
+                  key={option}
+                  style={[
+                    styles.tabWrap,
+                    isFirst && styles.tabWrapFirst,
+                    isLast && styles.tabWrapLast,
+                  ]}
+                >
+                  <Pressable
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected }}
+                      onPress={() => onChange(option)}
+                      style={({ pressed }) => [
+                        styles.tab,
+                        selected && styles.tabSelected,
+                        selected && isFirst && styles.tabSelectedFirst,
+                        selected && isLast && styles.tabSelectedLast,
+                        pressed && styles.tabPressed,
+                      ]}
+                      hitSlop={6}
+                  >
+                    <ThemedText style={[styles.label, selected ? styles.labelSelected : styles.labelUnselected]}>
+                      {campuses[option].label}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+            );
+          })}
+        </View>
+      </View>
   );
 }
 
+const MAROON = '#912338';
+
 const styles = StyleSheet.create({
-  segment: {
-    flexDirection: 'row',
-    borderWidth: 1,
+  shadowWrap: {
+    alignSelf: 'center',
     borderRadius: 999,
-    overflow: 'hidden',
+
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 12,
+
+    // Android shadow
+    elevation: 10,
   },
-  option: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+
+  pill: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 999,
+    padding: 2,
+
+    height: 38,
+    minWidth: 220,
   },
+
+  tab: {
+    flex: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+
+  tabSelected: {
+    backgroundColor: MAROON,
+    marginHorizontal: -2,
+    marginVertical: -2,
+  },
+
+  tabPressed: {
+    opacity: 0.85,
+  },
+
+  tabWrap: {
+    flex: 1,
+    marginHorizontal: 2,
+    borderRadius: 999,
+  },
+  tabWrapFirst: {
+    marginLeft: 0,
+  },
+  tabWrapLast: {
+    marginRight: 0,
+  },
+  tabSelectedFirst: {
+    marginLeft: -2,
+  },
+  tabSelectedLast: {
+    marginRight: -2,
+  },
+
   label: {
     fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    fontFamily: 'Montserrat',
   },
-  bold: { fontWeight: '700' },
-  selectedShadow: {
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 2,
+
+  labelSelected: {
+    color: '#fff',
+  },
+
+  labelUnselected: {
+    color: '#111',
   },
 });
