@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View, Text, Image } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform } from 'react-native';
 
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
@@ -51,6 +51,8 @@ export default function MapScreen() {
   const colorScheme = useColorScheme();
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
 
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -61,6 +63,30 @@ export default function MapScreen() {
     });
   }, [campusMeta]);
 
+  useEffect(() => {
+    let active = true;
+    const ensureAndroidPermissions = async () => {
+      if (Platform.OS !== 'android' || typeof MapboxGL.requestAndroidLocationPermissions !== 'function') return;
+      try {
+        const granted = await MapboxGL.requestAndroidLocationPermissions();
+        if (!active) return;
+        if (granted) {
+          setLocationPermissionStatus('granted');
+        } else {
+          setLocationPermissionStatus('denied');
+          setShowLocationPrompt(true);
+        }
+      } catch {
+        if (!active) return;
+        setLocationPermissionStatus('denied');
+        setShowLocationPrompt(true);
+      }
+    };
+    ensureAndroidPermissions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const theme = Colors[colorScheme ?? 'light'];
   const campusTitle = useMemo(
@@ -142,6 +168,8 @@ export default function MapScreen() {
             const coords = loc?.coords;
             if (!coords) return;
             setUserLocation([coords.longitude, coords.latitude]);
+            setLocationPermissionStatus('granted');
+            setShowLocationPrompt(false);
           }}
         />
 
@@ -244,15 +272,63 @@ export default function MapScreen() {
 
       <LocateMeButton
         style={styles.locateButton}
-        onPress={() => {
-          if (!cameraRef.current || !userLocation) return;
-          cameraRef.current.setCamera({
-            centerCoordinate: userLocation,
-            zoomLevel: Math.max(campusMeta.zoom, 17),
-            animationDuration: 600,
-          });
+        onPress={async () => {
+          if (cameraRef.current && userLocation) {
+            cameraRef.current.setCamera({
+              centerCoordinate: userLocation,
+              zoomLevel: Math.max(campusMeta.zoom, 17),
+              animationDuration: 600,
+            });
+            return;
+          }
+          if (
+            Platform.OS === 'android' &&
+            locationPermissionStatus !== 'granted' &&
+            typeof MapboxGL.requestAndroidLocationPermissions === 'function'
+          ) {
+            const granted = await MapboxGL.requestAndroidLocationPermissions();
+            if (granted) {
+              setLocationPermissionStatus('granted');
+              return;
+            }
+            setLocationPermissionStatus('denied');
+          }
+          setShowLocationPrompt(true);
         }}
       />
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showLocationPrompt}
+        onRequestClose={() => setShowLocationPrompt(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowLocationPrompt(false)}
+          />
+          <ThemedView
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.background, borderColor: theme.icon },
+            ]}
+          >
+            <ThemedText type="subtitle" style={styles.modalTitle}>
+              Location Off
+            </ThemedText>
+            <ThemedText style={styles.modalBody}>
+              Enable location access to center the map on you.
+            </ThemedText>
+            <Pressable
+              style={[styles.modalButton, { backgroundColor: theme.tint }]}
+              onPress={() => setShowLocationPrompt(false)}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </Pressable>
+          </ThemedView>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -282,5 +358,35 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     bottom: '35%',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+  },
+  modalTitle: {
+    marginBottom: 6,
+  },
+  modalBody: {
+    marginBottom: 16,
+  },
+  modalButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  modalButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });
