@@ -12,7 +12,7 @@ class CampusService(
 ) {
     fun getCampuses(): List<Campus> = campusRepository.findAllCampuses()
 
-    fun getCampus(id: CampusId): Campus? = campusRepository.findCampus(id)
+fun getCampus(id: CampusId): Campus? = campusRepository.findCampus(id)
 
     fun getBuildings(id: CampusId): List<Building> = campusRepository.findBuildingsByCampus(id)
 }
