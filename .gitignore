@@ -41,3 +41,5 @@ logs/
 .env.*
 !.env.example
 .vscode/
+hive-maps/services/api/gradlew
+hive-maps/apps/mobile/package-lock.json
