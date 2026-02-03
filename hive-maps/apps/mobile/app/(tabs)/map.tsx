@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, Image } from 'react-native';
 
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
+import { LocateMeButton } from '@/components/locate-me-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -11,6 +12,29 @@ import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
+const BEE_IMAGE = require('@/assets/images/bee.png');
+
+const isPointInRing = (point: [number, number], ring: [number, number][]) => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect =
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const isPointInPolygon = (point: [number, number], coordinates: [number, number][][]) => {
+  if (!coordinates?.length) return false;
+  if (!isPointInRing(point, coordinates[0])) return false;
+  for (let i = 1; i < coordinates.length; i += 1) {
+    if (isPointInRing(point, coordinates[i])) return false;
+  }
+  return true;
+};
 
 export default function MapScreen() {
   const {
@@ -26,6 +50,7 @@ export default function MapScreen() {
   } = useNavigationController();
   const colorScheme = useColorScheme();
   const cameraRef = useRef<MapboxGL.Camera>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -35,6 +60,7 @@ export default function MapScreen() {
       animationDuration: 800,
     });
   }, [campusMeta]);
+
 
   const theme = Colors[colorScheme ?? 'light'];
   const campusTitle = useMemo(
@@ -56,24 +82,42 @@ export default function MapScreen() {
         while (Array.isArray(current)) { depth++; current = current[0]; }
         if (depth === 4) { coords = coords[0]; }      
         else if (depth === 2) { coords = [coords]; }  
+        const inUserBuilding = userLocation
+          ? isPointInPolygon(userLocation, coords as [number, number][][])
+          : false;
 
         polys.push({
           type: 'Feature' as const,
           id: point.id,
           geometry: { type: 'Polygon' as const, coordinates: coords },
-          properties: { name: point.building.name },
+          properties: { name: point.building.name, isUserBuilding: inUserBuilding },
         });
       } else {
         dots.push(point);
       }
     }
     return { polygonFeatures: polys, dotPoints: dots };
-  }, [points]);
+  }, [points, userLocation]);
 
   const shapeCollection = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: polygonFeatures,
   }), [polygonFeatures]);
+
+  const userLocationShape = useMemo(() => {
+    if (!userLocation) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          id: 'user-location',
+          geometry: { type: 'Point' as const, coordinates: userLocation },
+          properties: {},
+        },
+      ],
+    };
+  }, [userLocation]);
 
   if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
   if (!hydrated) return <ThemedView style={styles.centered}><ActivityIndicator /></ThemedView>;
@@ -91,16 +135,42 @@ export default function MapScreen() {
           centerCoordinate={campusMeta.center}
           zoomLevel={campusMeta.zoom}
         />
-        <MapboxGL.UserLocation showsUserHeadingIndicator />
+        <MapboxGL.UserLocation
+          visible={false}
+          showsUserHeadingIndicator={false}
+          onUpdate={(loc: any) => {
+            const coords = loc?.coords;
+            if (!coords) return;
+            setUserLocation([coords.longitude, coords.latitude]);
+          }}
+        />
 
         <MapboxGL.Images 
            images={{ 
              honeycomb: { 
                 uri: Image.resolveAssetSource(HONEYCOMB_IMAGE).uri, 
                 scale: 10.0
-             } 
+             },
+             bee: {
+                uri: Image.resolveAssetSource(BEE_IMAGE).uri,
+                scale: 1.0,
+             },
            }} 
         />
+
+        {userLocationShape && (
+          <MapboxGL.ShapeSource id="user-location-source" shape={userLocationShape}>
+            <MapboxGL.SymbolLayer
+              id="user-location-icon"
+              style={{
+                iconImage: 'bee',
+                iconSize: 0.25,
+                iconAllowOverlap: true,
+                iconAnchor: 'center',
+              }}
+            />
+          </MapboxGL.ShapeSource>
+        )}
 
         {polygonFeatures.length > 0 && (
           <MapboxGL.ShapeSource
@@ -124,6 +194,17 @@ export default function MapScreen() {
               style={{
                 fillPattern: 'honeycomb', 
                 fillOpacity: 1.0, 
+              }}
+            />
+
+            {/* LAYER B2: User's current building highlight */}
+            <MapboxGL.FillLayer
+              id="user-building-highlight"
+              aboveLayerID="campus-buildings-pattern"
+              filter={['==', ['get', 'isUserBuilding'], true]}
+              style={{
+                fillColor: '#ffffff',
+                fillOpacity: 0.35,
               }}
             />
             
@@ -160,6 +241,18 @@ export default function MapScreen() {
       <View style={styles.switchContainer}>
         <CampusSwitch value={campus} onChange={setCampus} />
       </View>
+
+      <LocateMeButton
+        style={styles.locateButton}
+        onPress={() => {
+          if (!cameraRef.current || !userLocation) return;
+          cameraRef.current.setCamera({
+            centerCoordinate: userLocation,
+            zoomLevel: Math.max(campusMeta.zoom, 17),
+            animationDuration: 600,
+          });
+        }}
+      />
     </ThemedView>
   );
 }
@@ -175,7 +268,7 @@ const styles = StyleSheet.create({
   },
   markerText: { color: '#9d1e30', fontWeight: '900', fontSize: 14 },
   topBar: {
-    position: 'absolute', top: 20, left: 16, right: 16,
+    position: 'absolute', top: 32, left: 16, right: 16,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
   },
   switchContainer: {
@@ -184,5 +277,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 40,
     alignItems: 'center',
+  },
+  locateButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: '35%',
   },
 });
