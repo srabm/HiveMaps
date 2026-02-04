@@ -13,7 +13,6 @@ import { MapboxGL } from '@/services/mapbox';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
-
 const isPointInRing = (point: [number, number], ring: [number, number][]) => {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -53,6 +52,7 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
 
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -116,11 +116,12 @@ export default function MapScreen() {
           type: 'Feature' as const,
           id: point.id,
           geometry: { type: 'Polygon' as const, coordinates: coords },
-          properties: { name: point.building.name, isUserBuilding: inUserBuilding },
+          properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding},
         });
-      } else {
+    }
+//       } else {
         dots.push(point);
-      }
+//       }
     }
     return { polygonFeatures: polys, dotPoints: dots };
   }, [points, userLocation]);
@@ -204,6 +205,13 @@ export default function MapScreen() {
           <MapboxGL.ShapeSource
             id="campus-buildings-source"
             shape={shapeCollection}
+            onPress={(e) => {
+              console.log('Pressed feature:', e.features[0]); //debugging
+              const f = e.features[0]; //debugging
+              console.log(f.properties.name); //debugging
+              console.log(f.properties.addresses); //debugging
+              setSelectedBuilding(f.properties);
+            }}
           >
             {/* LAYER A: Burgundy Background */}
             <MapboxGL.FillLayer
@@ -255,7 +263,7 @@ export default function MapScreen() {
             coordinate={point.coordinate}
           >
              <View style={styles.markerPin}>
-                <Text style={styles.markerText}>M</Text>
+                <Text style={styles.markerText}>{point.building.code}</Text>
              </View>
           </MapboxGL.PointAnnotation>
         ))}
@@ -327,6 +335,28 @@ export default function MapScreen() {
               <Text style={styles.modalButtonText}>Got it</Text>
             </Pressable>
           </ThemedView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!selectedBuilding}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedBuilding(null)}
+      >
+      <View style={styles.modalBackdrop}>
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => setSelectedBuilding(null)}
+        />
+        <ThemedView style={styles.modalCard}>
+        <ThemedText type="subtitle">
+        {selectedBuilding?.name}
+        </ThemedText>
+        <ThemedText>
+        {selectedBuilding?.addresses?.[0]}
+        </ThemedText>
+        </ThemedView>
         </View>
       </Modal>
     </ThemedView>
