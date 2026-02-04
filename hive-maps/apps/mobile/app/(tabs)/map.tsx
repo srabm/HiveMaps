@@ -208,8 +208,6 @@ export default function MapScreen() {
             onPress={(e) => {
               console.log('Pressed feature:', e.features[0]); //debugging
               const f = e.features[0]; //debugging
-              console.log(f.properties.name); //debugging
-              console.log(f.properties.addresses); //debugging
               setSelectedBuilding(f.properties);
             }}
           >
@@ -261,6 +259,7 @@ export default function MapScreen() {
             key={point.id}
             id={point.id}
             coordinate={point.coordinate}
+            onSelected={() => setSelectedBuilding(point.building)}
           >
              <View style={styles.markerPin}>
                 <Text style={styles.markerText}>{point.building.code}</Text>
@@ -356,6 +355,9 @@ export default function MapScreen() {
         <ThemedText>
         {selectedBuilding?.addresses?.[0]}
         </ThemedText>
+        <ThemedText>
+         {selectedBuilding?.campus}
+         </ThemedText>
         </ThemedView>
         </View>
       </Modal>
