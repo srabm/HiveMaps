@@ -9,6 +9,26 @@ services:
       - "5432:5432"
     volumes:
       - hivemaps_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hivemaps -d hivemaps"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/hivemaps
+      SPRING_DATASOURCE_USERNAME: hivemaps
+      SPRING_DATASOURCE_PASSWORD: hivemaps
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
 
 volumes:
   hivemaps_pg:
