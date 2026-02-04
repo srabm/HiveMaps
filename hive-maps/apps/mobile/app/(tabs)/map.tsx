@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform } from 'react-native';
-
+import DirectionBar from "@/components/directions-bars";
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
 import { LocateMeButton } from '@/components/locate-me-button';
@@ -10,6 +10,8 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
+import MapSearchBar from '@/components/search-bar';
+import Mapbox from "@rnmapbox/maps";
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
@@ -53,7 +55,11 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
-
+  const [from, setFrom] = useState<string>("");
+  const [to, setTo] = useState<string>("");
+  const [longitude, setLongitude] = useState<number>(0);
+  const [latitude, setLatitude] = useState<number>(0);
+  const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
   useEffect(() => {
     if (!cameraRef.current) return;
     cameraRef.current.setCamera({
@@ -147,7 +153,16 @@ export default function MapScreen() {
 
   if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
   if (!hydrated) return <ThemedView style={styles.centered}><ActivityIndicator /></ThemedView>;
-
+  const Pin = () => (
+      <View style={{
+        width: 24,
+        height: 24,
+        backgroundColor: "#FF3B30",
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: "white",
+      }} />
+  );
   return (
     <ThemedView style={styles.container}>
       <MapboxGL.MapView
@@ -270,6 +285,49 @@ export default function MapScreen() {
         <CampusSwitch value={campus} onChange={setCampus} />
       </View>
 
+      <View style={styles.searchContainer} pointerEvents="box-none">
+
+        {!seeDirectionBar &&
+            <MapSearchBar
+                onClickButton={()=> {setSeeDirectionBar(true);}}
+                onSelectBuilding={(building) => {
+                  setLatitude(Number(building.latitude));
+                  setLongitude(Number(building.longitude));
+                  if (!cameraRef.current) return;
+
+                  cameraRef.current.setCamera({
+                    centerCoordinate: [
+                      Number(building.longitude),
+                      Number(building.latitude),
+                    ],
+                    zoomLevel: 18,
+                    animationDuration: 800,
+                  });
+                }}
+            />
+        }
+        {seeDirectionBar &&
+            <DirectionBar
+                fromValue={from}
+                toValue={to}
+                onChangeFrom={setFrom}
+                onChangeTo={setTo}
+                onClearFrom={()=> {setFrom("");}}
+                onClearTo={()=> {setTo("");}}
+                onSwap={() => {
+                  setFrom(to);
+                  setTo(from);
+                }}
+                onClose={()=> {
+                  setSeeDirectionBar(false);
+                }}
+            />}
+
+      </View>
+      <Mapbox.MarkerView coordinate={[latitude,longitude]}>
+        <Pin />
+      </Mapbox.MarkerView>
+
       <LocateMeButton
         style={styles.locateButton}
         onPress={async () => {
@@ -388,5 +446,12 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  searchContainer: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    right: 16,
+    zIndex: 10,
   },
 });
