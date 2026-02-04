@@ -153,16 +153,7 @@ export default function MapScreen() {
 
   if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
   if (!hydrated) return <ThemedView style={styles.centered}><ActivityIndicator /></ThemedView>;
-  const Pin = () => (
-      <View style={{
-        width: 24,
-        height: 24,
-        backgroundColor: "#FF3B30",
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: "white",
-      }} />
-  );
+  
   return (
     <ThemedView style={styles.container}>
       <MapboxGL.MapView
@@ -324,9 +315,6 @@ export default function MapScreen() {
             />}
 
       </View>
-      <Mapbox.MarkerView coordinate={[latitude,longitude]}>
-        <Pin />
-      </Mapbox.MarkerView>
 
       <LocateMeButton
         style={styles.locateButton}
