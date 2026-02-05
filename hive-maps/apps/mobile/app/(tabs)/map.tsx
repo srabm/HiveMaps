@@ -11,7 +11,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
 import MapSearchBar from '@/components/search-bar';
-import Mapbox from "@rnmapbox/maps";
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
@@ -280,6 +279,8 @@ export default function MapScreen() {
 
         {!seeDirectionBar &&
             <MapSearchBar
+                initialValue={to}
+                onChangeText={(text) => {setTo(text)}}
                 onClickButton={()=> {setSeeDirectionBar(true);}}
                 onSelectBuilding={(building) => {
                   setLatitude(Number(building.latitude));

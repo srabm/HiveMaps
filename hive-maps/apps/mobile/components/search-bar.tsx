@@ -4,14 +4,15 @@ import {View, TextInput, StyleSheet, TouchableOpacity, Platform, FlatList, Text,
 import { Ionicons } from "@expo/vector-icons";
 
 interface MapSearchBarProps {
+    initialValue?: string;
     placeholder?: string;
     onChangeText?: (text: string) => void;
     onSelectBuilding?: (building: (typeof buildings)[number]) => void;
     onClickButton?: () => void;
 }
 
-const MapSearchBar: React.FC<MapSearchBarProps> = ({placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,}) => {
-    const [query, setQuery] = useState("");
+const MapSearchBar: React.FC<MapSearchBarProps> = ({initialValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,}) => {
+    const [query, setQuery] = useState(initialValue ?? "");
 
     const handleChange = (text: string) => {
         setQuery(text);
