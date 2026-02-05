@@ -7,6 +7,7 @@ import {
     FlatList,
     Text,
 } from "react-native";
+import { Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { buildings } from "@/constants/campus";
 
@@ -91,7 +92,11 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 {/* From a particular direction (starting direction)*/}
                 <View>
                     <View style={styles.inputRow}>
-                        <Ionicons name="location-outline" size={20} color="#000" />
+                        <Image
+                            source={require("../assets/images/bee.png")}
+                            style={{ width: 40, height: 40 }}
+                            resizeMode="contain"
+                        />
                         <TextInput
                             value={fromValue}
                             placeholder="Your location"
@@ -136,7 +141,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={onClose} style={styles.actionButton}>
-                    <Ionicons name="close-outline" size={22} />
+                    <Ionicons name="ban-outline" size={22} />
                 </TouchableOpacity>
             </View>
         </View>

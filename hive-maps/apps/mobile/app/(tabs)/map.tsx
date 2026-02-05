@@ -285,6 +285,7 @@ export default function MapScreen() {
                 onSelectBuilding={(building) => {
                   setLatitude(Number(building.latitude));
                   setLongitude(Number(building.longitude));
+                  setTo(building.name+","+building.addresses);
                   if (!cameraRef.current) return;
 
                   cameraRef.current.setCamera({

@@ -12,6 +12,7 @@ export type Building = {
   campus: CampusId;
   code: string;
   name: string;
+  location?: any;
   addresses: string[];
   latitude: string;
   longitude: string;
