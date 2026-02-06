@@ -53,7 +53,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "mapboxAccessToken": "YOUR_MAPBOX_TOKEN_HERE",
+      "mapboxAccessToken": "pk.eyJ1IjoibWVtb3VkMCIsImEiOiJjbWw0NTE1ZDkwcXZrM2NvYXltNDRyemtpIn0.NW7qNtmufgRwIrUQndJ0dg",
       "apiBaseUrl": "http://10.0.2.2:8080"
     }
   }

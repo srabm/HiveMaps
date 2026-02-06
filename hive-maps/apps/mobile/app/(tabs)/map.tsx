@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Pla
 
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
+import { BuildingInfoModal } from '@/components/building-info-modal';
 import { LocateMeButton } from '@/components/locate-me-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -337,30 +338,11 @@ export default function MapScreen() {
         </View>
       </Modal>
 
-      <Modal
+      <BuildingInfoModal
         visible={!!selectedBuilding}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedBuilding(null)}
-      >
-      <View style={styles.modalBackdrop}>
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={() => setSelectedBuilding(null)}
-        />
-        <ThemedView style={styles.modalCard}>
-        <ThemedText type="subtitle">
-        {selectedBuilding?.name}
-        </ThemedText>
-        <ThemedText>
-        {selectedBuilding?.addresses?.[0]}
-        </ThemedText>
-        <ThemedText>
-         {selectedBuilding?.campus}
-         </ThemedText>
-        </ThemedView>
-        </View>
-      </Modal>
+        building={selectedBuilding}
+        onClose={() => setSelectedBuilding(null)}
+      />
     </ThemedView>
   );
 }
