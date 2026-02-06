@@ -22,6 +22,12 @@ class WebMapsAdapter implements MapsProviderPort {
   async geocode() {
     return null;
   }
+  async search(query: string, location: [number, number] | null, sessionToken: string) {
+    return null;
+  }
+  async retrieve(mapboxId: string, sessionToken: string) {
+    return null;
+  }
 }
 
 export const mapboxMapsAdapter = new WebMapsAdapter();

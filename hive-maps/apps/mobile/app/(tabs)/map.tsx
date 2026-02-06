@@ -279,23 +279,20 @@ export default function MapScreen() {
 
         {!seeDirectionBar &&
             <MapSearchBar
+                mapsAdapter={mapsAdapter}
                 initialValue={to}
                 onChangeText={(text) => {setTo(text)}}
                 onClickButton={()=> {setSeeDirectionBar(true);}}
-                onSelectBuilding={(building) => {
-                  setLatitude(Number(building.latitude));
-                  setLongitude(Number(building.longitude));
-                  setTo(building.name+","+building.addresses);
+                onSelectBuilding={(mapLocation, coordinates) => {
+                  setTo(mapLocation.name);
                   if (!cameraRef.current) return;
-
-                  cameraRef.current.setCamera({
-                    centerCoordinate: [
-                      Number(building.longitude),
-                      Number(building.latitude),
-                    ],
-                    zoomLevel: 18,
-                    animationDuration: 800,
-                  });
+                  if (coordinates) {
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
                 }}
             />
         }

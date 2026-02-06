@@ -1,44 +1,54 @@
-import React, { useState, useMemo } from "react";
-import { buildings } from "@/constants/campus";
+import React, { useState, useRef, useEffect } from "react";
 import {View, TextInput, StyleSheet, TouchableOpacity, Platform, FlatList, Text,} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import type { Coordinates, MapLocation, MapsProviderPort } from "@/services/maps/maps-provider";
 
 interface MapSearchBarProps {
+    mapsAdapter?: MapsProviderPort;
     initialValue?: string;
     placeholder?: string;
     onChangeText?: (text: string) => void;
-    onSelectBuilding?: (building: (typeof buildings)[number]) => void;
+    onSelectBuilding?: (mapLocation: MapLocation, coordinates: Coordinates | null) => void;
     onClickButton?: () => void;
 }
 
-const MapSearchBar: React.FC<MapSearchBarProps> = ({initialValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,}) => {
+const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,}) => {
     const [query, setQuery] = useState(initialValue ?? "");
+    const [listAppearance, setListAppearance] = useState<boolean>(true);
+    const [suggestions, setSuggestions] = useState<MapLocation[]>([]);
+    const sessionToken = useRef(Date.now().toString());
 
+    const clearQuery = () => setQuery("");
     const handleChange = (text: string) => {
         setQuery(text);
         onChangeText?.(text);
-        setlistAppearance(true);
+        setListAppearance(true);
     };
-    const [listAppearance, setlistAppearance] = useState<Boolean>(true);
-    const clearQuery = () => setQuery("");
+    const generateNewSessionToken = () => {
+        sessionToken.current = Date.now().toString();
+    };
+    const fetchCoordinates = async (id: string) => {
+        const coords = await mapsAdapter?.retrieve(id, sessionToken.current) ?? null;
+        generateNewSessionToken();
+        return coords;
+    }
 
-    const suggestions = useMemo(() => {
-        if (!query.trim()) return [];
-
-        const q = query.toLowerCase();
-
-        return buildings.filter((b) => {
-            const searchableText = [
-                b.code,
-                b.name,
-                ...b.addresses,
-            ]
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(q);
-        });
-    }, [query]);
+    useEffect(() => {
+        const timeoutId = setTimeout(async () => {
+            if (query.trim() === '') {
+                setSuggestions([]);
+                return;
+            }
+            try {
+                const res = await mapsAdapter?.search(query, null, sessionToken.current);
+                setSuggestions(res ?? []);
+            }
+            catch {
+                setSuggestions([]);
+            }
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [query, mapsAdapter]);
 
     return (
         <View style={styles.container}>
@@ -54,7 +64,7 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({initialValue,placeholder = "
                 />
                 {query.length > 0 && (
                     <TouchableOpacity onPress={() => {
-                        setlistAppearance(false);
+                        setListAppearance(false);
                         clearQuery();
                     }}>
                         <Ionicons name="close-circle"  size={20} color="#555" />
@@ -74,21 +84,21 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({initialValue,placeholder = "
                     <FlatList
                         keyboardShouldPersistTaps="handled"
                         data={suggestions.slice(0, 10)}
-                        keyExtractor={(item) => `${item.campus}-${item.code}`}
+                        keyExtractor={(item) => `${item.id}`}
                         renderItem={({ item }) => (
                             <TouchableOpacity
                                 style={styles.suggestionItem}
-                                onPress={() => {
+                                onPress={async () => {
                                     setQuery(item.name);
-                                    onSelectBuilding?.(item);
-                                    setlistAppearance(false);
+                                    onSelectBuilding?.(item, await fetchCoordinates(item.id));
+                                    setListAppearance(false);
                                 }}
                             >
                                 <Text style={styles.suggestionTitle}>
-                                    {item.code} — {item.name}
+                                    {item.name}
                                 </Text>
                                 <Text style={styles.suggestionSubtitle}>
-                                    {item.addresses[0]}
+                                    {item.address}
                                 </Text>
                             </TouchableOpacity>
                         )}
