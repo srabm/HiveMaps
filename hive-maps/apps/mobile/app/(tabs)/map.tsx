@@ -206,9 +206,18 @@ export default function MapScreen() {
             id="campus-buildings-source"
             shape={shapeCollection}
             onPress={(e) => {
-              console.log('Pressed feature:', e.features[0]); //debugging
-              const f = e.features[0]; //debugging
-              setSelectedBuilding(f.properties);
+              const f = e.features[0];
+              console.log('Pressed feature:', f);
+              
+              // Find the matching point that has the details
+              const point = points.find(p => p.id === f.properties?.id);
+              
+              console.log('Found point with details:', point); // Debug log
+              
+              setSelectedBuilding({
+                ...f.properties,
+                details: point?.details
+              });
             }}
           >
             {/* LAYER A: Burgundy Background */}
@@ -259,7 +268,10 @@ export default function MapScreen() {
             key={point.id}
             id={point.id}
             coordinate={point.coordinate}
-            onSelected={() => setSelectedBuilding(point.building)}
+            onSelected={() => setSelectedBuilding({
+              ...point.building,
+              details: point.details
+            })}
           >
              <View style={styles.markerPin}>
                 <Text style={styles.markerText}>{point.building.code}</Text>
@@ -358,6 +370,39 @@ export default function MapScreen() {
         <ThemedText>
          {selectedBuilding?.campus}
          </ThemedText>
+
+         {/* Google Places info */}
+      {selectedBuilding?.details && (
+        <View style={{ marginTop: 12, gap: 8 }}>
+          {selectedBuilding.details.nationalPhoneNumber && (
+            <ThemedText>
+              📞 {selectedBuilding.details.nationalPhoneNumber}
+            </ThemedText>
+          )}
+          
+          {selectedBuilding.details.websiteUri && (
+            <ThemedText 
+              style={{ color: '#0066cc' }}
+            >
+              🌐 {selectedBuilding.details.websiteUri}
+            </ThemedText>
+          )}
+          
+          {selectedBuilding.details.regularOpeningHours?.weekdayDescriptions && (
+            <View style={{ marginTop: 4 }}>
+              <ThemedText>Hours:</ThemedText>
+              <ThemedText>
+              {selectedBuilding.details.regularOpeningHours.weekdayDescriptions.map((day: string, i: number) => (
+                <ThemedText key={i} style={{ fontSize: 12 }}>
+                  {day}
+                </ThemedText>
+              ))}
+              </ThemedText>
+            </View>
+          )}
+        </View>
+      )}
+
         </ThemedView>
         </View>
       </Modal>

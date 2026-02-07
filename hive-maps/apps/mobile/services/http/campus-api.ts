@@ -46,3 +46,24 @@ export async function fetchCampuses(): Promise<CampusResponse[]> {
 export async function fetchBuildings(campus: CampusId): Promise<Building[]> {
   return getJson<Building[]>(`/api/campuses/${campus}/buildings`);
 }
+
+export async function searchPlaceByAddress(address: string){
+  const res = await fetch(`${baseUrl}/api/places/search`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({address}),
+  });
+
+  const data = await res.json();
+  return data.placeId as string | null;
+}
+
+export async function fetchPlaceDetails(placeId: string){
+  const res = await fetch(`${baseUrl}/api/places/${placeId}`);
+  const data = await res.json();
+  console.log('=== PLACE DETAILS RESPONSE ===');
+  console.log('Place ID:', placeId);
+  console.log('Full response:', JSON.stringify(data, null, 2));
+  console.log('==============================');
+  return data;
+}

@@ -1,12 +1,13 @@
 import { buildingsByCampus, type CampusMeta, type Building, type CampusId } from '@/constants/campus';
 import type { MapsProviderPort } from '@/services/maps/maps-provider';
-import { fetchBuildings, fetchCampuses } from '@/services/http/campus-api';
+import { fetchBuildings, fetchCampuses, searchPlaceByAddress, fetchPlaceDetails } from '@/services/http/campus-api';
 import { mergeBuildingCache, loadBuildingCache } from '@/storage/campus-storage';
 
 export type BuildingPoint = {
   id: string;
   building: Building;
   coordinate: [number, number];
+  details?: string;
 };
 
 export type BuildingPointsProgress = {
@@ -45,8 +46,10 @@ export async function getBuildingPointsByCampus(
   let campusBuildings: Building[];
   try {
     campusBuildings = await fetchBuildings(campus);
+    console.log(`Using API buildings for ${campus}: ${campusBuildings.length} buildings`);
   } catch {
     // fallback to bundled constants if backend unreachable
+    console.log('Using fallback campus.ts buildings');
     campusBuildings = buildingsByCampus[campus];
   }
 
@@ -101,6 +104,24 @@ export async function getBuildingPointsByCampus(
   if (Object.keys(updates).length) {
     await mergeBuildingCache(updates);
   }
+
+  const detailsPromises = resolved.map(async (point) => {
+    try {
+      const placeId = await searchPlaceByAddress(point.building.addresses[0]);
+      if (placeId){
+        const details = await fetchPlaceDetails(placeId);
+        if (details) {
+          point.details = details;
+          console.log("this place: " + placeId + " ,these details" + point.details);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to fetch place details for ${point.building.code}:`, error);
+    }
+  });
+
+  await Promise.all(detailsPromises);
+  console.log('Finished fetching place details');
 
   return resolved;
 }
