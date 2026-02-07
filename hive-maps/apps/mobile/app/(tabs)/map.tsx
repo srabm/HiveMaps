@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
 import MapSearchBar from '@/components/search-bar';
+import { Coordinates } from '@/services/maps/maps-provider';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
@@ -56,6 +57,9 @@ export default function MapScreen() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
+  const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
+  const fromCoordinatesIsUserLocation = useRef(false);
   const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -263,6 +267,25 @@ export default function MapScreen() {
           </MapboxGL.PointAnnotation>
         ))}
 
+        {fromCoordinates && 
+          <MapboxGL.PointAnnotation
+            key='fromPoint'
+            id='fromPoint'
+            coordinate={fromCoordinates}
+          >
+            <View />
+          </MapboxGL.PointAnnotation>        
+        }
+
+        {toCoordinates && 
+          <MapboxGL.PointAnnotation
+            key='toPoint'
+            id='toPoint'
+            coordinate={toCoordinates}
+          >
+            <View />
+          </MapboxGL.PointAnnotation>        
+        }
       </MapboxGL.MapView>
 
       <View style={styles.topBar}>
@@ -280,11 +303,24 @@ export default function MapScreen() {
                 mapsAdapter={mapsAdapter}
                 toValue={to}
                 onChangeText={(text) => {setTo(text)}}
-                onClickButton={() => {setSeeDirectionBar(true);}}
+                onClickButton={() => {
+                  setFrom('Your location');
+                  setFromCoordinates(userLocation);
+                  fromCoordinatesIsUserLocation.current = true;
+                  setSeeDirectionBar(true);
+                  if (userLocation) {
+                    cameraRef?.current?.setCamera({
+                      centerCoordinate: userLocation,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
                 onSelectBuilding={(mapLocation, coordinates) => {
                   setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
                   if (!cameraRef.current) return;
                   if (coordinates) {
+                    setToCoordinates(coordinates);
                     cameraRef.current.setCamera({
                       centerCoordinate: coordinates,
                       zoomLevel: 18,
@@ -294,6 +330,7 @@ export default function MapScreen() {
                 }}
                 onClear={() => {
                   setTo('');
+                  setToCoordinates(null);
                 }}
             />
         }
@@ -308,6 +345,8 @@ export default function MapScreen() {
                   setFrom(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
                   if (!cameraRef.current) return;
                   if (coordinates) {
+                    setFromCoordinates(coordinates);
+                    fromCoordinatesIsUserLocation.current = false;
                     cameraRef.current.setCamera({
                       centerCoordinate: coordinates,
                       zoomLevel: 18,
@@ -319,6 +358,7 @@ export default function MapScreen() {
                   setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
                   if (!cameraRef.current) return;
                   if (coordinates) {
+                    setToCoordinates(coordinates);
                     cameraRef.current.setCamera({
                       centerCoordinate: coordinates,
                       zoomLevel: 18,
@@ -326,17 +366,58 @@ export default function MapScreen() {
                     });
                   }
                 }}
-                onClearFrom={()=> {setFrom("");}}
-                onClearTo={()=> {setTo("");}}
+                onClearFrom={() => {
+                  setFrom("");
+                  setFromCoordinates(null);
+                  fromCoordinatesIsUserLocation.current = false;
+                }}
+                onClearTo={() => {
+                  setTo("");
+                  setToCoordinates(null);
+                }}
                 onSwap={() => {
-                  setFrom(to);
-                  setTo(from);
+                  const tempTo = to;
+                  const tempToCoordinates = toCoordinates;
+
+                  if (fromCoordinatesIsUserLocation.current) {
+                    setTo('');
+                    setToCoordinates(null);
+                  }
+                  else {
+                    setTo(from);
+                    setToCoordinates(fromCoordinates);
+                  }
+
+                  if (tempToCoordinates != null) {
+                    setFrom(tempTo);
+                    setFromCoordinates(tempToCoordinates);
+                  }
+                  else {
+                    setFrom('');
+                    setFromCoordinates(null);
+                  }
+
+                  fromCoordinatesIsUserLocation.current = false;
+                }}
+                onResetFrom={() => {
+                  setFrom('Your location');
+                  setFromCoordinates(userLocation);
+                  fromCoordinatesIsUserLocation.current = true;
+                  if (userLocation) {
+                    cameraRef?.current?.setCamera({
+                      centerCoordinate: userLocation,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
                 }}
                 onClose={()=> {
                   setSeeDirectionBar(false);
+                  setFrom('');
+                  setFromCoordinates(null);
+                  fromCoordinatesIsUserLocation.current = false;
                 }}
             />}
-
       </View>
 
       <LocateMeButton

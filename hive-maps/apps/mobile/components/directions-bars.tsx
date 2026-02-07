@@ -22,6 +22,7 @@ interface DirectionBarProps {
     onSwap?: () => void;
     onClearFrom?: () => void;
     onClearTo?: () => void;
+    onResetFrom: () => void;
     onClose?: () => void;
 }
 
@@ -36,6 +37,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                                                        onSwap,
                                                        onClearFrom,
                                                        onClearTo,
+                                                       onResetFrom,
                                                        onClose,
                                                    }) => {
     const [activeField, setActiveField] = useState<"from" | "to" | null>(null);
@@ -122,14 +124,16 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 {/* From a particular direction (starting direction)*/}
                 <View>
                     <View style={styles.inputRow}>
-                        <Image
-                            source={require("../assets/images/bee.png")}
-                            style={{ width: 40, height: 40 }}
-                            resizeMode="contain"
-                        />
+                        <TouchableOpacity onPress={onResetFrom}>
+                            <Image
+                                source={require("../assets/images/bee.png")}
+                                style={{ width: 40, height: 40 }}
+                                resizeMode="contain"
+                            />
+                        </TouchableOpacity>
                         <TextInput
                             value={fromValue}
-                            placeholder="Your location"
+                            placeholder="Choose starting point"
                             style={styles.input}
                             onFocus={() => setActiveField("from")}
                             onChangeText={(text) => {
@@ -151,7 +155,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                         <Ionicons name="navigate-outline" size={20} color="#000" />
                         <TextInput
                             value={toValue}
-                            placeholder="Destination"
+                            placeholder="Choose destination"
                             style={styles.input}
                             onFocus={() => setActiveField("to")}
                             onChangeText={(text) => {
