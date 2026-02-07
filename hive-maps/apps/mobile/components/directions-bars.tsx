@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     View,
     TextInput,
@@ -9,13 +9,16 @@ import {
 } from "react-native";
 import { Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { buildings } from "@/constants/campus";
+import type { Coordinates, MapLocation, MapsProviderPort } from "@/services/maps/maps-provider";
 
 interface DirectionBarProps {
+    mapsAdapter?: MapsProviderPort;
     fromValue: string;
     toValue: string;
     onChangeFrom: (text: string) => void;
     onChangeTo: (text: string) => void;
+    onSelectFrom: (mapLocation: MapLocation, coordinates: Coordinates | null) => void;
+    onSelectTo: (mapLocation: MapLocation, coordinates: Coordinates | null) => void;
     onSwap?: () => void;
     onClearFrom?: () => void;
     onClearTo?: () => void;
@@ -23,61 +26,88 @@ interface DirectionBarProps {
 }
 
 const DirectionBar: React.FC<DirectionBarProps> = ({
+                                                       mapsAdapter,
                                                        fromValue,
                                                        toValue,
                                                        onChangeFrom,
                                                        onChangeTo,
+                                                       onSelectFrom,
+                                                       onSelectTo,
                                                        onSwap,
                                                        onClearFrom,
                                                        onClearTo,
                                                        onClose,
                                                    }) => {
     const [activeField, setActiveField] = useState<"from" | "to" | null>(null);
+    const [fromSuggestions, setFromSuggestions] = useState<MapLocation[]>([]);
+    const [toSuggestions, setToSuggestions] = useState<MapLocation[]>([]);
+    const sessionToken = useRef(Date.now().toString());
 
-    const filterBuildings = (query: string) => {
-        if (!query.trim()) return [];
-
-        const q = query.toLowerCase();
-        return buildings.filter((b) =>
-            [b.code, b.name, ...b.addresses]
-                .join(" ")
-                .toLowerCase()
-                .includes(q)
-        );
+    const generateNewSessionToken = () => {
+        sessionToken.current = Date.now().toString();
     };
+    const fetchCoordinates = async (id: string) => {
+        const coords = await mapsAdapter?.retrieve(id, sessionToken.current) ?? null;
+        generateNewSessionToken();
+        return coords;
+    }
 
-    const fromSuggestions = useMemo(
-        () => (activeField === "from" ? filterBuildings(fromValue) : []),
-        [fromValue, activeField]
-    );
+    useEffect(() => {
+        const timeoutId = setTimeout(async () => {
+            if (fromValue.trim() === '') {
+                setFromSuggestions([]);
+                return;
+            }
+            try {
+                const res = await mapsAdapter?.search(fromValue, null, sessionToken.current);
+                setFromSuggestions(res ?? []);
+            }
+            catch {
+                setFromSuggestions([]);
+            }
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [fromValue, mapsAdapter]);
 
-    const toSuggestions = useMemo(
-        () => (activeField === "to" ? filterBuildings(toValue) : []),
-        [toValue, activeField]
-    );
+    useEffect(() => {
+        const timeoutId = setTimeout(async () => {
+            if (toValue.trim() === '') {
+                setToSuggestions([]);
+                return;
+            }
+            try {
+                const res = await mapsAdapter?.search(toValue, null, sessionToken.current);
+                setToSuggestions(res ?? []);
+            }
+            catch {
+                setToSuggestions([]);
+            }
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [toValue, mapsAdapter]);
 
     const renderSuggestions = (
-        data: typeof buildings,
-        onSelect: (name: string) => void
+        data: MapLocation[],
+        onSelect: (mapLocation: MapLocation, coordinates: Coordinates | null) => void
     ) => (
         <View style={styles.suggestions}>
             <FlatList
                 keyboardShouldPersistTaps="handled"
                 data={data.slice(0, 6)}
-                keyExtractor={(item) => item.code}
+                keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         style={styles.suggestionItem}
-                        onPress={() => {
-                            onSelect(item.name + "," + item.addresses);
+                        onPress={async () => {
+                            onSelect(item, await fetchCoordinates(item.id));
                             setActiveField(null);
                         }}
                     >
                         <Text style={styles.suggestionTitle}>
-                            {item.code} — {item.name}
+                            {item.name}
                         </Text>
                         <Text style={styles.suggestionSubtitle}>
-                            {item.addresses[0]}
+                            {item.address}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -102,15 +132,17 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                             placeholder="Your location"
                             style={styles.input}
                             onFocus={() => setActiveField("from")}
-                            onChangeText={onChangeFrom}
+                            onChangeText={(text) => {
+                                onChangeFrom?.(text);
+                            }}
                         />
                         <TouchableOpacity onPress={onClearFrom}>
                             <Ionicons name="close" size={20} />
                         </TouchableOpacity>
                     </View>
 
-                    {fromSuggestions.length > 0 &&
-                        renderSuggestions(fromSuggestions, onChangeFrom)}
+                    {activeField === "from" &&
+                        renderSuggestions(fromSuggestions, onSelectFrom)}
                 </View>
 
                 {/* To a particular direction (Finishing directions) */}
@@ -122,15 +154,17 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                             placeholder="Destination"
                             style={styles.input}
                             onFocus={() => setActiveField("to")}
-                            onChangeText={onChangeTo}
+                            onChangeText={(text) => {
+                                onChangeTo?.(text);
+                            }}
                         />
                         <TouchableOpacity onPress={onClearTo}>
                             <Ionicons name="close" size={20} />
                         </TouchableOpacity>
                     </View>
 
-                    {toSuggestions.length > 0 &&
-                        renderSuggestions(toSuggestions, onChangeTo)}
+                    {activeField === "to" &&
+                        renderSuggestions(toSuggestions, onSelectTo)}
                 </View>
             </View>
 

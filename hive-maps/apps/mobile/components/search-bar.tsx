@@ -5,22 +5,20 @@ import type { Coordinates, MapLocation, MapsProviderPort } from "@/services/maps
 
 interface MapSearchBarProps {
     mapsAdapter?: MapsProviderPort;
-    initialValue?: string;
+    toValue: string;
     placeholder?: string;
     onChangeText?: (text: string) => void;
     onSelectBuilding?: (mapLocation: MapLocation, coordinates: Coordinates | null) => void;
     onClickButton?: () => void;
+    onClear?: () => void;
 }
 
-const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,}) => {
-    const [query, setQuery] = useState(initialValue ?? "");
+const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,onClear}) => {
     const [listAppearance, setListAppearance] = useState<boolean>(true);
     const [suggestions, setSuggestions] = useState<MapLocation[]>([]);
     const sessionToken = useRef(Date.now().toString());
 
-    const clearQuery = () => setQuery("");
     const handleChange = (text: string) => {
-        setQuery(text);
         onChangeText?.(text);
         setListAppearance(true);
     };
@@ -35,12 +33,12 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,pla
 
     useEffect(() => {
         const timeoutId = setTimeout(async () => {
-            if (query.trim() === '') {
+            if (toValue.trim() === '') {
                 setSuggestions([]);
                 return;
             }
             try {
-                const res = await mapsAdapter?.search(query, null, sessionToken.current);
+                const res = await mapsAdapter?.search(toValue, null, sessionToken.current);
                 setSuggestions(res ?? []);
             }
             catch {
@@ -48,7 +46,7 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,pla
             }
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [query, mapsAdapter]);
+    }, [toValue, mapsAdapter]);
 
     return (
         <View style={styles.container}>
@@ -58,14 +56,14 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,pla
                     style={styles.input}
                     placeholder={placeholder}
                     placeholderTextColor="#888"
-                    value={query}
+                    value={toValue}
                     onChangeText={handleChange}
                     returnKeyType="search"
                 />
-                {query.length > 0 && (
+                {toValue.length > 0 && (
                     <TouchableOpacity onPress={() => {
                         setListAppearance(false);
-                        clearQuery();
+                        onClear?.();
                     }}>
                         <Ionicons name="close-circle"  size={20} color="#555" />
                     </TouchableOpacity>
@@ -89,7 +87,6 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,initialValue,pla
                             <TouchableOpacity
                                 style={styles.suggestionItem}
                                 onPress={async () => {
-                                    setQuery(item.name);
                                     onSelectBuilding?.(item, await fetchCoordinates(item.id));
                                     setListAppearance(false);
                                 }}

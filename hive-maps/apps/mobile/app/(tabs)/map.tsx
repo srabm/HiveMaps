@@ -56,8 +56,6 @@ export default function MapScreen() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
-  const [longitude, setLongitude] = useState<number>(0);
-  const [latitude, setLatitude] = useState<number>(0);
   const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
   useEffect(() => {
     if (!cameraRef.current) return;
@@ -280,11 +278,11 @@ export default function MapScreen() {
         {!seeDirectionBar &&
             <MapSearchBar
                 mapsAdapter={mapsAdapter}
-                initialValue={to}
+                toValue={to}
                 onChangeText={(text) => {setTo(text)}}
-                onClickButton={()=> {setSeeDirectionBar(true);}}
+                onClickButton={() => {setSeeDirectionBar(true);}}
                 onSelectBuilding={(mapLocation, coordinates) => {
-                  setTo(mapLocation.name);
+                  setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
                   if (!cameraRef.current) return;
                   if (coordinates) {
                     cameraRef.current.setCamera({
@@ -294,14 +292,40 @@ export default function MapScreen() {
                     });
                   }
                 }}
+                onClear={() => {
+                  setTo('');
+                }}
             />
         }
         {seeDirectionBar &&
             <DirectionBar
+                mapsAdapter={mapsAdapter}
                 fromValue={from}
                 toValue={to}
                 onChangeFrom={setFrom}
                 onChangeTo={setTo}
+                onSelectFrom={(mapLocation, coordinates) => {
+                  setFrom(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
+                  if (!cameraRef.current) return;
+                  if (coordinates) {
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onSelectTo={(mapLocation, coordinates) => {
+                  setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
+                  if (!cameraRef.current) return;
+                  if (coordinates) {
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
                 onClearFrom={()=> {setFrom("");}}
                 onClearTo={()=> {setTo("");}}
                 onSwap={() => {
