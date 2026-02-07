@@ -3,7 +3,7 @@ description: Report a bug with clear reproduction steps
 title: "Bug: "
 labels: ["bug"]
 body:
- - type: dropdown
+  - type: dropdown
     id: severity
     attributes:
       label: Severity
@@ -46,7 +46,7 @@ body:
       placeholder: "Pixel 7, iPhone 14 Pro, Emulator"
     validations:
       required: true
-      
+
   - type: textarea
     id: summary
     attributes:
