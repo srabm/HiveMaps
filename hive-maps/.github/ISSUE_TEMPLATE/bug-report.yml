@@ -3,6 +3,50 @@ description: Report a bug with clear reproduction steps
 title: "Bug: "
 labels: ["bug"]
 body:
+ - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (crash, data loss)
+        - High (major feature broken)
+        - Medium (workaround exists)
+        - Low (minor issue / cosmetic)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      description: How often does this occur?
+      options:
+        - Always
+        - Often
+        - Sometimes
+        - Rarely
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: "Pixel 7, iPhone 14 Pro, Emulator"
+    validations:
+      required: true
+      
   - type: textarea
     id: summary
     attributes:
@@ -38,3 +82,40 @@ body:
     attributes:
       label: Environment
       placeholder: "Device/OS/App version"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Messages
+      description: Paste relevant logs or stack traces.
+      placeholder: Paste logs here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Videos
+      description: Drag and drop any visual evidence.
+      placeholder: Screenshots or screen recordings.
+    validations:
+      required: false
+
+  - type: input
+    id: regression
+    attributes:
+      label: Regression?
+      description: Did this work before? If yes, which sprint or version?
+      placeholder: "Worked in Sprint 2"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have searched for existing issues
+          required: true
+        - label: I can reproduce this issue consistently
+          required: false
