@@ -12,6 +12,8 @@ export interface MapsProviderPort {
   geocode(address: string): Promise<Coordinates | null>;
   search(query: string, coordinates: Coordinates | null, sessionToken: string): Promise<MapLocation[] | null>;
   retrieve(id: string, sessionToken: string): Promise<Coordinates | null>;
+  reverse(latitude:number, longitude:number):Promise<MapLocation | null>; // Reverse Geocoding Api to find an address using coordinates
+  forward(address: string): Promise<Coordinates | null>; // Temporary Forward Geocoding Api to find coordinates for a full address
   defaultStyleURL: string;
 }
 

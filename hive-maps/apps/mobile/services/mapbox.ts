@@ -111,6 +111,53 @@ class MapboxMapsAdapter implements MapsProviderPort {
       return null;
     }
   }
+
+  async reverse(latitude:number, longitude:number) : Promise<MapLocation | null>{ // Reverse Geocoding Api to find an address using coordinates
+    const activeToken = this.ensureConfigured();
+    if (!activeToken) return null;
+
+    const url = `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${longitude}&latitude=${latitude}&access_token=${activeToken}`;
+    try{
+      const res = await fetch(url);
+      if(!res.ok) return null;
+      const json = await res.json();
+      if(!json) return null;
+
+      const data: MapLocation = {
+        name: json?.features?.[0]?.properties?.name,
+        id: "0",
+        address: json?.features?.[0]?.properties?.full_address,
+    }
+      return data;}
+
+    catch(error){
+      console.error("Reverse geocoding failed:",error);
+      return null;
+    }
+  }
+
+  async forward(address:string): Promise<[number, number] | null>{  // Temporary Forward Geocoding Api to find coordinates for a full address
+    const activeToken = this.ensureConfigured();
+    if (!activeToken) return null;
+    const encodedAddress = encodeURIComponent(address);
+
+    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodedAddress}&language=en&country=ca&access_token=${activeToken}`;
+
+    try{
+      const res = await fetch(url);
+      if(!res.ok) return null;
+      const json = await res.json();
+      if(!json) return null;
+      const[lon,lat] = json?.features?.[0]?.geometry.coordinates;
+      return [lon,lat];}
+
+    catch(error){
+      console.error("Forward geocoding failed:",error);
+      return null;
+    }
+  }
+
+
 }
 
 export const mapboxMapsAdapter = new MapboxMapsAdapter();
