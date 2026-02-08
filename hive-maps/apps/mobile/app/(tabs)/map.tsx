@@ -1,8 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
-import DirectionBar from "@/components/directions-bars";
-import {PolygonUtils} from '@/domain/PolygonUtils';
 import {CampusBadge} from '@/components/campus-badge';
 import {CampusSwitch} from '@/components/campus-switch';
 import {LocateMeButton} from '@/components/locate-me-button';
@@ -12,16 +10,12 @@ import {Colors} from '@/constants/theme';
 import {useColorScheme} from '@/hooks/use-color-scheme';
 import {useNavigationController} from '@/controllers/navigation-controller';
 import {MapboxGL} from '@/services/mapbox';
-import MapSearchBar from '@/components/search-bar';
-import {Coordinates} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
 import {NavigationBottom} from "@/components/ui/navigation-bottom";
 import {
     DirectionsResponse,
     initializeDirectionsCache,
-    addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
-
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
@@ -66,30 +60,12 @@ export default function MapScreen() {
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
-    const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [from, setFrom] = useState<string>("");
-    const [to, setTo] = useState<string>("");
-    const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
-    const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
-    const fromCoordinatesIsUserLocation = useRef(false);
-    const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
 
+    const hardcodedOrigin = {longitude: -73.5787, latitude: 45.4972}; // Hall
+    const hardcodedDestination = {longitude: -73.5784, latitude: 45.4942}; // Faubourg
 
     useEffect(() => {
         initializeDirectionsCache();
-    }, []);
-
-    useEffect(() => {
-        const unsubscribe = addDirectionsListener((event) => {
-            if (event.type === 'request-started' || event.type === 'request-failed') {
-                setDirections(null);
-            }
-            if (event.type === 'request-timeout') {
-                setDirections(null);
-                setShowTimeoutModal(true);
-            }
-        });
-        return unsubscribe;
     }, []);
 
     useEffect(() => {
@@ -126,6 +102,7 @@ export default function MapScreen() {
         };
     }, []);
 
+
     const theme = Colors[colorScheme ?? 'light'];
     const campusTitle = useMemo(
         () => `${campusMeta.name} Campus (${campusMeta.label})`,
@@ -153,7 +130,7 @@ export default function MapScreen() {
                     coords = [coords];
                 }
                 const inUserBuilding = userLocation
-                    ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
+                    ? isPointInPolygon(userLocation, coords as [number, number][][])
                     : false;
 
                 polys.push({
@@ -303,25 +280,6 @@ export default function MapScreen() {
                         </View>
                     </MapboxGL.PointAnnotation>
                 ))}
-                {fromCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='fromPoint'
-                        id='fromPoint'
-                        coordinate={fromCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
-
-                {toCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='toPoint'
-                        id='toPoint'
-                        coordinate={toCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
                 {directions && (
                     <DirectionsLine
                         directions={directions}
@@ -338,145 +296,13 @@ export default function MapScreen() {
                 <CampusSwitch value={campus} onChange={setCampus}/>
             </View>
 
-            <View style={styles.searchContainer} pointerEvents="box-none">
-                {!seeDirectionBar &&
-                    <MapSearchBar
-                        mapsAdapter={mapsAdapter}
-                        toValue={to}
-                        onChangeText={(text) => {
-                            setTo(text)
-                        }}
-                        onClickButton={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
-                            setSeeDirectionBar(true);
-                            if (userLocation) {
-                                cameraRef?.current?.setCamera({
-                                    centerCoordinate: userLocation,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
-                            }
-                        }}
-                        onSelectBuilding={(mapLocation, coordinates) => {
-                            setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
-                            if (!cameraRef.current) return;
-                            if (coordinates) {
-                                setToCoordinates(coordinates);
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
-                            }
-                        }}
-                        onClear={() => {
-                            setTo('');
-                            setToCoordinates(null);
-                        }}
-                    />
-                }
-                {seeDirectionBar &&
-                    <DirectionBar
-                        mapsAdapter={mapsAdapter}
-                        fromValue={from}
-                        toValue={to}
-                        onChangeFrom={setFrom}
-                        onChangeTo={setTo}
-                        onSelectFrom={(mapLocation, coordinates) => {
-                            setFrom(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
-                            if (!cameraRef.current) return;
-                            if (coordinates) {
-                                setFromCoordinates(coordinates);
-                                fromCoordinatesIsUserLocation.current = false;
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
-                            }
-                        }}
-                        onSelectTo={(mapLocation, coordinates) => {
-                            setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
-                            if (!cameraRef.current) return;
-                            if (coordinates) {
-                                setToCoordinates(coordinates);
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
-                            }
-                        }}
-                        onClearFrom={() => {
-                            setFrom("");
-                            setFromCoordinates(null);
-                            fromCoordinatesIsUserLocation.current = false;
-                            setDirections(null);
-                        }}
-                        onClearTo={() => {
-                            setTo("");
-                            setToCoordinates(null);
-                            setDirections(null);
-                        }}
-                        onSwap={() => {
-                            // Swap text
-                            const tempFrom = from;
-                            setFrom(to);
-                            setTo(tempFrom);
-
-                            // Swap coordinates
-                            const tempFromCoordinates = fromCoordinates;
-                            setFromCoordinates(toCoordinates);
-                            setToCoordinates(tempFromCoordinates);
-
-                            // Swap user location flag
-                            const tempIsUserLocation = fromCoordinatesIsUserLocation.current;
-                            fromCoordinatesIsUserLocation.current = false; // If "to" becomes "from", it's no longer user location
-                            // Note: We can't track if the original "to" was user location, so we reset this flag
-                        }}
-                        onResetFrom={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
-                            if (userLocation) {
-                                cameraRef?.current?.setCamera({
-                                    centerCoordinate: userLocation,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
-                            }
-                        }}
-                        onClose={() => {
-                            setSeeDirectionBar(false);
-                            setFrom('');
-                            setFromCoordinates(null);
-                            fromCoordinatesIsUserLocation.current = false;
-                            setDirections(null);
-                            setTo('');
-                            setToCoordinates(null);
-                        }}
-                    />
-                }
-            </View>
-
-            {fromCoordinates && toCoordinates && (
-                <View style={styles.navigationBottomContainer}>
-                    <NavigationBottom
-                        origin={{
-                            longitude: fromCoordinates[0],
-                            latitude: fromCoordinates[1]
-                        }}
-                        destination={{
-                            longitude: toCoordinates[0],
-                            latitude: toCoordinates[1]
-                        }}
-                        onDirectionsChange={setDirections}
-                        onStartPress={() => console.log('Start navigation')}
-                    />
-                </View>
-            )}
+            <NavigationBottom
+                origin={hardcodedOrigin}
+                destination={hardcodedDestination}
+                onDirectionsChange={setDirections}
+                initialMode="Drive"
+                arrivalTime="Arrive by 10:27 PM" // TODO Hardcoded right now
+            />
 
             <LocateMeButton
                 style={styles.locateButton}
@@ -537,39 +363,6 @@ export default function MapScreen() {
                     </ThemedView>
                 </View>
             </Modal>
-
-            <Modal
-                transparent
-                animationType="fade"
-                visible={showTimeoutModal}
-                onRequestClose={() => setShowTimeoutModal(false)}
-            >
-                <View style={styles.modalBackdrop}>
-                    <Pressable
-                        style={StyleSheet.absoluteFill}
-                        onPress={() => setShowTimeoutModal(false)}
-                    />
-                    <ThemedView
-                        style={[
-                            styles.modalCard,
-                            {backgroundColor: theme.background, borderColor: theme.icon},
-                        ]}
-                    >
-                        <ThemedText type="subtitle" style={styles.modalTitle}>
-                            Directions Unavailable
-                        </ThemedText>
-                        <ThemedText style={styles.modalBody}>
-                            The directions request took too long. Please try again.
-                        </ThemedText>
-                        <Pressable
-                            style={[styles.modalButton, {backgroundColor: theme.tint}]}
-                            onPress={() => setShowTimeoutModal(false)}
-                        >
-                            <Text style={styles.modalButtonText}>Dismiss</Text>
-                        </Pressable>
-                    </ThemedView>
-                </View>
-            </Modal>
         </ThemedView>
     );
 }
@@ -592,7 +385,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 40,
+        bottom: 200, // raised to sit above nav card
         alignItems: 'center',
     },
     locateButton: {
@@ -629,20 +422,5 @@ const styles = StyleSheet.create({
     modalButtonText: {
         color: '#ffffff',
         fontWeight: '600',
-    }, searchContainer: {
-        position: 'absolute',
-        top: 70,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-        pointerEvents: 'box-none',
-    },
-    navigationBottomContainer: {
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 20,
-        zIndex: 15,
     },
 });

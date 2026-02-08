@@ -4,7 +4,7 @@ import {
     Provider,
     TransportMode,
     getDirections
-} from '@/services/maps/maps-api-adapter'
+} from '@/services/maps/directions-api-adapter'
 import dotenv from 'dotenv';
 
 dotenv.config()
@@ -28,4 +28,4 @@ async function testDirectionsAPI() {
 }
 
 // Call the test function
-testDirectionsAPI();// Careful of the escape
+testDirectionsAPI();

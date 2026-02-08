@@ -6,7 +6,6 @@ import {
     DirectionsResponse,
     DirectionsRequest,
     Coordinate,
-    Provider
 } from '@/services/maps/directions-api-adapter';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
@@ -39,6 +38,7 @@ const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
 };
 
 const mapUiModeToProvider = (mode: TransportModeLabel) => {
+    const {Provider} = require('@/services/maps/directions-api-adapter');
     return mode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX;
 };
 
@@ -48,15 +48,10 @@ const formatDistance = (meters?: number) => {
 };
 
 const formatDuration = (seconds?: number) => {
-    if (seconds == null) return '— min';
-    const totalMinutes = Math.round(seconds / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours) {
-        const paddedMinutes = String(minutes).padStart(2, '0');
-        return `${hours}:${paddedMinutes} hr`;
-    }
-    return `${minutes} min`;
+    if (seconds == null) return '—';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.round((seconds % 3600) / 60);
+    return hours ? `${hours} hr ${minutes} min` : `${minutes} min`;
 };
 
 export function NavigationBottom({
@@ -70,7 +65,6 @@ export function NavigationBottom({
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
 
     useEffect(() => {
@@ -85,9 +79,8 @@ export function NavigationBottom({
     useEffect(() => {
         let active = true;
         const fetchDirections = async () => {
-            setIsLoading(true);
-            setDirections(null);
             try {
+                const {Provider} = require('@/services/maps/directions-api-adapter');
                 const request: DirectionsRequest = {
                     origin,
                     destination,
@@ -99,11 +92,7 @@ export function NavigationBottom({
                 setDirections(resp);
                 onDirectionsChange?.(resp);
             } catch (err) {
-                if (!active) return;
-                setDirections(null);
                 console.warn('Failed to load directions', err);
-            } finally {
-                if (active) setIsLoading(false);
             }
         };
         fetchDirections();
