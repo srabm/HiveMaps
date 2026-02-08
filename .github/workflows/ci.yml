@@ -2,21 +2,57 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  MOBILE_DIR: hive-maps/apps/mobile
+
 jobs:
-  mobile:
-    name: Mobile (React Native)
+  # Detect changed areas so we can skip unrelated jobs.
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+      api: ${{ steps.filter.outputs.api }}
+      ci: ${{ steps.filter.outputs.ci }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            mobile:
+              - 'hive-maps/apps/mobile/**'
+            api:
+              - 'hive-maps/services/api/**'
+            ci:
+              - '.github/workflows/**'
+
+  # Mobile static checks + unit tests
+  mobile-unit:
+    name: Mobile Unit (TypeScript + Jest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes]
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true' || needs.changes.outputs.ci == 'true' }}
 
     steps:
       - name: Checkout
@@ -25,32 +61,40 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "20.x"
           cache: "npm"
-          cache-dependency-path: apps/mobile/package-lock.json
+          cache-dependency-path: ${{ env.MOBILE_DIR }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ env.MOBILE_DIR }}
         run: npm ci
 
-      - name: Lint
-        run: npm run lint --if-present
+      - name: Type check
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: npm run typecheck
 
-      - name: Test (with coverage)
-        run: npm test --if-present -- --coverage
+      - name: Unit tests
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: npm run test:ci
 
-      - name: Upload mobile coverage to Codecov
-        uses: codecov/codecov-action@v5
+      - name: Upload mobile coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          files: apps/mobile/coverage/lcov.info
-          flags: mobile
-          fail_ci_if_error: false
+          name: mobile-coverage
+          path: ${{ env.MOBILE_DIR }}/coverage
+          if-no-files-found: ignore
 
-  api:
-    name: API (Kotlin / Spring Boot)
+  # Backend unit tests
+  api-unit:
+    name: API Unit (Gradle)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true' }}
     defaults:
       run:
-        working-directory: services/api
+        working-directory: hive-maps/services/api
 
     steps:
       - name: Checkout
@@ -65,15 +109,59 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Test
-        run: ./gradlew test
+      - name: Run unit tests
+        run: ./gradlew --no-daemon clean test jacocoTestReport
 
-      - name: JaCoCo report
-        run: ./gradlew jacocoTestReport
-
-      - name: Upload API coverage to Codecov
-        uses: codecov/codecov-action@v5
+      - name: Upload API test reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          files: services/api/build/reports/jacoco/test/jacocoTestReport.xml
-          flags: api
-          fail_ci_if_error: false
+          name: api-test-reports
+          path: |
+            hive-maps/services/api/build/reports/tests/test
+            hive-maps/services/api/build/reports/jacoco/test
+          if-no-files-found: ignore
+
+  # Backend docker-compose reachability check
+  api-compose-smoke:
+    name: API Compose Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true' }}
+    defaults:
+      run:
+        working-directory: hive-maps/services/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start API stack (build + run)
+        run: docker compose up -d --build
+
+      - name: Wait for API readiness
+        run: |
+          set -euo pipefail
+          for i in {1..40}; do
+            if curl -fsS http://localhost:8080/api/hello >/dev/null; then
+              echo "API is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready in time."
+          exit 1
+
+      - name: Verify hello endpoint
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8080/api/hello >/dev/null
+
+      - name: API container logs (on failure)
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop API stack and clean volumes
+        if: always()
+        run: docker compose down -v
