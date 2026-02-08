@@ -31,6 +31,7 @@ export function CampusSwitch({ value, onChange }: Props) {
                   ]}
                 >
                   <Pressable
+                      testID={`campus-tab-${option}`}
                       accessibilityRole="tab"
                       accessibilityState={{ selected }}
                       onPress={() => onChange(option)}

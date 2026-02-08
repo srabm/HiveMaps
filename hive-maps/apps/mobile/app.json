@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -53,7 +57,11 @@
     },
     "extra": {
       "mapboxAccessToken": "YOUR_MAPBOX_TOKEN_HERE",
-      "apiBaseUrl": "http://10.0.2.2:8080"
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "router": {},
+      "eas": {
+        "projectId": "1a61ed43-f11b-4d50-9ee4-5eee47fadbbc"
+      }
     }
   }
 }
