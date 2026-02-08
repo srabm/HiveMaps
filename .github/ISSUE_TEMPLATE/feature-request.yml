@@ -1,0 +1,78 @@
+name: Feature Request
+description: Propose a new feature or improvement
+title: "Feature: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Mobile (Expo)
+        - API (Spring Boot)
+        - Mobile + API
+        - CI / DevOps
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve? Who is impacted?
+      placeholder: Describe the pain point and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed solution
+      description: What do you want to happen?
+      placeholder: Describe the desired behavior or UX.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Clear, testable criteria (bullets).
+      placeholder: |
+        - Given ... when ... then ...
+        - Given ... when ... then ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      placeholder: |
+        - Alternative 1
+        - Alternative 2
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 (Must)
+        - P1 (Should)
+        - P2 (Could)
+    validations:
+      required: true
+
+  - type: input
+    id: estimate
+    attributes:
+      label: Estimate (optional)
+      description: Story points or rough time.
+      placeholder: "e.g., 3, 5, 1 day, 1 week"
+    validations:
+      required: false
+

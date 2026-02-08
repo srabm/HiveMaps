@@ -1,0 +1,58 @@
+name: Tech Task / Chore
+description: Refactor, maintenance, infra, CI, build, or cleanup work
+title: "Task: "
+labels: ["chore"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Mobile (Expo)
+        - API (Spring Boot)
+        - CI / DevOps
+        - Docs
+        - Repo-wide
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why does this work need to happen? Include links/logs if relevant.
+      placeholder: Link related issues, PRs, or logs.
+    validations:
+      required: false
+
+  - type: textarea
+    id: work
+    attributes:
+      label: Work to do
+      description: A concrete checklist or steps.
+      placeholder: |
+        - [ ] Step 1
+        - [ ] Step 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: What does "done" look like?
+      placeholder: |
+        - Tests pass
+        - No regressions in ...
+    validations:
+      required: true
+
+  - type: input
+    id: estimate
+    attributes:
+      label: Estimate (optional)
+      placeholder: "e.g., 1, 2, 3, 1 day"
+    validations:
+      required: false
+
