@@ -1,4 +1,4 @@
-import {convertGoogleMapsResponse, convertMapboxResponse} from "@/services/maps/maps-api-adapter";
+import {convertGoogleMapsResponse, convertMapboxResponse} from "@/services/maps/directions-api-adapter";
 
 const googleMapsResponse = {
     "routes": [

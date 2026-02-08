@@ -1,7 +1,7 @@
 import React, {useMemo} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {MapboxGL} from '@/services/mapbox';
-import type {DirectionsResponse} from '@/services/maps/maps-api-adapter';
+import type {DirectionsResponse} from '@/services/maps/directions-api-adapter';
 
 type Position = [number, number];
 
@@ -15,7 +15,7 @@ interface DirectionsDisplayProps {
 }
 
 /**
- * Black magic voodoo to convert polyline to geojson
+ * Black magic to convert polyline to geojson
  * @param encoded
  */
 const decodePolyline = (encoded: string): Position[] => {
@@ -62,14 +62,14 @@ const formatDuration = (seconds: number) => {
     return hours ? `${hours} hr ${minutes} min` : `${minutes} min`;
 };
 
-export function DirectionsDisplay({
-                                      directions,
-                                      sourceId = 'directions-source',
-                                      layerId = 'directions-layer',
-                                      lineColor = '#2B6EF2',
-                                      lineWidth = 5,
-                                      infoCardPosition = 'bottom',
-                                  }: DirectionsDisplayProps) {
+export function DirectionsLine({
+                                   directions,
+                                   sourceId = 'directions-source',
+                                   layerId = 'directions-layer',
+                                   lineColor = '#e5a712',
+                                   lineWidth = 10,
+                                   infoCardPosition = 'bottom',
+                               }: DirectionsDisplayProps) {
     const coordinates = useMemo(
         () => decodePolyline(directions.polyline),
         [directions.polyline],
@@ -91,6 +91,27 @@ export function DirectionsDisplay({
         [coordinates],
     );
 
+    const endpointsCollection = useMemo(
+        () => ({
+            type: 'FeatureCollection' as const,
+            features: [
+                {
+                    type: 'Feature' as const,
+                    id: 'start-point',
+                    geometry: {type: 'Point' as const, coordinates: coordinates[0]},
+                    properties: {type: 'start'},
+                },
+                {
+                    type: 'Feature' as const,
+                    id: 'end-point',
+                    geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
+                    properties: {type: 'end'},
+                },
+            ],
+        }),
+        [coordinates],
+    );
+
     return (
         <>
             <MapboxGL.ShapeSource id={sourceId} shape={featureCollection}>
@@ -101,6 +122,18 @@ export function DirectionsDisplay({
                         lineWidth,
                         lineCap: 'round',
                         lineJoin: 'round',
+                    }}
+                />
+            </MapboxGL.ShapeSource>
+
+            <MapboxGL.ShapeSource id={`${sourceId}-endpoints`} shape={endpointsCollection}>
+                <MapboxGL.CircleLayer
+                    id={`${layerId}-endpoints`}
+                    style={{
+                        circleColor: lineColor,
+                        circleRadius: 8,
+                        circleStrokeColor: '#ffffff',
+                        circleStrokeWidth: 2,
                     }}
                 />
             </MapboxGL.ShapeSource>
@@ -154,4 +187,3 @@ const styles = StyleSheet.create({
     infoValue: {fontSize: 18, fontWeight: '600', color: '#111827'},
     divider: {width: 1, height: 32, backgroundColor: '#E5E7EB'},
 });
-

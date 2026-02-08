@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 //import type {Coordinates} from "@/services/maps/maps-provider"; //TODO refactor this coordinates type
 
 export interface Coordinate {
@@ -6,9 +8,9 @@ export interface Coordinate {
 }
 
 export enum TransportMode {
+    DRIVING,
     WALKING,
     TRANSIT,
-    DRIVING,
     BIKING
 }
 
@@ -47,6 +49,63 @@ export interface DirectionsResponse {
     durationSeconds: number;
     polyline: string;
     steps: Step[];
+}
+
+// Cache for directions responses
+const directionsCache = new Map<string, DirectionsResponse>();
+const CACHE_STORAGE_KEY = 'directions_cache_v1';
+let cacheInitialized = false;
+
+/**
+ * Initialize cache from AsyncStorage on app startup
+ */
+export async function initializeDirectionsCache(): Promise<void> {
+    if (cacheInitialized) return;
+
+    try {
+        const cachedData = await AsyncStorage.getItem(CACHE_STORAGE_KEY);
+        if (cachedData) {
+            const parsed = JSON.parse(cachedData) as Record<string, DirectionsResponse>;
+            Object.entries(parsed).forEach(([key, value]) => {
+                directionsCache.set(key, value);
+            });
+            console.log(`[Cache] Loaded ${directionsCache.size} cached routes from storage`);
+        }
+    } catch (err) {
+        console.warn('[Cache] Failed to load cache from storage', err);
+    }
+    cacheInitialized = true;
+}
+
+/**
+ * Persist cache to AsyncStorage
+ */
+async function persistCache(): Promise<void> {
+    try {
+        const cacheObj = Object.fromEntries(directionsCache);
+        await AsyncStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cacheObj));
+    } catch (err) {
+        console.warn('[Cache] Failed to persist cache to storage', err);
+    }
+}
+
+/**
+ * Normalize coordinate to 4 decimal places for consistent cache keys
+ */
+function normalizeCoordinate(coord: Coordinate): Coordinate {
+    return {
+        longitude: Math.round(coord.longitude * 10000) / 10000,
+        latitude: Math.round(coord.latitude * 10000) / 10000,
+    };
+}
+
+/**
+ * Generate cache key from request parameters
+ */
+function generateCacheKey(origin: Coordinate, destination: Coordinate, mode: TransportMode): string {
+    const normOrigin = normalizeCoordinate(origin);
+    const normDest = normalizeCoordinate(destination);
+    return `${normOrigin.longitude},${normOrigin.latitude}|${normDest.longitude},${normDest.latitude}|${mode}`;
 }
 
 // Google Maps Converter
@@ -141,16 +200,42 @@ function getGoogleTravelMode(mode: TransportMode): string {
 
 // Main function to get directions
 export async function getDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
-    if (request.provider === Provider.MAPBOX) {
-        return getMapboxDirections(request);
-    } else {
-        return getGoogleMapsDirections(request);
+    // Ensure cache is initialized
+    if (!cacheInitialized) {
+        await initializeDirectionsCache();
     }
+
+    const cacheKey = generateCacheKey(request.origin, request.destination, request.transportMode);
+
+    // Check cache first
+    if (directionsCache.has(cacheKey)) {
+        console.log(`[Cache HIT] ${cacheKey}`);
+        return directionsCache.get(cacheKey)!;
+    }
+
+    console.log(`[Cache MISS] ${cacheKey}`);
+
+    let response: DirectionsResponse;
+    if (request.provider === Provider.MAPBOX) {
+        response = await getMapboxDirections(request);
+    } else {
+        response = await getGoogleMapsDirections(request);
+    }
+
+    // Store in cache and persist
+    directionsCache.set(cacheKey, response);
+    await persistCache();
+    return response;
 }
 
 async function getMapboxDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
     const profile = getMapboxProfile(request.transportMode);
     const coordinates = `${request.origin.longitude},${request.origin.latitude};${request.destination.longitude},${request.destination.latitude}`;
+
+    console.log(`[Mapbox API] Fetching directions for ${profile} mode`, {
+        origin: request.origin,
+        destination: request.destination
+    });
 
     const params = new URLSearchParams({
         access_token: process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '',
@@ -172,6 +257,11 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 }
 
 async function getGoogleMapsDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
+    console.log(`[Google Maps API] Fetching directions for ${getGoogleTravelMode(request.transportMode)} mode`, {
+        origin: request.origin,
+        destination: request.destination
+    });
+
     const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
     const body = {
