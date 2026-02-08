@@ -1,8 +1,29 @@
 name: Bug Report
-description: Report a bug with clear reproduction steps
+description: Report a bug with clear reproduction steps (mobile, API, CI, docs, etc.)
 title: "Bug: "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill what you can. If this is:
+        - **Mobile bug**: include Platform + Device + app version.
+        - **API bug**: include Endpoint + Request details + logs.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Mobile (Expo)
+        - API (Spring Boot)
+        - Mobile + API
+        - CI / DevOps
+        - Docs
+        - Other
+    validations:
+      required: true
+
   - type: dropdown
     id: severity
     attributes:
@@ -36,8 +57,9 @@ body:
       options:
         - Android
         - iOS
+        - Web (for dev)
     validations:
-      required: true
+      required: false
 
   - type: input
     id: device
@@ -45,7 +67,34 @@ body:
       label: Device
       placeholder: "Pixel 7, iPhone 14 Pro, Emulator"
     validations:
-      required: true
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Affected version (optional)
+      description: App version, API version, commit hash, or build number.
+      placeholder: "e.g., 1.2.0, main@abc123, build 2026-02-08"
+    validations:
+      required: false
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint / route (API only, optional)
+      placeholder: "GET /api/campuses/SGW/buildings"
+    validations:
+      required: false
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Request details (API only, optional)
+      description: Method, headers, query params, body/payload, auth context (redact secrets).
+      placeholder: |
+        curl -v "http://localhost:8080/api/..."
+    validations:
+      required: false
 
   - type: textarea
     id: summary
@@ -81,7 +130,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      placeholder: "Device/OS/App version"
+      placeholder: "Local/CI/Staging, OS, device, network, API base URL, etc."
 
   - type: textarea
     id: logs
