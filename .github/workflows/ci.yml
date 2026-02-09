@@ -76,6 +76,14 @@ jobs:
       - name: Unit tests
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm run test:ci
+      
+      - name: Upload Mobile coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ${{ env.MOBILE_DIR }}/coverage
+          flags: mobile
+          fail_ci_if_error: false
 
       - name: Upload mobile coverage artifact
         if: always()
@@ -99,6 +107,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -112,6 +122,12 @@ jobs:
       - name: Run unit tests
         run: bash ./gradlew --no-daemon clean test jacocoTestReport
 
+      - name: Sonar Analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew sonar
+
       - name: Upload API test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,6 +137,14 @@ jobs:
             hive-maps/services/api/build/reports/tests/test
             hive-maps/services/api/build/reports/jacoco/test
           if-no-files-found: ignore
+
+      - name: Upload API coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: hive-maps/services/api/build/reports/jacoco/test
+          flags: api
+          fail_ci_if_error: false
 
   # Backend docker-compose reachability check
   api-compose-smoke:
