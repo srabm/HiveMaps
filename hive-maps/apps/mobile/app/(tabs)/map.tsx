@@ -73,8 +73,6 @@ export default function MapScreen() {
     const fromCoordinatesIsUserLocation = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
 
-    const hardcodedOrigin = {longitude: -73.5787, latitude: 45.4972}; // Hall
-    const hardcodedDestination = {longitude: -73.5784, latitude: 45.4942}; // Faubourg
 
     useEffect(() => {
         initializeDirectionsCache();
