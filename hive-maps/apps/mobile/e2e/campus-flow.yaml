@@ -1,0 +1,25 @@
+appId: com.anonymous.mobile
+name: "Campus Navigation & Location Flow"
+---
+- launchApp
+- assertVisible: "SGW • Sir George Williams"
+
+- tapOn: "LOYOLA"
+- assertVisible: "LOYOLA • Loyola"
+- tapOn: "SGW"
+- assertVisible: "SGW • Sir George Williams"
+
+- setLocation:
+    latitude: 45.4972
+    longitude: -73.5788
+
+- assertVisible: "Locate me"
+- tapOn: "Locate me"
+
+- assertVisible: "SGW • Sir George Williams"
+- repeat:
+    times: 10
+    commands:
+        - assertVisible: "SGW • Sir George Williams"
+
+- stopApp
