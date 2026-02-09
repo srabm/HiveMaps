@@ -75,7 +75,7 @@ jobs:
 
       - name: Unit tests
         working-directory: ${{ env.MOBILE_DIR }}
-        run: npx jest --coverage
+        run: npm run test:ci
       
       - name: Upload Mobile coverage to Codecov
         uses: codecov/codecov-action@v5
