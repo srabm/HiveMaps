@@ -1,0 +1,170 @@
+name: Bug Report
+description: Report a bug with clear reproduction steps (mobile, API, CI, docs, etc.)
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill what you can. If this is:
+        - **Mobile bug**: include Platform + Device + app version.
+        - **API bug**: include Endpoint + Request details + logs.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Mobile (Expo)
+        - API (Spring Boot)
+        - Mobile + API
+        - CI / DevOps
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (crash, data loss)
+        - High (major feature broken)
+        - Medium (workaround exists)
+        - Low (minor issue / cosmetic)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      description: How often does this occur?
+      options:
+        - Always
+        - Often
+        - Sometimes
+        - Rarely
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Web (for dev)
+    validations:
+      required: false
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: "Pixel 7, iPhone 14 Pro, Emulator"
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Affected version (optional)
+      description: App version, API version, commit hash, or build number.
+      placeholder: "e.g., 1.2.0, main@abc123, build 2026-02-08"
+    validations:
+      required: false
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint / route (API only, optional)
+      placeholder: "GET /api/campuses/SGW/buildings"
+    validations:
+      required: false
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Request details (API only, optional)
+      description: Method, headers, query params, body/payload, auth context (redact secrets).
+      placeholder: |
+        curl -v "http://localhost:8080/api/..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: "What happened?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: "1) ... 2) ... 3) ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Local/CI/Staging, OS, device, network, API base URL, etc."
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Error Messages
+      description: Paste relevant logs or stack traces.
+      placeholder: Paste logs here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Videos
+      description: Drag and drop any visual evidence.
+      placeholder: Screenshots or screen recordings.
+    validations:
+      required: false
+
+  - type: input
+    id: regression
+    attributes:
+      label: Regression?
+      description: Did this work before? If yes, which sprint or version?
+      placeholder: "Worked in Sprint 2"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have searched for existing issues
+          required: true
+        - label: I can reproduce this issue consistently
+          required: false
