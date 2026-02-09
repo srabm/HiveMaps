@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-//import type {Coordinates} from "@/services/maps/maps-provider"; //TODO refactor this coordinates type
-
 export interface Coordinate {
     longitude: number;
     latitude: number;

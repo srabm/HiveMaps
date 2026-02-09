@@ -6,6 +6,7 @@ import {
     DirectionsResponse,
     DirectionsRequest,
     Coordinate,
+    Provider
 } from '@/services/maps/directions-api-adapter';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
@@ -38,7 +39,6 @@ const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
 };
 
 const mapUiModeToProvider = (mode: TransportModeLabel) => {
-    const {Provider} = require('@/services/maps/directions-api-adapter');
     return mode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX;
 };
 
@@ -85,7 +85,6 @@ export function NavigationBottom({
         let active = true;
         const fetchDirections = async () => {
             try {
-                const {Provider} = require('@/services/maps/directions-api-adapter');
                 const request: DirectionsRequest = {
                     origin,
                     destination,
