@@ -5,6 +5,7 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.2.21"
 	jacoco
+	id("org.sonarqube") version "7.1.0.6387"
 }
 
 group = "com.hivemaps"
@@ -60,4 +61,12 @@ tasks.jacocoTestReport {
         xml.required.set(true)
         html.required.set(true)
     }
+}
+
+sonar {
+  properties {
+    property("sonar.projectKey", "hive-maps_backend")
+    property("sonar.organization", "hive-maps")
+	property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+  }
 }

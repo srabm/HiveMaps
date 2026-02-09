@@ -22,6 +22,18 @@ class WebMapsAdapter implements MapsProviderPort {
   async geocode() {
     return null;
   }
+  async search(query: string, location: [number, number] | null, sessionToken: string) {
+    return null;
+  }
+  async retrieve(mapboxId: string, sessionToken: string) {
+    return null;
+  }
+  async reverse(latitude:number, longitude:number){ // Reverse Geocoding Api to find an address using coordinates
+    return null;
+  }
+  async forward(address:string){ // Temporary Forward Geocoding Api to find coordinates for a full address
+    return null;
+  }
 }
 
 export const mapboxMapsAdapter = new WebMapsAdapter();
