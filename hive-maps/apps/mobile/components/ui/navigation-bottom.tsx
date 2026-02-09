@@ -49,9 +49,14 @@ const formatDistance = (meters?: number) => {
 
 const formatDuration = (seconds?: number) => {
     if (seconds == null) return '—';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.round((seconds % 3600) / 60);
-    return hours ? `${hours} hr ${minutes} min` : `${minutes} min`;
+    const totalMinutes = Math.round(seconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours) {
+        const paddedMinutes = String(minutes).padStart(2, '0');
+        return `${hours}:${paddedMinutes} hr`;
+    }
+    return `${minutes} min`;
 };
 
 export function NavigationBottom({
