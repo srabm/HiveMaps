@@ -61,7 +61,7 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placehol
                     returnKeyType="search"
                 />
                 {toValue.length > 0 && (
-                    <TouchableOpacity onPress={() => {
+                    <TouchableOpacity testID='close-button' onPress={() => {
                         setListAppearance(false);
                         onClear?.();
                     }}>
@@ -69,6 +69,7 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placehol
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity
+                    testID='navigate-button'
                     style={styles.circleButton}
                     onPress={onClickButton}
                     activeOpacity={0.7}

@@ -124,7 +124,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 {/* From a particular direction (starting direction)*/}
                 <View>
                     <View style={styles.inputRow}>
-                        <TouchableOpacity onPress={onResetFrom}>
+                        <TouchableOpacity testID="reset-button" onPress={onResetFrom}>
                             <Image
                                 source={require("../assets/images/bee.png")}
                                 style={{ width: 40, height: 40 }}
@@ -140,7 +140,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                                 onChangeFrom?.(text);
                             }}
                         />
-                        <TouchableOpacity onPress={onClearFrom}>
+                        <TouchableOpacity testID="clear-from" onPress={onClearFrom}>
                             <Ionicons name="close" size={20} />
                         </TouchableOpacity>
                     </View>
@@ -162,7 +162,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                                 onChangeTo?.(text);
                             }}
                         />
-                        <TouchableOpacity onPress={onClearTo}>
+                        <TouchableOpacity testID="clear-to" onPress={onClearTo}>
                             <Ionicons name="close" size={20} />
                         </TouchableOpacity>
                     </View>
@@ -174,11 +174,11 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
 
             {/* Actions such as swapping the directions and closing the directions bars*/}
             <View style={styles.actions}>
-                <TouchableOpacity onPress={onSwap} style={styles.actionButton}>
+                <TouchableOpacity testID="swap-button" onPress={onSwap} style={styles.actionButton}>
                     <Ionicons name="swap-vertical" size={22} />
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={onClose} style={styles.actionButton}>
+                <TouchableOpacity testID="close-button" onPress={onClose} style={styles.actionButton}>
                     <Ionicons name="ban-outline" size={22} />
                 </TouchableOpacity>
             </View>
