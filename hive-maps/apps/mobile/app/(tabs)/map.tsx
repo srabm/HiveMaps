@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform } from 'react-native';
 import DirectionBar from "@/components/directions-bars";
+import { PolygonUtils } from '@/domain/PolygonUtils';
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
 import { LocateMeButton } from '@/components/locate-me-button';
@@ -15,28 +16,6 @@ import { Coordinates } from '@/services/maps/maps-provider';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
-
-const isPointInRing = (point: [number, number], ring: [number, number][]) => {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0], yi = ring[i][1];
-    const xj = ring[j][0], yj = ring[j][1];
-    const intersect =
-      yi > point[1] !== yj > point[1] &&
-      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-};
-
-const isPointInPolygon = (point: [number, number], coordinates: [number, number][][]) => {
-  if (!coordinates?.length) return false;
-  if (!isPointInRing(point, coordinates[0])) return false;
-  for (let i = 1; i < coordinates.length; i += 1) {
-    if (isPointInRing(point, coordinates[i])) return false;
-  }
-  return true;
-};
 
 export default function MapScreen() {
   const {
@@ -116,7 +95,7 @@ export default function MapScreen() {
         if (depth === 4) { coords = coords[0]; }      
         else if (depth === 2) { coords = [coords]; }  
         const inUserBuilding = userLocation
-          ? isPointInPolygon(userLocation, coords as [number, number][][])
+          ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
           : false;
 
         polys.push({
