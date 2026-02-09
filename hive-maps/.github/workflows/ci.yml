@@ -55,6 +55,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -70,6 +72,12 @@ jobs:
 
       - name: JaCoCo report
         run: ./gradlew jacocoTestReport
+
+      - name: Sonar Analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew sonar
 
       - name: Upload API coverage to Codecov
         uses: codecov/codecov-action@v5
