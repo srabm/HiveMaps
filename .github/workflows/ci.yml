@@ -75,7 +75,15 @@ jobs:
 
       - name: Unit tests
         working-directory: ${{ env.MOBILE_DIR }}
-        run: npm run test:ci
+        run: npx jest --coverage
+      
+      - name: Upload Mobile coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ${{ env.MOBILE_DIR }}/coverage
+          flags: mobile
+          fail_ci_if_error: false
 
       - name: Upload mobile coverage artifact
         if: always()
@@ -129,6 +137,14 @@ jobs:
             hive-maps/services/api/build/reports/tests/test
             hive-maps/services/api/build/reports/jacoco/test
           if-no-files-found: ignore
+
+      - name: Upload API coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: hive-maps/services/api/build/reports/jacoco/test
+          flags: api
+          fail_ci_if_error: false
 
   # Backend docker-compose reachability check
   api-compose-smoke:
