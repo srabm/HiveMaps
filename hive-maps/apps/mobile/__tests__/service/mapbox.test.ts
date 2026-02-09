@@ -1,4 +1,4 @@
-import { mapboxMapsAdapter } from '../mapbox';
+import { mapboxMapsAdapter } from '../../services/mapbox';
 
 jest.mock('@rnmapbox/maps', () => ({
     setAccessToken: jest.fn(),
@@ -186,7 +186,7 @@ describe('mapboxMapsAdapter.retrieve', () => { // Testing the Retrieve API
         }),
         });
 
-        const result = await mapboxMapsAdapter.retrieve("0", null, "abcsd");
+        const result = await mapboxMapsAdapter.retrieve("0", "abcsd");
 
         expect(global.fetch).toHaveBeenCalledTimes(1);
 
@@ -197,7 +197,7 @@ describe('mapboxMapsAdapter.retrieve', () => { // Testing the Retrieve API
             ok: false,
         });
 
-        const result = await mapboxMapsAdapter.retrieve("0", null, "abcsd");
+        const result = await mapboxMapsAdapter.retrieve("0", "abcsd");
 
         expect(result).toBeNull();
     });
@@ -207,7 +207,7 @@ describe('mapboxMapsAdapter.retrieve', () => { // Testing the Retrieve API
             new Error('Network error')
         );
 
-        const result = await mapboxMapsAdapter.retrieve("0", null, "abcsd");
+        const result = await mapboxMapsAdapter.retrieve("0", "abcsd");
 
         expect(result).toBeNull();
     });
