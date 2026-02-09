@@ -28,8 +28,8 @@ export const campuses: Record<CampusId, CampusMeta> = {
   },
   LOY: {
     id: 'LOY',
-    label: 'Loyola',
-    name: 'Loyola',
+    label: 'LOYOLA',
+    name: 'LOYOLA',
     center: [-73.6406, 45.4583],
     zoom: 16.0,
   },
