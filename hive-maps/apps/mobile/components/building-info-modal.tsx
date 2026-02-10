@@ -131,9 +131,17 @@ export function BuildingInfoModal({
             </View>
             <View style={styles.detailTextWrap}>
               <ThemedText style={styles.detailLabel}>Hours</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {building?.hours ?? 'Hours not listed'}
-              </ThemedText>
+                {Array.isArray((building as any)?.allHours) ? (
+                  (building as any).allHours.map((day: string, i: number) => (
+                    <ThemedText key={i} style={[styles.detailValue, { fontSize: 11}]}>
+                      {day}
+                    </ThemedText>
+                  ))
+                ) : (
+                  <ThemedText style={styles.detailValue}>
+                    {building?.hours ?? 'Hours not listed'}
+                  </ThemedText>
+                )}
             </View>
           </View>
 

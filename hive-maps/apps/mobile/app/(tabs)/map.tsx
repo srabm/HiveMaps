@@ -207,12 +207,17 @@ export default function MapScreen() {
               const f = e.features[0];
               console.log('Pressed feature:', f);
               
-              // Find the matching point that has the details
               const point = points.find(p => p.id === f.properties?.id);
+              const details = point?.details as any;
                             
               setSelectedBuilding({
                 ...f.properties,
-                details: point?.details
+                phone: details?.nationalPhoneNumber,
+                website: details?.websiteUri,
+                hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
+                        ?? 'Hours not listed',
+                allHours: details?.regularOpeningHours?.weekdayDescriptions,
+                imageUrl: details?.details?.photos?.[0]?.name
               });
             }}
           >
