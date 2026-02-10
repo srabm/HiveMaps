@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform } from 'react-native';
-
+import DirectionBar from "@/components/directions-bars";
+import { PolygonUtils } from '@/domain/PolygonUtils';
 import { CampusBadge } from '@/components/campus-badge';
 import { CampusSwitch } from '@/components/campus-switch';
 import { BuildingInfoModal } from '@/components/building-info-modal';
@@ -11,6 +12,8 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNavigationController } from '@/controllers/navigation-controller';
 import { MapboxGL } from '@/services/mapbox';
+import MapSearchBar from '@/components/search-bar';
+import { Coordinates } from '@/services/maps/maps-provider';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
@@ -55,6 +58,12 @@ export default function MapScreen() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
 
+  const [from, setFrom] = useState<string>("");
+  const [to, setTo] = useState<string>("");
+  const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
+  const fromCoordinatesIsUserLocation = useRef(false);
+  const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
   useEffect(() => {
     if (!cameraRef.current) return;
     cameraRef.current.setCamera({
@@ -110,7 +119,7 @@ export default function MapScreen() {
         if (depth === 4) { coords = coords[0]; }      
         else if (depth === 2) { coords = [coords]; }  
         const inUserBuilding = userLocation
-          ? isPointInPolygon(userLocation, coords as [number, number][][])
+          ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
           : false;
 
         polys.push({
@@ -146,7 +155,7 @@ export default function MapScreen() {
 
   if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
   if (!hydrated) return <ThemedView style={styles.centered}><ActivityIndicator /></ThemedView>;
-
+  
   return (
     <ThemedView style={styles.container}>
       <MapboxGL.MapView
@@ -264,6 +273,25 @@ export default function MapScreen() {
           </MapboxGL.ShapeSource>
         )}
 
+        {fromCoordinates && 
+          <MapboxGL.PointAnnotation
+            key='fromPoint'
+            id='fromPoint'
+            coordinate={fromCoordinates}
+          >
+            <View />
+          </MapboxGL.PointAnnotation>        
+        }
+
+        {toCoordinates && 
+          <MapboxGL.PointAnnotation
+            key='toPoint'
+            id='toPoint'
+            coordinate={toCoordinates}
+          >
+            <View />
+          </MapboxGL.PointAnnotation>        
+        }
       </MapboxGL.MapView>
 
       <View style={styles.topBar}>
@@ -272,6 +300,130 @@ export default function MapScreen() {
 
       <View style={styles.switchContainer}>
         <CampusSwitch value={campus} onChange={setCampus} />
+      </View>
+
+      <View style={styles.searchContainer} pointerEvents="box-none">
+
+        {!seeDirectionBar &&
+            <MapSearchBar
+                mapsAdapter={mapsAdapter}
+                toValue={to}
+                onChangeText={(text) => {setTo(text)}}
+                onClickButton={() => {
+                  setFrom('Your location');
+                  setFromCoordinates(userLocation);
+                  fromCoordinatesIsUserLocation.current = true;
+                  setSeeDirectionBar(true);
+                  if (userLocation) {
+                    cameraRef?.current?.setCamera({
+                      centerCoordinate: userLocation,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onSelectBuilding={(mapLocation, coordinates) => {
+                  setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
+                  if (!cameraRef.current) return;
+                  if (coordinates) {
+                    setToCoordinates(coordinates);
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onClear={() => {
+                  setTo('');
+                  setToCoordinates(null);
+                }}
+            />
+        }
+        {seeDirectionBar &&
+            <DirectionBar
+                mapsAdapter={mapsAdapter}
+                fromValue={from}
+                toValue={to}
+                onChangeFrom={setFrom}
+                onChangeTo={setTo}
+                onSelectFrom={(mapLocation, coordinates) => {
+                  setFrom(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
+                  if (!cameraRef.current) return;
+                  if (coordinates) {
+                    setFromCoordinates(coordinates);
+                    fromCoordinatesIsUserLocation.current = false;
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onSelectTo={(mapLocation, coordinates) => {
+                  setTo(mapLocation.name + (mapLocation.address ? ', ' + mapLocation.address : ''));
+                  if (!cameraRef.current) return;
+                  if (coordinates) {
+                    setToCoordinates(coordinates);
+                    cameraRef.current.setCamera({
+                      centerCoordinate: coordinates,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onClearFrom={() => {
+                  setFrom("");
+                  setFromCoordinates(null);
+                  fromCoordinatesIsUserLocation.current = false;
+                }}
+                onClearTo={() => {
+                  setTo("");
+                  setToCoordinates(null);
+                }}
+                onSwap={() => {
+                  const tempTo = to;
+                  const tempToCoordinates = toCoordinates;
+
+                  if (fromCoordinatesIsUserLocation.current) {
+                    setTo('');
+                    setToCoordinates(null);
+                  }
+                  else {
+                    setTo(from);
+                    setToCoordinates(fromCoordinates);
+                  }
+
+                  if (tempToCoordinates != null) {
+                    setFrom(tempTo);
+                    setFromCoordinates(tempToCoordinates);
+                  }
+                  else {
+                    setFrom('');
+                    setFromCoordinates(null);
+                  }
+
+                  fromCoordinatesIsUserLocation.current = false;
+                }}
+                onResetFrom={() => {
+                  setFrom('Your location');
+                  setFromCoordinates(userLocation);
+                  fromCoordinatesIsUserLocation.current = true;
+                  if (userLocation) {
+                    cameraRef?.current?.setCamera({
+                      centerCoordinate: userLocation,
+                      zoomLevel: 18,
+                      animationDuration: 800,
+                    });
+                  }
+                }}
+                onClose={()=> {
+                  setSeeDirectionBar(false);
+                  setFrom('');
+                  setFromCoordinates(null);
+                  fromCoordinatesIsUserLocation.current = false;
+                }}
+            />}
       </View>
 
       <LocateMeButton
@@ -398,5 +550,12 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  searchContainer: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    right: 16,
+    zIndex: 10,
   },
 });

@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile"
+      "bundleIdentifier": "com.anonymous.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -53,8 +56,12 @@
       "reactCompiler": true
     },
     "extra": {
-      "mapboxAccessToken": "pk.eyJ1IjoibWVtb3VkMCIsImEiOiJjbWw0NTE1ZDkwcXZrM2NvYXltNDRyemtpIn0.NW7qNtmufgRwIrUQndJ0dg",
-      "apiBaseUrl": "http://10.0.2.2:8080"
+      "mapboxAccessToken": "YOUR_MAPBOX_TOKEN_HERE",
+      "apiBaseUrl": "http://10.0.2.2:8080",
+      "router": {},
+      "eas": {
+        "projectId": "1a61ed43-f11b-4d50-9ee4-5eee47fadbbc"
+      }
     }
   }
 }
