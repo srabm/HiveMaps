@@ -208,9 +208,7 @@ export default function MapScreen() {
               
               // Find the matching point that has the details
               const point = points.find(p => p.id === f.properties?.id);
-              
-              console.log('Found point with details:', point); // Debug log
-              
+                            
               setSelectedBuilding({
                 ...f.properties,
                 details: point?.details
