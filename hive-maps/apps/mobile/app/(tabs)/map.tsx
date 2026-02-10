@@ -96,7 +96,7 @@ export default function MapScreen() {
   );
 
   // --- FEATURE BUILDER ---
-  const { polygonFeatures, dotPoints } = useMemo(() => {
+  const { polygonFeatures } = useMemo(() => {
     const polys = [];
     const dots = [];
 
@@ -120,11 +120,8 @@ export default function MapScreen() {
           properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding},
         });
     }
-//       } else {
-        dots.push(point);
-//       }
     }
-    return { polygonFeatures: polys, dotPoints: dots };
+    return { polygonFeatures: polys};
   }, [points, userLocation]);
 
   const shapeCollection = useMemo(() => ({
@@ -207,9 +204,16 @@ export default function MapScreen() {
             id="campus-buildings-source"
             shape={shapeCollection}
             onPress={(e) => {
-              console.log('Pressed feature:', e.features[0]); //debugging
-              const f = e.features[0]; //debugging
-              setSelectedBuilding(f.properties);
+              const f = e.features[0];
+              console.log('Pressed feature:', f);
+              
+              // Find the matching point that has the details
+              const point = points.find(p => p.id === f.properties?.id);
+                            
+              setSelectedBuilding({
+                ...f.properties,
+                details: point?.details
+              });
             }}
           >
             {/* LAYER A: Burgundy Background */}
@@ -254,19 +258,6 @@ export default function MapScreen() {
             />
           </MapboxGL.ShapeSource>
         )}
-
-        {dotPoints.map((point) => (
-          <MapboxGL.PointAnnotation
-            key={point.id}
-            id={point.id}
-            coordinate={point.coordinate}
-            onSelected={() => setSelectedBuilding(point.building)}
-          >
-             <View style={styles.markerPin}>
-                <Text style={styles.markerText}>{point.building.code}</Text>
-             </View>
-          </MapboxGL.PointAnnotation>
-        ))}
 
       </MapboxGL.MapView>
 

@@ -1,12 +1,13 @@
 import { buildingsByCampus, type CampusMeta, type Building, type CampusId } from '@/constants/campus';
 import type { MapsProviderPort } from '@/services/maps/maps-provider';
-import { fetchBuildings, fetchCampuses } from '@/services/http/campus-api';
-import { mergeBuildingCache, loadBuildingCache } from '@/storage/campus-storage';
+import { fetchBuildings, fetchCampuses, searchPlaceByAddress, fetchPlaceDetails } from '@/services/http/campus-api';
+import { mergeBuildingCache, loadBuildingCache, loadDetailsCache, mergeDetailsCache } from '@/storage/campus-storage';
 
 export type BuildingPoint = {
   id: string;
   building: Building;
   coordinate: [number, number];
+  details?: string;
 };
 
 export type BuildingPointsProgress = {
@@ -18,7 +19,8 @@ export type BuildingPointsProgress = {
 export type CampusMetaPatch = Pick<CampusMeta, 'center' | 'zoom' | 'label' | 'name'>;
 
 function cacheKey(building: Building) {
-  return `${building.code}:${building.addresses[0]}`;
+  const rawKey = `${building.code}:${building.addresses[0]}`;
+  return rawKey.trim().toLowerCase();
 }
 
 export async function loadCampusesFromApi(): Promise<Partial<Record<CampusId, CampusMetaPatch>>> {
@@ -40,13 +42,16 @@ export async function getBuildingPointsByCampus(
   mapsProvider: MapsProviderPort,
   onProgress?: (points: BuildingPoint[], progress: BuildingPointsProgress) => void,
 ): Promise<BuildingPoint[]> {
-  const cache = await loadBuildingCache();
+  const buildingCache = await loadBuildingCache();
+  const detailsCache = await loadDetailsCache();
 
   let campusBuildings: Building[];
   try {
     campusBuildings = await fetchBuildings(campus);
+    console.log(`Using API buildings for ${campus}: ${campusBuildings.length} buildings`);
   } catch {
     // fallback to bundled constants if backend unreachable
+    console.log('Using fallback campus.ts buildings');
     campusBuildings = buildingsByCampus[campus];
   }
 
@@ -60,7 +65,7 @@ export async function getBuildingPointsByCampus(
 
   for (const building of campusBuildings) {
     const key = cacheKey(building);
-    let coordinate = cache[key];
+    let coordinate = buildingCache[key];
 
     if (coordinate) {
       resolved.push({ id: building.code, building, coordinate });
@@ -102,5 +107,44 @@ export async function getBuildingPointsByCampus(
     await mergeBuildingCache(updates);
   }
 
+  // update missing details with a concurrency limit
+  const newDetailsUpdates: Record<string, any> = {};
+  let detailsCursor = 0;
+  const DETAILS_CONCURRENCY = 3;
+
+  async function detailsWorker() {
+    while (detailsCursor < resolved.length) {
+      const point = resolved[detailsCursor++];
+      const key = cacheKey(point.building);
+
+      if (detailsCache[key]) {
+        point.details = detailsCache[key];
+        continue;
+      }
+
+      try {
+        const placeId = await searchPlaceByAddress(point.building.addresses[0]);
+        if (placeId) {
+          const details = await fetchPlaceDetails(placeId);
+          if (details) {
+            point.details = details;
+            newDetailsUpdates[key] = details;
+            onProgress?.([...resolved], { total, processed: total, found: resolved.length });
+          }
+        }
+      } catch (error){
+        console.error(`Failed to fetch place details for ${point.building.code}:`, error);
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({length: Math.min(DETAILS_CONCURRENCY, resolved.length)}, detailsWorker)
+  );
+
+  if (Object.keys(newDetailsUpdates).length > 0) {
+    await mergeDetailsCache(newDetailsUpdates);
+  }
+  console.log('Finished fetching and caching place details');
   return resolved;
 }
