@@ -48,7 +48,7 @@ const formatDistance = (meters?: number) => {
 };
 
 const formatDuration = (seconds?: number) => {
-    if (seconds == null) return '—';
+    if (seconds == null) return '— min';
     const totalMinutes = Math.round(seconds / 60);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
@@ -70,6 +70,7 @@ export function NavigationBottom({
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
 
     useEffect(() => {
@@ -84,6 +85,8 @@ export function NavigationBottom({
     useEffect(() => {
         let active = true;
         const fetchDirections = async () => {
+            setIsLoading(true);
+            setDirections(null);
             try {
                 const request: DirectionsRequest = {
                     origin,
@@ -96,7 +99,11 @@ export function NavigationBottom({
                 setDirections(resp);
                 onDirectionsChange?.(resp);
             } catch (err) {
+                if (!active) return;
+                setDirections(null);
                 console.warn('Failed to load directions', err);
+            } finally {
+                if (active) setIsLoading(false);
             }
         };
         fetchDirections();

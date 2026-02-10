@@ -53,6 +53,7 @@ export interface DirectionsResponse {
 const directionsCache = new Map<string, DirectionsResponse>();
 const CACHE_STORAGE_KEY = 'directions_cache_v1';
 let cacheInitialized = false;
+const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
 
 /**
  * Initialize cache from AsyncStorage on app startup
@@ -196,6 +197,39 @@ function getGoogleTravelMode(mode: TransportMode): string {
     }
 }
 
+export type DirectionsRequestEvent =
+    | { type: 'request-started'; cacheKey: string; request: DirectionsRequest }
+    | { type: 'request-success'; cacheKey: string; request: DirectionsRequest }
+    | { type: 'request-failed'; cacheKey: string; request: DirectionsRequest; error: unknown }
+    | { type: 'request-timeout'; cacheKey: string; request: DirectionsRequest };
+
+const directionsListeners = new Set<(event: DirectionsRequestEvent) => void>();
+
+export function addDirectionsListener(listener: (event: DirectionsRequestEvent) => void): () => void {
+    directionsListeners.add(listener);
+    return () => directionsListeners.delete(listener);
+}
+
+function emitDirectionsEvent(event: DirectionsRequestEvent) {
+    directionsListeners.forEach((listener) => listener(event));
+}
+
+async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(input, {...init, signal: controller.signal});
+    } catch (err: any) {
+        if (err?.name === 'AbortError') {
+            console.warn('[Directions] Request timeout', {timeoutMs});
+            throw new Error('DirectionsRequestTimeout');
+        }
+        throw err;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 // Main function to get directions
 export async function getDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
     // Ensure cache is initialized
@@ -212,13 +246,25 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
     }
 
     console.log(`[Cache MISS] ${cacheKey}`);
+    emitDirectionsEvent({type: 'request-started', cacheKey, request});
 
     let response: DirectionsResponse;
-    if (request.provider === Provider.MAPBOX) {
-        response = await getMapboxDirections(request);
-    } else {
-        response = await getGoogleMapsDirections(request);
+    try {
+        if (request.provider === Provider.MAPBOX) {
+            response = await getMapboxDirections(request);
+        } else {
+            response = await getGoogleMapsDirections(request);
+        }
+    } catch (error) {
+        if ((error as Error).message === 'DirectionsRequestTimeout') {
+            emitDirectionsEvent({type: 'request-timeout', cacheKey, request});
+        } else {
+            emitDirectionsEvent({type: 'request-failed', cacheKey, request, error});
+        }
+        throw error;
     }
+
+    emitDirectionsEvent({type: 'request-success', cacheKey, request});
 
     // Store in cache and persist
     directionsCache.set(cacheKey, response);
@@ -244,7 +290,7 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
         throw new Error(`Mapbox API error: ${response.status}`);
@@ -282,7 +328,7 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
         travelMode: getGoogleTravelMode(request.transportMode)
     };
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -299,4 +345,3 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
     const data = await response.json();
     return convertGoogleMapsResponse(data);
 }
-
