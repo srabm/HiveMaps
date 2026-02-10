@@ -77,6 +77,7 @@ export default function MapScreen() {
     useEffect(() => {
         initializeDirectionsCache();
     }, []);
+    
     useEffect(() => {
         if (!cameraRef.current) return;
         cameraRef.current.setCamera({
@@ -398,10 +399,12 @@ export default function MapScreen() {
                             setFrom("");
                             setFromCoordinates(null);
                             fromCoordinatesIsUserLocation.current = false;
+                            setDirections(null);
                         }}
                         onClearTo={() => {
                             setTo("");
                             setToCoordinates(null);
+                            setDirections(null);
                         }}
                         onSwap={() => {
                             // Swap text
