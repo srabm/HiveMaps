@@ -95,7 +95,7 @@ export default function MapScreen() {
   );
 
   // --- FEATURE BUILDER ---
-  const { polygonFeatures, dotPoints } = useMemo(() => {
+  const { polygonFeatures } = useMemo(() => {
     const polys = [];
     const dots = [];
 
@@ -119,11 +119,8 @@ export default function MapScreen() {
           properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding},
         });
     }
-//       } else {
-        dots.push(point);
-//       }
     }
-    return { polygonFeatures: polys, dotPoints: dots };
+    return { polygonFeatures: polys};
   }, [points, userLocation]);
 
   const shapeCollection = useMemo(() => ({
@@ -262,22 +259,6 @@ export default function MapScreen() {
             />
           </MapboxGL.ShapeSource>
         )}
-
-        {dotPoints.map((point) => (
-          <MapboxGL.PointAnnotation
-            key={point.id}
-            id={point.id}
-            coordinate={point.coordinate}
-            onSelected={() => setSelectedBuilding({
-              ...point.building,
-              details: point.details
-            })}
-          >
-             <View style={styles.markerPin}>
-                <Text style={styles.markerText}>{point.building.code}</Text>
-             </View>
-          </MapboxGL.PointAnnotation>
-        ))}
 
       </MapboxGL.MapView>
 
