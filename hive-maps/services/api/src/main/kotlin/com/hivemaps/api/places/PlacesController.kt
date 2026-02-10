@@ -20,23 +20,23 @@ class PlacesController(
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
             set("X-Goog-Api-Key", apiKey)
-            set("X-Goog-FieldMask", "places.id")
+            set("X-Goog-FieldMask", "places.id,places.types,places.displayName")
         }
 
-        val body = mapOf("textQuery" to req.address)
+        val optimizedQuery = "${req.address} establishment"
+        val body = mapOf("textQuery" to optimizedQuery)
+        
         val entity = HttpEntity(body, headers)
-
-        val response = restTemplate.exchange(
-            url,
-            HttpMethod.POST,
-            entity,
-            Map::class.java
-        )
+        val response = restTemplate.exchange(url, HttpMethod.POST, entity, Map::class.java)
 
         val places = response.body?.get("places") as? List<Map<String, Any>>
-        val placeId = places?.firstOrNull()?.get("id") as? String
+        
+        val bestPlace = places?.firstOrNull { place ->
+            val types = place["types"] as? List<String>
+            types?.contains("establishment") == true
+        } ?: places?.firstOrNull()
 
-        return mapOf("placeId" to placeId)
+        return mapOf("placeId" to bestPlace?.get("id") as? String)
     }
 
     @GetMapping("/{placeId}")
@@ -47,7 +47,7 @@ class PlacesController(
             set("X-Goog-Api-Key", apiKey)
             set(
                 "X-Goog-FieldMask",
-                "regularOpeningHours,currentOpeningHours,nationalPhoneNumber,internationalPhoneNumber"
+                "formattedAddress,postalAddress,websiteUri,businessStatus,photos,accessibilityOptions,websiteUri,regularOpeningHours,currentOpeningHours,nationalPhoneNumber,internationalPhoneNumber"
             )
         }
 

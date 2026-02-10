@@ -48,10 +48,12 @@ export async function fetchBuildings(campus: CampusId): Promise<Building[]> {
 }
 
 export async function searchPlaceByAddress(address: string){
+  const refinedAddress = `${address} establishment`;
+
   const res = await fetch(`${baseUrl}/api/places/search`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({address}),
+    body: JSON.stringify({ address: refinedAddress }),
   });
 
   const data = await res.json();
