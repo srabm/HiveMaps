@@ -299,3 +299,4 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
     const data = await response.json();
     return convertGoogleMapsResponse(data);
 }
+
