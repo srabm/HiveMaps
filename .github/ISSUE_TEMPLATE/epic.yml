@@ -1,0 +1,122 @@
+name: Epic
+description: A large initiative spanning multiple user stories
+title: "EPIC: "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use an Epic for work that spans multiple stories/PRs.
+        Prefer linking issues/PRs instead of pasting long updates here.
+
+  - type: textarea
+    id: overview
+    attributes:
+      label: Overview
+      description: What are we doing and why now?
+      placeholder: A short, high-level description of the epic.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Mobile (Expo)
+        - API (Spring Boot)
+        - Mobile + API
+        - CI / DevOps
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What outcomes must be true when this epic is done?
+      placeholder: |
+        - Goal 1
+        - Goal 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What is explicitly out of scope?
+      placeholder: |
+        - Not doing X in this epic
+        - Not supporting Y yet
+    validations:
+      required: false
+
+  - type: textarea
+    id: success_metrics
+    attributes:
+      label: Success metrics (optional)
+      description: How will we measure success?
+      placeholder: |
+        - Metric: ...
+        - Target: ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / deliverables
+      description: Concrete deliverables or milestones.
+      placeholder: |
+        - Deliverable 1
+        - Deliverable 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: stories
+    attributes:
+      label: Linked stories / tasks
+      description: Prefer a checklist of linked issues.
+      placeholder: |
+        - [ ] #123
+        - [ ] #456
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies (optional)
+      description: External dependencies, other teams, blocking work.
+      placeholder: |
+        - Depends on #...
+        - Needs API contract from ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / unknowns (optional)
+      placeholder: |
+        - Risk: ...
+        - Mitigation: ...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: definition_of_done
+    attributes:
+      label: Definition of done
+      options:
+        - label: Linked stories/tasks are complete
+          required: false
+        - label: Relevant docs are updated (if needed)
+          required: false
+        - label: Tested on target platforms (if applicable)
+          required: false
+
