@@ -19,7 +19,7 @@ import {NavigationBottom} from "@/components/ui/navigation-bottom";
 import {
     DirectionsResponse,
     initializeDirectionsCache,
-    Coordinate
+    addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
 
 
@@ -66,6 +66,7 @@ export default function MapScreen() {
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
@@ -77,7 +78,20 @@ export default function MapScreen() {
     useEffect(() => {
         initializeDirectionsCache();
     }, []);
-    
+
+    useEffect(() => {
+        const unsubscribe = addDirectionsListener((event) => {
+            if (event.type === 'request-started' || event.type === 'request-failed') {
+                setDirections(null);
+            }
+            if (event.type === 'request-timeout') {
+                setDirections(null);
+                setShowTimeoutModal(true);
+            }
+        });
+        return unsubscribe;
+    }, []);
+
     useEffect(() => {
         if (!cameraRef.current) return;
         cameraRef.current.setCamera({
@@ -519,6 +533,39 @@ export default function MapScreen() {
                             onPress={() => setShowLocationPrompt(false)}
                         >
                             <Text style={styles.modalButtonText}>Got it</Text>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            </Modal>
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showTimeoutModal}
+                onRequestClose={() => setShowTimeoutModal(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowTimeoutModal(false)}
+                    />
+                    <ThemedView
+                        style={[
+                            styles.modalCard,
+                            {backgroundColor: theme.background, borderColor: theme.icon},
+                        ]}
+                    >
+                        <ThemedText type="subtitle" style={styles.modalTitle}>
+                            Directions Unavailable
+                        </ThemedText>
+                        <ThemedText style={styles.modalBody}>
+                            The directions request took too long. Please try again.
+                        </ThemedText>
+                        <Pressable
+                            style={[styles.modalButton, {backgroundColor: theme.tint}]}
+                            onPress={() => setShowTimeoutModal(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Dismiss</Text>
                         </Pressable>
                     </ThemedView>
                 </View>
