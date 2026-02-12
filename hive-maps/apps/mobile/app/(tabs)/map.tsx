@@ -118,20 +118,18 @@ export default function MapScreen() {
         if (!directions || !routeValidation || !routeValidation.valid) return;
         if (!cameraRef.current) return;
         const {route} = routeValidation;
-        if (route.isInterCampus) {
-            const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
-            if (bounds.bounds) {
-                cameraRef.current.setCamera({
-                    bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
-                    animationDuration: bounds.animationDuration,
-                });
-            } else {
-                cameraRef.current.setCamera({
-                    centerCoordinate: bounds.centerCoordinate,
-                    zoomLevel: bounds.zoomLevel,
-                    animationDuration: bounds.animationDuration,
-                });
-            }
+        const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
+        if (bounds.bounds) {
+            cameraRef.current.setCamera({
+                bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
+                animationDuration: bounds.animationDuration,
+            });
+        } else {
+            cameraRef.current.setCamera({
+                centerCoordinate: bounds.centerCoordinate,
+                zoomLevel: bounds.zoomLevel,
+                animationDuration: bounds.animationDuration,
+            });
         }
     }, [directions, routeValidation]);
 

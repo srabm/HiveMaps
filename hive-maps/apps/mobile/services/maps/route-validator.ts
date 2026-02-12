@@ -98,6 +98,11 @@ export function validateCampusRoute(
         return {valid: false, error: 'SAME_ORIGIN_AND_DESTINATION', message: 'Origin and destination buildings cannot be the same.'};
     }
 
+    if (origin.type === 'coordinate' && destination.type === 'coordinate'
+        && haversineKM(origin.longitude, origin.latitude, destination.longitude, destination.latitude) < 0.01) {
+        return {valid: false, error: 'SAME_ORIGIN_AND_DESTINATION', message: 'Origin and destination cannot be the same location.'};
+    }
+
     return {
         valid: true,
         route: {
