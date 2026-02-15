@@ -21,13 +21,15 @@ const {getDirections} = require('@/services/maps/directions-api-adapter');
 const origin = {latitude: 45.4972, longitude: -73.5787};
 const destination = {latitude: 45.4583, longitude: -73.6406};
 
+jest.useFakeTimers();
+
 afterEach(() => {
     jest.clearAllMocks();
 });
 
 //task 2.3.4 displays distance and estimated travel time
 describe('NavigationBottom rendering', () => {
-    it('renders all four transport mode buttons', () => {
+    it('renders all four transport mode buttons', async () => {
         const {getAllByText, getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination}/>
         );
@@ -36,27 +38,31 @@ describe('NavigationBottom rendering', () => {
         expect(getByText('Walk')).toBeTruthy();
         expect(getByText('Transit')).toBeTruthy();
         expect(getByText('Bike')).toBeTruthy();
+        await waitFor(() => {});
     });
 
-    it('renders the start button', () => {
+    it('renders the start button', async () => {
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination}/>
         );
         expect(getByText('Start')).toBeTruthy();
+        await waitFor(() => {});
     });
 
-    it('displays default arrival time', () => {
+    it('displays default arrival time', async () => {
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination}/>
         );
         expect(getByText('Arrive by 10:27 PM')).toBeTruthy();
+        await waitFor(() => {});
     });
 
-    it('displays custom arrial time when provided', () => {
+    it('displays custom arrial time when provided', async () => {
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination} arrivalTime="Arrive by 3:00 PM"/>
         );
         expect(getByText('Arrive by 3:00 PM')).toBeTruthy();
+        await waitFor(() => {});
     });
 
     it('shows distance and duration', async () => {
@@ -82,21 +88,23 @@ describe('NavigationBottom rendering', () => {
 
 //task 2.3.2 mode switching calls API with correct transport mode
 describe('NavigationBottom mode switching', () => {
-    it('calls onModeChange when a mode is selected', () => {
+    it('calls onModeChange when a mode is selected', async () => {
         const onModeChange = jest.fn();
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination} onModeChange = {onModeChange}/>
         );
         fireEvent.press(getByText('Walk'));
         expect(onModeChange).toHaveBeenCalledWith('Walk');
+        await waitFor(() => {});
     });
 
-    it('updates header text when mode is switched', () => {
+    it('updates header text when mode is switched', async () => {
         const {getByText, getAllByText} = render(
             <NavigationBottom origin = {origin} destination = {destination} initialMode = 'Drive'/>
         );
         fireEvent.press(getByText('Bike'));
         expect(getAllByText('Bike').length).toBeGreaterThanOrEqual(1);
+        await waitFor(() => {});
     });
 
     it('calls getDirections with provider for Transit mode', async () => {
@@ -126,13 +134,14 @@ describe('NavigationBottom mode switching', () => {
 
 //task 2.3.5 callbacks
 describe('NavigationBottom callbacks', () => {
-    it('calls onStartPress when Start is pressed', () => {
+    it('calls onStartPress when Start is pressed', async () => {
         const onStartPress = jest.fn();
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination} onStartPress = {onStartPress}/>
         );
         fireEvent.press(getByText('Start'));
         expect(onStartPress).toHaveBeenCalled();
+        await waitFor(() => {});
     });
 
     it('calls onDirectionsChange when directions load', async () => {

@@ -67,7 +67,7 @@ describe('convertGoogleMapsResponse', () => {
     });
 
     //task 2.3.3
-    it('extacts the encoded polyline from the route', () => {
+    it('extracts the encoded polyline from the route', () => {
         expect(result.polyline).toBe('fullRoutePoly');
     });
 
