@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export interface Coordinate {
+export type Coordinate = {
     longitude: number;
     latitude: number;
 }
@@ -19,14 +19,19 @@ export enum Provider {
 
 /**
  * Use this direction request format for both providers
+ * The time is a string in this format: YYYY-MM-DDThh:mm:ssZ
  */
-export interface DirectionsRequest {
+export type DirectionsRequest = {
     origin: Coordinate;
     destination: Coordinate;
     transportMode: TransportMode;
-    provider: Provider
+    provider: Provider;
+} & ( // The direction request can have departure or arrival time specified, or neither, but not both
+    | { departureTimeFilter: string; arrivalTimeFilter?: null | undefined }
+    | { departureTimeFilter?: null | undefined; arrivalTimeFilter: string }
+    | { departureTimeFilter?: null | undefined; arrivalTimeFilter?: null | undefined }
+    );
 
-}
 
 export interface Step {
     distance: number;
@@ -36,13 +41,14 @@ export interface Step {
     startLocation: Coordinate;
     endLocation: Coordinate;
     polyline?: string;
+    transitDetails?: any; // stopDetails, arrivalTime, departureStop, departureTime
 }
 
 /**
  * Might have to consider the interpretation of the escape character '\\' when reading the polyline (doubled for tooltip lol it never ends)
  * Converts automatically both provider responses to this universal format 💪
  */
-export interface DirectionsResponse {
+export type DirectionsResponse = {
     distanceMeters: number;
     durationSeconds: number;
     polyline: string;
@@ -125,8 +131,11 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
             latitude: step.endLocation.latLng.latitude,
             longitude: step.endLocation.latLng.longitude
         },
-        polyline: step.polyline.encodedPolyline
+        polyline: step.polyline.encodedPolyline,
+        transitDetails: step.transitDetails || undefined
     }));
+
+    // console.log(JSON.stringify(steps, null, 2));
 
     return {
         distanceMeters: route.distanceMeters,
@@ -288,6 +297,13 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
         steps: 'true'
     });
 
+    // Add departure or arrival time if specified
+    if (request.departureTimeFilter) {
+        params.append('depart_at', request.departureTimeFilter);
+    } else if (request.arrivalTimeFilter) {
+        params.append('arrive_by', request.arrivalTimeFilter);
+    }
+
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
     const response = await fetchWithTimeout(url);
@@ -308,7 +324,7 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
 
     const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-    const body = {
+    const body: any = {
         origin: {
             location: {
                 latLng: {
@@ -327,6 +343,13 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
         },
         travelMode: getGoogleTravelMode(request.transportMode)
     };
+
+    // Add departure or arrival time if specified
+    if (request.departureTimeFilter) {
+        body.departureTime = request.departureTimeFilter;
+    } else if (request.arrivalTimeFilter) {
+        body.arrivalTime = request.arrivalTimeFilter;
+    }
 
     const response = await fetchWithTimeout(url, {
         method: 'POST',
