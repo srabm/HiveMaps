@@ -2,16 +2,17 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
-import {PolygonUtils} from '@/domain/PolygonUtils';
-import {CampusBadge} from '@/components/campus-badge';
-import {CampusSwitch} from '@/components/campus-switch';
-import {LocateMeButton} from '@/components/locate-me-button';
-import {ThemedText} from '@/components/themed-text';
-import {ThemedView} from '@/components/themed-view';
-import {Colors} from '@/constants/theme';
-import {useColorScheme} from '@/hooks/use-color-scheme';
-import {useNavigationController} from '@/controllers/navigation-controller';
-import {MapboxGL} from '@/services/mapbox';
+import { PolygonUtils } from '@/domain/PolygonUtils';
+import { CampusBadge } from '@/components/campus-badge';
+import { CampusSwitch } from '@/components/campus-switch';
+import { BuildingInfoModal } from '@/components/building-info-modal';
+import { LocateMeButton } from '@/components/locate-me-button';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNavigationController } from '@/controllers/navigation-controller';
+import { MapboxGL } from '@/services/mapbox';
 import MapSearchBar from '@/components/search-bar';
 import {Coordinates} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
@@ -25,28 +26,6 @@ import {
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
-
-const isPointInRing = (point: [number, number], ring: [number, number][]) => {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const xi = ring[i][0], yi = ring[i][1];
-        const xj = ring[j][0], yj = ring[j][1];
-        const intersect =
-            yi > point[1] !== yj > point[1] &&
-            point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
-        if (intersect) inside = !inside;
-    }
-    return inside;
-};
-
-const isPointInPolygon = (point: [number, number], coordinates: [number, number][][]) => {
-    if (!coordinates?.length) return false;
-    if (!isPointInRing(point, coordinates[0])) return false;
-    for (let i = 1; i < coordinates.length; i += 1) {
-        if (isPointInRing(point, coordinates[i])) return false;
-    }
-    return true;
-};
 
 export default function MapScreen() {
     const {
@@ -67,7 +46,9 @@ export default function MapScreen() {
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [from, setFrom] = useState<string>("");
+    const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
+
+  const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
@@ -132,10 +113,10 @@ export default function MapScreen() {
         [campusMeta],
     );
 
-    // --- FEATURE BUILDER ---
-    const {polygonFeatures, dotPoints} = useMemo(() => {
-        const polys = [];
-        const dots = [];
+  // --- FEATURE BUILDER ---
+  const { polygonFeatures } = useMemo(() => {
+    const polys = [];
+    const dots = [];
 
         for (const point of points) {
             const loc = point.building.location as any;
@@ -156,18 +137,16 @@ export default function MapScreen() {
                     ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
                     : false;
 
-                polys.push({
-                    type: 'Feature' as const,
-                    id: point.id,
-                    geometry: {type: 'Polygon' as const, coordinates: coords},
-                    properties: {name: point.building.name, isUserBuilding: inUserBuilding},
-                });
-            } else {
-                dots.push(point);
-            }
-        }
-        return {polygonFeatures: polys, dotPoints: dots};
-    }, [points, userLocation]);
+        polys.push({
+          type: 'Feature' as const,
+          id: point.id,
+          geometry: { type: 'Polygon' as const, coordinates: coords },
+          properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding},
+        });
+    }
+    }
+    return { polygonFeatures: polys};
+  }, [points, userLocation]);
 
     const shapeCollection = useMemo(() => ({
         type: 'FeatureCollection' as const,
@@ -244,20 +223,36 @@ export default function MapScreen() {
                     </MapboxGL.ShapeSource>
                 )}
 
-                {polygonFeatures.length > 0 && (
-                    <MapboxGL.ShapeSource
-                        id="campus-buildings-source"
-                        shape={shapeCollection}
-                    >
-                        {/* LAYER A: Burgundy Background */}
-                        <MapboxGL.FillLayer
-                            id="campus-buildings-base"
-                            aboveLayerID="road-label"
-                            style={{
-                                fillColor: '#9d1e30',
-                                fillOpacity: 0.6,
-                            }}
-                        />
+        {polygonFeatures.length > 0 && (
+          <MapboxGL.ShapeSource
+            id="campus-buildings-source"
+            shape={shapeCollection}
+            onPress={(e) => {
+              const f = e.features[0];
+              console.log('Pressed feature:', f);
+              
+              const point = points.find(p => p.id === f.properties?.id);
+              const details = point?.details as any;
+                            
+              setSelectedBuilding({
+                ...f.properties,
+                phone: details?.nationalPhoneNumber,
+                website: details?.websiteUri,
+                hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
+                        ?? 'Hours not listed',
+                allHours: details?.regularOpeningHours?.weekdayDescriptions,
+              });
+            }}
+          >
+            {/* LAYER A: Burgundy Background */}
+            <MapboxGL.FillLayer
+              id="campus-buildings-base"
+              aboveLayerID="road-label" 
+              style={{
+                fillColor: '#9d1e30', 
+                fillOpacity: 0.6, 
+              }}
+            />
 
                         {/* LAYER B: The Honeycomb Pattern */}
                         <MapboxGL.FillLayer
@@ -291,18 +286,6 @@ export default function MapScreen() {
                         />
                     </MapboxGL.ShapeSource>
                 )}
-
-                {dotPoints.map((point) => (
-                    <MapboxGL.PointAnnotation
-                        key={point.id}
-                        id={point.id}
-                        coordinate={point.coordinate}
-                    >
-                        <View style={styles.markerPin}>
-                            <Text style={styles.markerText}>M</Text>
-                        </View>
-                    </MapboxGL.PointAnnotation>
-                ))}
                 {fromCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='fromPoint'
@@ -537,6 +520,12 @@ export default function MapScreen() {
                     </ThemedView>
                 </View>
             </Modal>
+
+      <BuildingInfoModal
+        visible={!!selectedBuilding}
+        building={selectedBuilding}
+        onClose={() => setSelectedBuilding(null)}
+      />
 
             <Modal
                 transparent

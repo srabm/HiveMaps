@@ -26,6 +26,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/hivemaps
       SPRING_DATASOURCE_USERNAME: hivemaps
       SPRING_DATASOURCE_PASSWORD: hivemaps
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
     ports:
       - "8080:8080"
     restart: unless-stopped
