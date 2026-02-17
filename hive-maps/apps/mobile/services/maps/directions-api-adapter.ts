@@ -178,29 +178,44 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
     const route = data.routes[0];
     const leg = route.legs[0];
 
-    const steps: Step[] = leg.steps.map((step: any) => ({
-        distance: step.distanceMeters,
-        duration: parseInt(step.staticDuration),
-        instruction: step.navigationInstruction.instructions,
-        maneuver: step.navigationInstruction.maneuver,
-        startLocation: {
-            latitude: step.startLocation.latLng.latitude,
-            longitude: step.startLocation.latLng.longitude
-        },
-        endLocation: {
-            latitude: step.endLocation.latLng.latitude,
-            longitude: step.endLocation.latLng.longitude
-        },
-        polyline: step.polyline.encodedPolyline,
-        transitDetails: step.transitDetails || undefined
-    }));
+    const steps: Step[] = leg.steps.map((step: any) => {
+        let transitDetails: any = undefined;
 
-    // console.log(JSON.stringify(steps, null, 2));
+        // Extract transit details if they exist
+        // Google Maps stores transitDetails directly at step level
+        if (step.transitDetails) {
+            const stopDetails = step.transitDetails.stopDetails;
+
+            transitDetails = {
+                arrivalTime: stopDetails?.arrivalTime,
+                departureTime: stopDetails?.departureTime,
+                stopDetails: stopDetails,
+                transitLine: step.transitDetails.transitLine
+            };
+        }
+
+        return {
+            distance: step.distanceMeters,
+            duration: parseInt(step.staticDuration),
+            instruction: step.navigationInstruction?.instructions || '',
+            maneuver: step.navigationInstruction?.maneuver || '',
+            startLocation: {
+                latitude: step.startLocation.latLng.latitude,
+                longitude: step.startLocation.latLng.longitude
+            },
+            endLocation: {
+                latitude: step.endLocation.latLng.latitude,
+                longitude: step.endLocation.latLng.longitude
+            },
+            polyline: step.polyline?.encodedPolyline || '',
+            transitDetails
+        };
+    });
 
     return {
         distanceMeters: route.distanceMeters,
         durationSeconds: parseInt(route.duration),
-        polyline: route.polyline.encodedPolyline,
+        polyline: route.polyline?.encodedPolyline || '',
         steps
     };
 }
@@ -223,7 +238,8 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
             latitude: step.intersections[step.intersections.length - 1].location[1],
             longitude: step.intersections[step.intersections.length - 1].location[0]
         },
-        polyline: step.geometry
+        polyline: step.geometry,
+        transitDetails: undefined
     }));
 
     return {
@@ -288,12 +304,12 @@ async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, time
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     // Log request details
-    console.log('[Fetch] Request:', {
-        url: input,
-        method: init.method || 'GET',
-        headers: init.headers,
-        body: init.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : undefined
-    });
+    // console.log('[Fetch] Request:', {
+    //     url: input,
+    //     method: init.method || 'GET',
+    //     headers: init.headers,
+    //     body: init.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : undefined
+    // });
 
     try {
         return await fetch(input, {...init, signal: controller.signal});
@@ -397,10 +413,10 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 }
 
 async function getGoogleMapsDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
-    console.log(`[Google Maps API] Fetching directions for ${getGoogleTravelMode(request.transportMode)} mode`, {
+    /*console.log(`[Google Maps API] Fetching directions for ${getGoogleTravelMode(request.transportMode)} mode`, {
         origin: request.origin,
         destination: request.destination
-    });
+    });*/
 
     const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 

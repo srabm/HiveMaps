@@ -22,7 +22,6 @@ interface NavigationBottomProps {
     onStartPress?: () => void;
     onModeChange?: (mode: TransportModeLabel) => void;
     initialMode?: TransportModeLabel;
-    arrivalTime?: string;
 }
 
 const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Bike'];
@@ -70,7 +69,6 @@ export function NavigationBottom({
                                      onStartPress,
                                      onModeChange,
                                      initialMode = 'Drive',
-                                     arrivalTime = 'Arrive by 10:27 PM',
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
@@ -79,6 +77,7 @@ export function NavigationBottom({
     const [timePickerVisible, setTimePickerVisible] = useState(false);
     const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>('depart');
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
+    const [arriveLeaveDetails, setArriveLeaveDetails] = useState<string>('');
 
     useEffect(() => {
         Animated.spring(slideAnim, {
@@ -121,12 +120,113 @@ export function NavigationBottom({
         };
     }, [origin, destination, selectedMode, timeFilter, timeFilterMode, onDirectionsChange]);
 
+    // Calculate arrival/departure details
+    useEffect(() => {
+        if (!directions) {
+            setArriveLeaveDetails('');
+            return;
+        }
+
+        try {
+            if (selectedMode === 'Transit') {
+                const steps = directions.steps;
+
+                if (!steps || steps.length === 0) {
+                    setArriveLeaveDetails('');
+                    return;
+                }
+
+                // Find first transit step
+                const firstTransitIndex = steps.findIndex(step => step.transitDetails);
+
+                if (firstTransitIndex === -1) {
+                    setArriveLeaveDetails('');
+                    return;
+                }
+
+                // Find last transit step
+                let lastTransitIndex = firstTransitIndex;
+                for (let i = steps.length - 1; i >= 0; i--) {
+                    if (steps[i].transitDetails) {
+                        lastTransitIndex = i;
+                        break;
+                    }
+                }
+
+                if (timeFilterMode === 'depart') {
+                    // For depart mode: show when you'll ARRIVE if you depart now
+                    const firstTransitStep = steps[firstTransitIndex];
+                    const departureTimeStr = firstTransitStep.transitDetails?.departureTime;
+
+                    if (!departureTimeStr) {
+                        setArriveLeaveDetails('');
+                        return;
+                    }
+
+                    let departureTime = new Date(departureTimeStr);
+
+                    // Subtract duration of preceding walk steps to get actual departure time
+                    for (let i = 0; i < firstTransitIndex; i++) {
+                        departureTime = new Date(departureTime.getTime() - (steps[i].duration * 1000));
+                    }
+
+                    // Now add total trip duration to get arrival time
+                    const totalDurationMs = steps.reduce((sum, step) => sum + (step.duration * 1000), 0);
+                    const arrivalTime = new Date(departureTime.getTime() + totalDurationMs);
+
+                    const formattedTime = formatISOToTime(arrivalTime.toISOString());
+                    setArriveLeaveDetails(`Arrive by ${formattedTime}`);
+                } else {
+                    // For arrive mode: show when you need to DEPART to arrive by that time
+                    const lastTransitStep = steps[lastTransitIndex];
+                    const arrivalTimeStr = lastTransitStep.transitDetails?.arrivalTime;
+
+                    if (!arrivalTimeStr) {
+                        setArriveLeaveDetails('');
+                        return;
+                    }
+
+                    let arrivalTime = new Date(arrivalTimeStr);
+
+                    // Add duration of following walk steps
+                    for (let i = lastTransitIndex + 1; i < steps.length; i++) {
+                        arrivalTime = new Date(arrivalTime.getTime() + (steps[i].duration * 1000));
+                    }
+
+                    // Now subtract total trip duration to get departure time
+                    const totalDurationMs = steps.reduce((sum, step) => sum + (step.duration * 1000), 0);
+                    const departureTime = new Date(arrivalTime.getTime() - totalDurationMs);
+
+                    const formattedTime = formatISOToTime(departureTime.toISOString());
+                    setArriveLeaveDetails(`Depart at ${formattedTime}`);
+                }
+            } else if (selectedMode === 'Walk' || selectedMode === 'Drive' || selectedMode === 'Bike') {
+                // For walk/drive/bike modes, use total duration
+                const baseTime = new Date(timeFilter);
+                const durationMs = directions.durationSeconds * 1000;
+
+                if (timeFilterMode === 'depart') {
+                    const arrivalTime = new Date(baseTime.getTime() + durationMs);
+                    setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
+                } else {
+                    const departureTime = new Date(baseTime.getTime() - durationMs);
+                    setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`);
+                }
+            } else {
+                setArriveLeaveDetails('');
+            }
+        } catch (err) {
+            console.warn('Failed to calculate arrival/departure time', err);
+            setArriveLeaveDetails('');
+        }
+    }, [directions, timeFilter, timeFilterMode, selectedMode]);
+
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);
         onModeChange?.(mode);
     };
 
-    const handleDepartureTimeChange = (time: string, mode: TimeFilterMode) => {
+    const handleTimeFilterChange = (time: string, mode: TimeFilterMode) => {
         setTimeFilter(time);
         setTimeFilterMode(mode);
         setTimePickerVisible(false);
@@ -200,7 +300,7 @@ export function NavigationBottom({
 
                     <View style={[styles.metricCell, styles.middleCell]}>
                         <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                            {arrivalTime}
+                            {arriveLeaveDetails}
                         </Text>
                         <Text style={styles.distanceText}>{distanceText}</Text>
                     </View>
@@ -217,7 +317,7 @@ export function NavigationBottom({
                 visible={timePickerVisible}
                 initialTime={timeFilter}
                 initialMode={timeFilterMode}
-                onConfirm={handleDepartureTimeChange}
+                onConfirm={handleTimeFilterChange}
                 onCancel={() => setTimePickerVisible(false)}
             />
         </>
