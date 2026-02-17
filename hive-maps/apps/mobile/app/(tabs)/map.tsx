@@ -21,6 +21,8 @@ import {
     initializeDirectionsCache,
     addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
+import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
+import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -66,6 +68,7 @@ export default function MapScreen() {
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [selectedMode, setSelectedMode] = useState<'Drive' | 'Walk' | 'Transit' | 'Shuttle'>('Drive');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
@@ -91,6 +94,12 @@ export default function MapScreen() {
         });
         return unsubscribe;
     }, []);
+
+    const shuttleRouting = useShuttleRouting({
+        enabled: selectedMode === 'Shuttle',
+        origin: fromCoordinates ? {longitude: fromCoordinates[0], latitude: fromCoordinates[1]} : null,
+        destination: toCoordinates ? {longitude: toCoordinates[0], latitude: toCoordinates[1]} : null,
+    });
 
     useEffect(() => {
         if (!cameraRef.current) return;
@@ -322,10 +331,19 @@ export default function MapScreen() {
                         <View/>
                     </MapboxGL.PointAnnotation>
                 }
-                {directions && (
+                {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                    />
+                )}
+                {selectedMode === 'Shuttle' && (
+                    <ShuttleRouteOverlay
+                        walkToStop={shuttleRouting.walkToStop}
+                        shuttleLeg={shuttleRouting.shuttleLeg}
+                        walkFromStop={shuttleRouting.walkFromStop}
+                        stopsForTrip={shuttleRouting.stopsForTrip}
+                        stopMarkers={shuttleRouting.stopMarkers}
                     />
                 )}
             </MapboxGL.MapView>
@@ -473,6 +491,7 @@ export default function MapScreen() {
                             latitude: toCoordinates[1]
                         }}
                         onDirectionsChange={setDirections}
+                        onModeChange={setSelectedMode}
                         onStartPress={() => console.log('Start navigation')}
                     />
                 </View>

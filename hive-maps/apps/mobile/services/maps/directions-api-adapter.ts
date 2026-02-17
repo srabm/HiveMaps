@@ -8,8 +8,7 @@ export interface Coordinate {
 export enum TransportMode {
     DRIVING,
     WALKING,
-    TRANSIT,
-    BIKING
+    TRANSIT
 }
 
 export enum Provider {
@@ -172,8 +171,6 @@ function getMapboxProfile(mode: TransportMode): string {
             return 'walking';
         case TransportMode.DRIVING:
             return 'driving';
-        case TransportMode.BIKING:
-            return 'cycling';
         case TransportMode.TRANSIT:
             return 'walking'; // Mapbox doesn't support transit, fallback to walking
         default:
@@ -188,8 +185,6 @@ function getGoogleTravelMode(mode: TransportMode): string {
             return 'WALK';
         case TransportMode.DRIVING:
             return 'DRIVE';
-        case TransportMode.BIKING:
-            return 'BICYCLE';
         case TransportMode.TRANSIT:
             return 'TRANSIT';
         default:

@@ -8,8 +8,11 @@ import {
     Coordinate,
     Provider
 } from '@/services/maps/directions-api-adapter';
+import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
+import {ShuttleScheduleModal} from '@/components/ui/shuttle-schedule-modal';
+import {ShuttleScheduleSection} from '@/components/ui/shuttle-schedule-section';
 
-type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
+type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Shuttle';
 
 interface NavigationBottomProps {
     origin: Coordinate;
@@ -21,7 +24,14 @@ interface NavigationBottomProps {
     arrivalTime?: string;
 }
 
-const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Bike'];
+const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Shuttle'];
+
+const MODE_META: Record<TransportModeLabel, {label: string; indicatorColor: string}> = {
+    Drive: {label: 'Drive', indicatorColor: '#e5a712'},
+    Walk: {label: 'Walk', indicatorColor: '#e5a712'},
+    Transit: {label: 'Transit', indicatorColor: '#e5a712'},
+    Shuttle: {label: 'Shuttle', indicatorColor: '#f4b742'},
+};
 
 const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
     switch (mode) {
@@ -31,8 +41,8 @@ const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
             return TransportMode.WALKING;
         case 'Transit':
             return TransportMode.TRANSIT;
-        case 'Bike':
-            return TransportMode.BIKING;
+        case 'Shuttle':
+            return TransportMode.TRANSIT;
         default:
             return TransportMode.WALKING;
     }
@@ -70,8 +80,12 @@ export function NavigationBottom({
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
+
+    const formatDepartureTime = (date: Date) =>
+        date.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'});
 
     useEffect(() => {
         Animated.spring(slideAnim, {
@@ -87,6 +101,11 @@ export function NavigationBottom({
         const fetchDirections = async () => {
             setIsLoading(true);
             setDirections(null);
+            setShowScheduleModal(false);
+            if (selectedMode === 'Shuttle') {
+                setIsLoading(false);
+                return;
+            }
             try {
                 const request: DirectionsRequest = {
                     origin,
@@ -132,6 +151,18 @@ export function NavigationBottom({
     const durationParts = useMemo(() => durationText.split(' '), [durationText]);
     const durationValue = durationParts[0] ?? durationText;
     const durationUnit = durationParts[1] ?? 'min';
+    const shuttleScheduleContext = useShuttleSchedule({
+        enabled: selectedMode === 'Shuttle',
+        origin,
+        destination,
+    });
+    const formatTimeLabel = (time: string, baseDate: Date) => {
+        const [hoursStr, minutesStr] = time.split(':');
+        const hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hours, minutes, 0, 0);
+        return formatDepartureTime(date);
+    };
 
     return (
         <View style={styles.navCard}>
@@ -146,6 +177,7 @@ export function NavigationBottom({
                         {
                             width: indicatorWidth,
                             left: indicatorLeft,
+                            backgroundColor: MODE_META[selectedMode].indicatorColor,
                         },
                     ]}
                 />
@@ -161,7 +193,7 @@ export function NavigationBottom({
                                 selectedMode === mode && styles.modeOptionTextActive,
                             ]}
                         >
-                            {mode}
+                            {MODE_META[mode].label}
                         </Text>
                     </Pressable>
                 ))}
@@ -186,6 +218,51 @@ export function NavigationBottom({
                     </Pressable>
                 </View>
             </View>
+
+            {selectedMode === 'Shuttle' && (
+                <ShuttleScheduleSection
+                    directionLabel={shuttleScheduleContext?.directionLabel ?? 'Shuttle'}
+                    validPeriod={shuttleScheduleContext?.schedule?.validPeriod}
+                    hasSchedule={!!shuttleScheduleContext?.schedule}
+                    showNextServiceLabel={!!shuttleScheduleContext?.showNextServiceLabel}
+                    nextServiceLabel={
+                        shuttleScheduleContext?.showNextServiceLabel
+                            ? shuttleScheduleContext?.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})
+                            : undefined
+                    }
+                    departures={
+                        shuttleScheduleContext?.departures?.map((item) => ({
+                            key: `${shuttleScheduleContext.directionLabel}-${item.time}`,
+                            timeLabel: formatDepartureTime(item.departureDate),
+                            etaLabel: shuttleScheduleContext.isNextServiceDay
+                                ? `on ${shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})}`
+                                : `in ${item.minutesUntil} min`,
+                        })) ?? []
+                    }
+                    showSeeMoreButton={!!shuttleScheduleContext?.showSeeMoreButton}
+                    onOpenModal={() => setShowScheduleModal(true)}
+                />
+            )}
+
+            <ShuttleScheduleModal
+                visible={showScheduleModal}
+                directionLabel={shuttleScheduleContext?.directionLabel ?? 'Shuttle'}
+                serviceDateLabel={
+                    shuttleScheduleContext?.schedule
+                        ? shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {
+                              weekday: 'long',
+                              month: 'short',
+                              day: 'numeric',
+                          })
+                        : undefined
+                }
+                times={
+                    shuttleScheduleContext?.departureTimes?.map((time) =>
+                        formatTimeLabel(time, shuttleScheduleContext.serviceDate),
+                    ) ?? []
+                }
+                onClose={() => setShowScheduleModal(false)}
+            />
         </View>
     );
 }
