@@ -69,6 +69,16 @@ const formatDuration = (seconds?: number) => {
     return `${minutes} min`;
 };
 
+const formatDepartureTime = (date: Date) =>
+    date.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'});
+
+const formatMinutesUntil = (minutes: number) => {
+    if (minutes < 60) return `in ${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `in ${h} hr ${m} min` : `in ${h} hr`;
+};
+
 export function NavigationBottom({
                                      origin,
                                      destination,
@@ -83,9 +93,6 @@ export function NavigationBottom({
     const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
-
-    const formatDepartureTime = (date: Date) =>
-        date.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'});
 
     useEffect(() => {
         Animated.spring(slideAnim, {
@@ -161,7 +168,7 @@ export function NavigationBottom({
         selectedMode === 'Shuttle' &&
         (!shuttleScheduleContext?.schedule ||
             !!shuttleScheduleContext?.showNextServiceLabel ||
-            (shuttleScheduleContext?.departures?.length === 0 && !shuttleScheduleContext?.showNextServiceLabel));
+            shuttleScheduleContext?.departures?.length === 0);
     const formatTimeLabel = (time: string, baseDate: Date) => {
         const [hoursStr, minutesStr] = time.split(':');
         const hours = Number(hoursStr);
@@ -239,15 +246,18 @@ export function NavigationBottom({
                             : undefined
                     }
                     departures={
-                        shuttleScheduleContext?.departures?.map((item) => ({
+                        shuttleScheduleContext?.departures?.slice(0, 3).map((item) => ({
                             key: `${shuttleScheduleContext.directionLabel}-${item.time}`,
                             timeLabel: formatDepartureTime(item.departureDate),
                             etaLabel: shuttleScheduleContext.isNextServiceDay
                                 ? `on ${shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})}`
-                                : `in ${item.minutesUntil} min`,
+                                : formatMinutesUntil(item.minutesUntil),
                         })) ?? []
                     }
-                    showSeeMoreButton={!!shuttleScheduleContext?.showSeeMoreButton}
+                    showSeeMoreButton={
+                        !!shuttleScheduleContext?.showSeeMoreButton ||
+                        (shuttleScheduleContext?.departures?.length ?? 0) > 3
+                    }
                     onOpenModal={() => setShowScheduleModal(true)}
                     onFallbackPress={() => handleModeChange('Transit')}
                     noTopSpacing={hideMetricsRow}

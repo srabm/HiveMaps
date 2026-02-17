@@ -11,6 +11,7 @@ type ShuttleScheduleSectionProps = {
     showSeeMoreButton: boolean;
     onOpenModal: () => void;
     onFallbackPress?: () => void;
+    /** When true, removes the top margin/border separator (metrics row is hidden above) */
     noTopSpacing?: boolean;
 };
 
@@ -26,50 +27,48 @@ export function ShuttleScheduleSection({
     onFallbackPress,
     noTopSpacing,
 }: ShuttleScheduleSectionProps) {
+    const showTransitSuggestion =
+        (!hasSchedule || showNextServiceLabel || departures.length === 0) && !!onFallbackPress;
+    const suggestionText = !hasSchedule
+        ? 'Service currently unavailable.'
+        : 'Not running today — need a ride now?';
+
     return (
         <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
-            <View style={styles.shuttleHeaderRow}>
-                <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
-                {validPeriod ? <Text style={styles.shuttleSubtle}>{validPeriod}</Text> : null}
-            </View>
-
-            {!hasSchedule && (
-                <View style={styles.unavailableContainer}>
-                    <Text style={styles.shuttleEmptyText}>The shuttle service is currently unavailable.</Text>
-                    {onFallbackPress && (
-                        <Pressable onPress={onFallbackPress} style={styles.fallbackButton}>
-                            <Text style={styles.fallbackButtonText}>View Transit Alternatives</Text>
-                        </Pressable>
-                    )}
-                </View>
+            {showTransitSuggestion && (
+                <Pressable onPress={onFallbackPress} style={styles.transitSuggestion}>
+                    <Text style={styles.transitSuggestionText}>{suggestionText}</Text>
+                    <Text style={styles.transitSuggestionLink}>Check Transit</Text>
+                </Pressable>
             )}
 
+            <View style={styles.shuttleHeaderRow}>
+                <View>
+                    <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
+                    {validPeriod ? (
+                        <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
+                    ) : null}
+                </View>
+                {showSeeMoreButton && (
+                    <Pressable onPress={onOpenModal}>
+                        <Text style={styles.seeMoreLink}>See full schedule</Text>
+                    </Pressable>
+                )}
+            </View>
+
             {hasSchedule && (
-                <View style={styles.shuttleList}>
+                <View>
                     <View style={styles.directionHeader}>
-                        <Text style={styles.shuttleListTitle}>{directionLabel}</Text>
-                        {showNextServiceLabel && nextServiceLabel && (
-                             <View style={styles.nextServiceBadge}>
-                                 <Text style={styles.nextServiceBadgeText}>Next service: {nextServiceLabel}</Text>
-                             </View>
-                        )}
+                        <Text style={styles.shuttleListTitle}>
+                            {directionLabel}
+                            {showNextServiceLabel && nextServiceLabel
+                                ? <Text style={styles.nextServiceInline}>{'  ·  '}Next: {nextServiceLabel}</Text>
+                                : null}
+                        </Text>
                     </View>
 
-                    {showNextServiceLabel && onFallbackPress && (
-                        <Pressable onPress={onFallbackPress} style={styles.fallbackButtonInline}>
-                            <Text style={styles.fallbackButtonTextInline}>Shuttle is not running today. Try Transit instead?</Text>
-                        </Pressable>
-                    )}
-
                     {departures.length === 0 && !showNextServiceLabel ? (
-                        <View style={styles.unavailableContainer}>
-                            <Text style={styles.shuttleEmptyText}>No more departures today.</Text>
-                            {onFallbackPress && (
-                                <Pressable onPress={onFallbackPress} style={styles.fallbackButton}>
-                                    <Text style={styles.fallbackButtonText}>View Transit Alternatives</Text>
-                                </Pressable>
-                            )}
-                        </View>
+                        <Text style={styles.shuttleEmptyText}>No more departures today.</Text>
                     ) : (
                         departures.map((item) => (
                             <View key={item.key} style={styles.shuttleRow}>
@@ -77,11 +76,6 @@ export function ShuttleScheduleSection({
                                 <Text style={styles.shuttleEta}>{item.etaLabel}</Text>
                             </View>
                         ))
-                    )}
-                    {showSeeMoreButton && (
-                        <Pressable onPress={onOpenModal} style={styles.shuttleSeeMoreButton}>
-                            <Text style={styles.shuttleSeeMoreText}>See more</Text>
-                        </Pressable>
                     )}
                 </View>
             )}
@@ -91,96 +85,56 @@ export function ShuttleScheduleSection({
 
 const styles = StyleSheet.create({
     shuttleSection: {
-        marginTop: 12,
-        paddingTop: 12,
+        marginTop: 10,
+        paddingTop: 10,
         borderTopWidth: 1,
         borderTopColor: '#E5E7EB',
     },
     shuttleSectionNoTopSpacing: {
         marginTop: 4,
-        paddingTop: 8,
+        paddingTop: 6,
         borderTopWidth: 0,
     },
     shuttleHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'baseline',
-        marginBottom: 8,
+        alignItems: 'center',
+        marginBottom: 0,
     },
-    shuttleTitle: {fontSize: 14, fontWeight: '700', color: '#111827'},
-    shuttleSubtle: {fontSize: 11, color: '#6B7280'},
-    shuttleList: {
-        flex: 1,
-    },
+    shuttleTitle: {fontSize: 13, fontWeight: '700', color: '#111827'},
+    shuttleSubtle: {fontSize: 11, fontWeight: '400', color: '#9CA3AF', marginTop: 1},
     directionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        borderTopWidth: 1,
+        borderTopColor: '#F3F4F6',
+        paddingTop: 6,
+        marginBottom: 4,
     },
-    shuttleListTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#9d1e30',
-    },
-    nextServiceBadge: {
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    nextServiceBadgeText: {
-        fontSize: 10,
-        fontWeight: '600',
-        color: '#374151',
-    },
+    shuttleListTitle: {fontSize: 12, fontWeight: '700', color: '#9d1e30'},
+    nextServiceInline: {fontSize: 11, fontWeight: '400', color: '#6B7280'},
     shuttleRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 4,
+        alignItems: 'baseline',
+        marginBottom: 2,
     },
-    shuttleTime: {fontSize: 12, color: '#111827', fontWeight: '600'},
-    shuttleEta: {fontSize: 11, color: '#6B7280'},
-    shuttleEmptyText: {fontSize: 11, color: '#6B7280'},
-    shuttleSeeMoreButton: {
-        marginTop: 6,
-        alignSelf: 'flex-start',
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        backgroundColor: '#FFFFFF',
-    },
-    shuttleSeeMoreText: {fontSize: 11, fontWeight: '600', color: '#9d1e30'},
-    unavailableContainer: {
-        paddingVertical: 8,
-    },
-    fallbackButton: {
-        marginTop: 10,
-        backgroundColor: '#9d1e30',
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 12,
+    // Departure time is the primary info — larger and bold
+    shuttleTime: {fontSize: 14, color: '#111827', fontWeight: '600'},
+    // ETA is secondary — smaller, muted
+    shuttleEta: {fontSize: 12, color: '#6B7280'},
+    shuttleEmptyText: {fontSize: 12, color: '#6B7280'},
+    transitSuggestion: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingBottom: 8,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
     },
-    fallbackButtonText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    fallbackButtonInline: {
-        marginBottom: 12,
-        backgroundColor: '#FFFBEB',
-        padding: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#FEF3C7',
-    },
-    fallbackButtonTextInline: {
-        color: '#92400E',
-        fontSize: 12,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
+    transitSuggestionText: {fontSize: 12, color: '#6B7280'},
+    transitSuggestionLink: {fontSize: 12, fontWeight: '700', color: '#9d1e30'},
+    seeMoreLink: {fontSize: 12, fontWeight: '600', color: '#9d1e30'},
 });
