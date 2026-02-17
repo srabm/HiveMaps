@@ -1,7 +1,15 @@
-import {Provider, TransportMode, type DirectionsRequest} from '@/services/maps/directions-api-adapter';
+import {
+    Provider,
+    TransportMode,
+    type DirectionsRequest,
+    type TimeFilterMode
+} from '@/services/maps/directions-api-adapter';
+import {toISOString} from '@/utils/timeFormatter';
 
 const origin = {latitude: 45.4972, longitude: -73.5787};
 const destination = {latitude: 45.4583, longitude: -73.6406};
+const timeFilter: string = toISOString(new Date());
+const timeFilterMode: TimeFilterMode = 'depart'
 
 function makeRequest(overrides: Partial<DirectionsRequest> = {}): DirectionsRequest {
     return {
@@ -9,6 +17,8 @@ function makeRequest(overrides: Partial<DirectionsRequest> = {}): DirectionsRequ
         destination,
         transportMode: TransportMode.WALKING,
         provider: Provider.MAPBOX,
+        timeFilter,
+        timeFilterMode,
         ...overrides,
     };
 }
@@ -58,7 +68,7 @@ const validGooglePayload = {
                     ],
                 },
             ],
-            
+
         },
     ],
 };
@@ -231,7 +241,7 @@ describe('google transport mode mapping', () => {
         [TransportMode.DRIVING, 'DRIVE'],
         [TransportMode.BIKING, 'BICYCLE'],
         [TransportMode.TRANSIT, 'TRANSIT'],
-    ]) ('TransportMode maps to google travel mode', async (mode, expectedMode) => {
+    ])('TransportMode maps to google travel mode', async (mode, expectedMode) => {
         global.fetch = jest.fn().mockResolvedValue({ok: true, json: async () => validGooglePayload});
         const {getDirections} = require('@/services/maps/directions-api-adapter');
 

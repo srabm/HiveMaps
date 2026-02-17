@@ -1,7 +1,7 @@
 /**
  * Convert Date to ISO 8601 format without milliseconds (YYYY-MM-DDThh:mm:ssZ)
  */
-function toISOString(date: Date): string {
+export function toISOString(date: Date): string {
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     const day = String(date.getUTCDate()).padStart(2, '0');
