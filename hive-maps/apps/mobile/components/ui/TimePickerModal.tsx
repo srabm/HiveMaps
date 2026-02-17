@@ -8,19 +8,18 @@ import {
     ScrollView,
 } from 'react-native';
 import {formatISOToTime, formatTimeToISO} from '@/utils/timeFormatter';
+import {TimeFilterMode} from '@/services/maps/directions-api-adapter';
 
 interface TimePickerModalProps {
     visible: boolean;
-    onConfirm: (time: string, mode: TimeMode) => void;
+    onConfirm: (time: string, mode: TimeFilterMode) => void;
     onCancel: () => void;
     initialTime?: string;
-    initialMode?: TimeMode;
+    initialMode?: TimeFilterMode;
 }
 
 const ITEM_HEIGHT = 50;
 const VISIBLE_ITEMS = 5;
-
-export type TimeMode = 'depart' | 'arrive';
 
 export function TimePickerModal({
                                     visible,
@@ -29,7 +28,7 @@ export function TimePickerModal({
                                     initialTime = new Date().toISOString(),
                                     initialMode = 'depart',
                                 }: TimePickerModalProps) {
-    const hours = Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0'));
+    const hours = Array.from({length: 12}, (_, i) => String((i + 12) % 12 || 12).padStart(2, '0'));
     const minutes = Array.from({length: 60}, (_, i) => String(i).padStart(2, '0'));
     const periods = ['AM', 'PM'];
 
@@ -50,7 +49,7 @@ export function TimePickerModal({
     const [selectedHour, setSelectedHour] = useState(initial.hour);
     const [selectedMinute, setSelectedMinute] = useState(initial.minute);
     const [selectedPeriod, setSelectedPeriod] = useState(initial.period);
-    const [timeMode, setTimeMode] = useState<TimeMode>(initialMode);
+    const [timeMode, setTimeMode] = useState<TimeFilterMode>(initialMode);
 
     const hourScrollRef = useRef<ScrollView>(null);
     const minuteScrollRef = useRef<ScrollView>(null);

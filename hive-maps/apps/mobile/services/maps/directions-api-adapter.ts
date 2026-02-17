@@ -17,6 +17,8 @@ export enum Provider {
     GOOGLE_MAPS
 }
 
+export type TimeFilterMode = 'depart' | 'arrive';
+
 /**
  * Use this direction request format for both providers
  * The time is a string in this format: YYYY-MM-DDThh:mm:ssZ
@@ -26,12 +28,9 @@ export type DirectionsRequest = {
     destination: Coordinate;
     transportMode: TransportMode;
     provider: Provider;
-} & ( // The direction request can have departure or arrival time specified, or neither, but not both
-    | { departureTimeFilter: string; arrivalTimeFilter?: null | undefined }
-    | { departureTimeFilter?: null | undefined; arrivalTimeFilter: string }
-    | { departureTimeFilter?: null | undefined; arrivalTimeFilter?: null | undefined }
-    );
-
+    timeFilter: string;
+    timeFilterMode: TimeFilterMode;
+}
 
 export interface Step {
     distance: number;
@@ -106,11 +105,72 @@ function normalizeCoordinate(coord: Coordinate): Coordinate {
 
 /**
  * Generate cache key from request parameters
+ * For transit mode: includes time filter and mode
+ * For other modes: only origin, destination, and transport mode
  */
-function generateCacheKey(origin: Coordinate, destination: Coordinate, mode: TransportMode): string {
-    const normOrigin = normalizeCoordinate(origin);
-    const normDest = normalizeCoordinate(destination);
-    return `${normOrigin.longitude},${normOrigin.latitude}|${normDest.longitude},${normDest.latitude}|${mode}`;
+function generateCacheKey(request: DirectionsRequest): string {
+    const normOrigin = normalizeCoordinate(request.origin);
+    const normDest = normalizeCoordinate(request.destination);
+    const baseKey = `${normOrigin.longitude},${normOrigin.latitude}|${normDest.longitude},${normDest.latitude}|${request.transportMode}`;
+
+    // For transit mode, include time filter information
+    if (request.transportMode === TransportMode.TRANSIT) {
+        return `${baseKey}|${request.timeFilterMode}|${request.timeFilter}`;
+    }
+
+    return baseKey;
+}
+
+/**
+ * Check if a cached transit route is still relevant (within reasonable time window)
+ * For non-transit modes, time doesn't matter
+ */
+function isCacheRelevant(cachedKey: string, requestKey: string, request: DirectionsRequest): boolean {
+    // For non-transit modes, exact key match is enough
+    if (request.transportMode !== TransportMode.TRANSIT) {
+        return cachedKey === requestKey;
+    }
+
+    // For transit mode, check if cache key matches the base (origin, destination, mode, timeFilterMode)
+    const requestParts = requestKey.split('|');
+    const cachedParts = cachedKey.split('|');
+
+    // Check origin, destination, mode, and timeFilterMode match
+    if (requestParts.slice(0, 4).join('|') !== cachedParts.slice(0, 4).join('|')) {
+        return false;
+    }
+
+    // Check if time is within a reasonable window (5 minutes)
+    try {
+        const requestTime = new Date(requestParts[4]);
+        const cachedTime = new Date(cachedParts[4]);
+        const timeDiffMinutes = Math.abs(requestTime.getTime() - cachedTime.getTime()) / (1000 * 60);
+
+        // Consider cache valid if within 5 minutes
+        return timeDiffMinutes <= 5;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Find a relevant cached route for transit mode
+ */
+function findRelevantTransitCache(request: DirectionsRequest): DirectionsResponse | null {
+    if (request.transportMode !== TransportMode.TRANSIT) {
+        return null;
+    }
+
+    const requestKey = generateCacheKey(request);
+
+    for (const [cachedKey, cachedResponse] of directionsCache.entries()) {
+        if (isCacheRelevant(cachedKey, requestKey, request)) {
+            console.log(`[Cache HIT - Transit] Found relevant cache: ${cachedKey}`);
+            return cachedResponse;
+        }
+    }
+
+    return null;
 }
 
 // Google Maps Converter
@@ -226,6 +286,15 @@ function emitDirectionsEvent(event: DirectionsRequestEvent) {
 async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Log request details
+    console.log('[Fetch] Request:', {
+        url: input,
+        method: init.method || 'GET',
+        headers: init.headers,
+        body: init.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : undefined
+    });
+
     try {
         return await fetch(input, {...init, signal: controller.signal});
     } catch (err: any) {
@@ -246,12 +315,20 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
         await initializeDirectionsCache();
     }
 
-    const cacheKey = generateCacheKey(request.origin, request.destination, request.transportMode);
+    const cacheKey = generateCacheKey(request);
 
-    // Check cache first
+    // Check exact cache match first
     if (directionsCache.has(cacheKey)) {
         console.log(`[Cache HIT] ${cacheKey}`);
         return directionsCache.get(cacheKey)!;
+    }
+
+    // For transit mode, check for relevant cached routes within time window
+    if (request.transportMode === TransportMode.TRANSIT) {
+        const relevantCache = findRelevantTransitCache(request);
+        if (relevantCache) {
+            return relevantCache;
+        }
     }
 
     console.log(`[Cache MISS] ${cacheKey}`);
@@ -287,7 +364,8 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 
     console.log(`[Mapbox API] Fetching directions for ${profile} mode`, {
         origin: request.origin,
-        destination: request.destination
+        destination: request.destination,
+        timeFilter: request.timeFilter
     });
 
     const params = new URLSearchParams({
@@ -297,11 +375,13 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
         steps: 'true'
     });
 
-    // Add departure or arrival time if specified
-    if (request.departureTimeFilter) {
-        params.append('depart_at', request.departureTimeFilter);
-    } else if (request.arrivalTimeFilter) {
-        params.append('arrive_by', request.arrivalTimeFilter);
+    // Add departure or arrival time only for TRANSIT and DRIVING modes
+    if (request.transportMode === TransportMode.TRANSIT || request.transportMode === TransportMode.DRIVING) {
+        if (request.timeFilterMode === 'depart') {
+            params.append('depart_at', request.timeFilter);
+        } else if (request.timeFilterMode === 'arrive') {
+            params.append('arrive_by', request.timeFilter);
+        }
     }
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
@@ -344,11 +424,13 @@ async function getGoogleMapsDirections(request: DirectionsRequest): Promise<Dire
         travelMode: getGoogleTravelMode(request.transportMode)
     };
 
-    // Add departure or arrival time if specified
-    if (request.departureTimeFilter) {
-        body.departureTime = request.departureTimeFilter;
-    } else if (request.arrivalTimeFilter) {
-        body.arrivalTime = request.arrivalTimeFilter;
+    // Add departure or arrival time only for TRANSIT and DRIVING modes
+    if (request.transportMode === TransportMode.TRANSIT || request.transportMode === TransportMode.DRIVING) {
+        if (request.timeFilterMode === 'depart') {
+            body.departureTime = request.timeFilter;
+        } else if (request.timeFilterMode === 'arrive') {
+            body.arrivalTime = request.timeFilter;
+        }
     }
 
     const response = await fetchWithTimeout(url, {

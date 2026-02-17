@@ -6,9 +6,10 @@ import {
     DirectionsResponse,
     DirectionsRequest,
     Coordinate,
-    Provider
+    Provider,
+    TimeFilterMode,
 } from '@/services/maps/directions-api-adapter';
-import {TimePickerModal, TimeMode} from './TimePickerModal';
+import {TimePickerModal} from './TimePickerModal';
 import {formatISOToTime, getCurrentTimeISO} from '@/utils/timeFormatter';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
@@ -74,9 +75,9 @@ export function NavigationBottom({
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [departureTimeISO, setDepartureTimeISO] = useState(getCurrentTimeISO());
+    const [timeFilter, setTimeFilter] = useState(getCurrentTimeISO());
     const [timePickerVisible, setTimePickerVisible] = useState(false);
-    const [timeMode, setTimeMode] = useState<TimeMode>('depart');
+    const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>('depart');
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
 
     useEffect(() => {
@@ -99,6 +100,8 @@ export function NavigationBottom({
                     destination,
                     transportMode: mapUiModeToTransportMode(selectedMode),
                     provider: mapUiModeToProvider(selectedMode),
+                    timeFilterMode,
+                    timeFilter,
                 };
                 const resp = await getDirections(request);
                 if (!active) return;
@@ -116,16 +119,16 @@ export function NavigationBottom({
         return () => {
             active = false;
         };
-    }, [origin, destination, selectedMode, onDirectionsChange]);
+    }, [origin, destination, selectedMode, timeFilter, timeFilterMode, onDirectionsChange]);
 
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);
         onModeChange?.(mode);
     };
 
-    const handleDepartureTimeChange = (time: string, mode: TimeMode) => {
-        setDepartureTimeISO(time);
-        setTimeMode(mode);
+    const handleDepartureTimeChange = (time: string, mode: TimeFilterMode) => {
+        setTimeFilter(time);
+        setTimeFilterMode(mode);
         setTimePickerVisible(false);
     };
 
@@ -145,8 +148,8 @@ export function NavigationBottom({
     const durationValue = durationParts[0] ?? durationText;
     const durationUnit = durationParts[1] ?? 'min';
 
-    const displayDepartureTime = formatISOToTime(departureTimeISO);
-    const timeModeLabel = timeMode === 'depart' ? 'Depart at' : 'Arrive by';
+    const displayDepartureTime = formatISOToTime(timeFilter);
+    const timeModeLabel = timeFilterMode === 'depart' ? 'Depart at' : 'Arrive by';
 
     return (
         <>
@@ -212,8 +215,8 @@ export function NavigationBottom({
 
             <TimePickerModal
                 visible={timePickerVisible}
-                initialTime={departureTimeISO}
-                initialMode={timeMode}
+                initialTime={timeFilter}
+                initialMode={timeFilterMode}
                 onConfirm={handleDepartureTimeChange}
                 onCancel={() => setTimePickerVisible(false)}
             />
