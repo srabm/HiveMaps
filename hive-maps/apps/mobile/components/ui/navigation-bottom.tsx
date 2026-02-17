@@ -140,6 +140,13 @@ export function NavigationBottom({
                 const firstTransitIndex = steps.findIndex(step => step.transitDetails);
 
                 if (firstTransitIndex === -1) {
+                    if (timeFilterMode === 'depart') {
+                        const arrivalTime = new Date(new Date(timeFilter).getTime() / 1000 + directions.durationSeconds);
+                        setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
+                    } else {
+                        const departureTime = new Date(new Date(timeFilter).getTime() / 1000 - directions.durationSeconds)
+                        setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`)
+                    }
                     setArriveLeaveDetails('');
                     return;
                 }
@@ -163,16 +170,18 @@ export function NavigationBottom({
                         return;
                     }
 
-                    let departureTime = new Date(departureTimeStr);
+                    let firstTransitTime = new Date(departureTimeStr);
+                    let initialWalkingDuration = 0;
 
-                    // Subtract duration of preceding walk steps to get actual departure time
+                    // Sum duration of initial walking steps
                     for (let i = 0; i < firstTransitIndex; i++) {
-                        departureTime = new Date(departureTime.getTime() - (steps[i].duration * 1000));
+                        initialWalkingDuration += steps[i].duration;
                     }
 
-                    // Now add total trip duration to get arrival time
-                    const totalDurationMs = steps.reduce((sum, step) => sum + (step.duration * 1000), 0);
-                    const arrivalTime = new Date(departureTime.getTime() + totalDurationMs);
+                    // Add total trip duration to get arrival time
+                    let durationWithoutInitialWalking = directions.durationSeconds - initialWalkingDuration;
+
+                    const arrivalTime = new Date(firstTransitTime.getTime() + durationWithoutInitialWalking * 1000);
 
                     const formattedTime = formatISOToTime(arrivalTime.toISOString());
                     setArriveLeaveDetails(`Arrive by ${formattedTime}`);
@@ -186,19 +195,20 @@ export function NavigationBottom({
                         return;
                     }
 
-                    let arrivalTime = new Date(arrivalTimeStr);
+                    let lastTransitTime = new Date(arrivalTimeStr)
+                    let finalWalkingDuration = 0
 
-                    // Add duration of following walk steps
-                    for (let i = lastTransitIndex + 1; i < steps.length; i++) {
-                        arrivalTime = new Date(arrivalTime.getTime() + (steps[i].duration * 1000));
+                    // Sum final walking steps
+                    for (let i = steps.length - 1; i > lastTransitIndex; i--) {
+                        finalWalkingDuration += steps[i].duration
                     }
 
-                    // Now subtract total trip duration to get departure time
-                    const totalDurationMs = steps.reduce((sum, step) => sum + (step.duration * 1000), 0);
-                    const departureTime = new Date(arrivalTime.getTime() - totalDurationMs);
+                    let durationWithoutFinalWalking = directions.durationSeconds - finalWalkingDuration
 
-                    const formattedTime = formatISOToTime(departureTime.toISOString());
-                    setArriveLeaveDetails(`Depart at ${formattedTime}`);
+                    const departureTime = new Date(lastTransitTime.getTime() - durationWithoutFinalWalking * 1000)
+
+                    const formattedTime = formatISOToTime(departureTime.toISOString())
+                    setArriveLeaveDetails(`Depart at ${formattedTime}`)
                 }
             } else if (selectedMode === 'Walk' || selectedMode === 'Drive' || selectedMode === 'Bike') {
                 // For walk/drive/bike modes, use total duration
