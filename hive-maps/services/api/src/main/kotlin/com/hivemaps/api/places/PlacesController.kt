@@ -47,7 +47,7 @@ class PlacesController(
             set("X-Goog-Api-Key", apiKey)
             set(
                 "X-Goog-FieldMask",
-                "formattedAddress,postalAddress,websiteUri,businessStatus,photos,accessibilityOptions,websiteUri,regularOpeningHours,currentOpeningHours,nationalPhoneNumber,internationalPhoneNumber"
+                "formattedAddress,postalAddress,websiteUri,businessStatus,accessibilityOptions,websiteUri,regularOpeningHours,currentOpeningHours,nationalPhoneNumber,internationalPhoneNumber"
             )
         }
 

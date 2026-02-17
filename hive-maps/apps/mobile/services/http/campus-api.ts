@@ -48,7 +48,7 @@ export async function fetchBuildings(campus: CampusId): Promise<Building[]> {
 }
 
 export async function searchPlaceByAddress(address: string){
-  const refinedAddress = `${address} establishment`;
+  const refinedAddress = `${address}`;
 
   const res = await fetch(`${baseUrl}/api/places/search`, {
     method: 'POST',

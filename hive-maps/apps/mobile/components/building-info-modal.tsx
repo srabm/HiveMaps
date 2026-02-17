@@ -112,19 +112,6 @@ export function BuildingInfoModal({
               </View>
             </Pressable>
           </View>
-
-          <View style={styles.imageWrap}>
-            {building?.imageUrl ? (
-              <Image source={{ uri: building.imageUrl }} style={styles.image} />
-            ) : (
-              <View style={styles.imagePlaceholder}>
-                <ThemedText style={styles.imagePlaceholderText}>
-                  Building photo
-                </ThemedText>
-              </View>
-            )}
-          </View>
-
           <View style={styles.detailRow}>
             <View style={styles.detailIcon}>
               <MaterialIcons name="schedule" size={18} color="#9d1e30" />

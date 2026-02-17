@@ -241,7 +241,6 @@ export default function MapScreen() {
                 hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
                         ?? 'Hours not listed',
                 allHours: details?.regularOpeningHours?.weekdayDescriptions,
-                imageUrl: details?.details?.photos?.[0]?.name
               });
             }}
           >

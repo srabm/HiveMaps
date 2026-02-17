@@ -103,6 +103,8 @@ jobs:
     defaults:
       run:
         working-directory: hive-maps/services/api
+    env: 
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
 
     steps:
       - name: Checkout
@@ -156,6 +158,8 @@ jobs:
     defaults:
       run:
         working-directory: hive-maps/services/api
+    env: 
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
 
     steps:
       - name: Checkout
