@@ -9,7 +9,10 @@ import {
 } from "react-native";
 import { Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter, type Href } from "expo-router";
 import type { Coordinates, MapLocation, MapsProviderPort } from "@/services/maps/maps-provider";
+import { SUPPORTED_INDOOR_BUILDINGS } from "@/services/http/indoor-api";
+import { buildings } from "@/constants/campus";
 
 interface DirectionBarProps {
     mapsAdapter?: MapsProviderPort;
@@ -25,6 +28,40 @@ interface DirectionBarProps {
     onResetFrom: () => void;
     onClose?: () => void;
 }
+const getIndoorBuildingCode = (item: MapLocation): string | null => {
+    if (SUPPORTED_INDOOR_BUILDINGS.has(item.id)) {
+        return item.id;
+    }
+
+    const resultName = item.name.toLowerCase();
+    const resultAddress = item.address?.toLowerCase() || '';
+
+    for (const b of buildings) {
+        if (!SUPPORTED_INDOOR_BUILDINGS.has(b.code)) continue;
+
+        const dbAddress = b.addresses[0].toLowerCase();
+        const dbName = b.name.toLowerCase();
+
+        if (dbAddress.includes('7141 sherbrooke')) {
+            if (resultName.includes(dbName)) return b.code;
+            if (b.code === 'VL' && resultName.includes('vanier library')) return 'VL';
+            if (b.code === 'VE' && resultName.includes('vanier extension')) return 'VE';
+            if (b.code === 'CC' && resultName.includes('central')) return 'CC';
+        } else {
+
+            const streetPart = dbAddress.split(',')[0].replace(/blvd\.|st\.|w\.|ouest/g, '').trim();
+            
+            if (resultAddress.includes(streetPart)) return b.code;
+
+            if (resultName.includes(dbName)) return b.code;
+            if (b.code === 'H' && resultName.includes('hall building')) return 'H';
+            if (b.code === 'MB' && resultName.includes('john molson')) return 'MB';
+            if (b.code === 'LB' && resultName.includes('mcconnell')) return 'LB';
+        }
+    }
+
+    return null;
+};
 
 const DirectionBar: React.FC<DirectionBarProps> = ({
                                                        mapsAdapter,
@@ -44,15 +81,17 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
     const [fromSuggestions, setFromSuggestions] = useState<MapLocation[]>([]);
     const [toSuggestions, setToSuggestions] = useState<MapLocation[]>([]);
     const sessionToken = useRef(Date.now().toString());
+    const router = useRouter();
 
     const generateNewSessionToken = () => {
         sessionToken.current = Date.now().toString();
     };
+    
     const fetchCoordinates = async (id: string) => {
         const coords = await mapsAdapter?.retrieve(id, sessionToken.current) ?? null;
         generateNewSessionToken();
         return coords;
-    }
+    };
 
     useEffect(() => {
         const timeoutId = setTimeout(async () => {
@@ -97,22 +136,38 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 keyboardShouldPersistTaps="handled"
                 data={data.slice(0, 6)}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        style={styles.suggestionItem}
-                        onPress={async () => {
-                            onSelect(item, await fetchCoordinates(item.id));
-                            setActiveField(null);
-                        }}
-                    >
-                        <Text style={styles.suggestionTitle}>
-                            {item.name}
-                        </Text>
-                        <Text style={styles.suggestionSubtitle}>
-                            {item.address}
-                        </Text>
-                    </TouchableOpacity>
-                )}
+                renderItem={({ item }) => {
+                    const indoorCode = getIndoorBuildingCode(item);
+
+                    return (
+                        <View style={styles.suggestionItemContainer}>
+                            <TouchableOpacity
+                                style={styles.suggestionItem}
+                                onPress={async () => {
+                                    onSelect(item, await fetchCoordinates(item.id));
+                                    setActiveField(null);
+                                }}
+                            >
+                                <Text style={styles.suggestionTitle}>
+                                    {item.name}
+                                </Text>
+                                <Text style={styles.suggestionSubtitle}>
+                                    {item.address}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {indoorCode && SUPPORTED_INDOOR_BUILDINGS.has(indoorCode) && (
+                                <TouchableOpacity 
+                                    style={styles.indoorButton}
+                                    onPress={() => router.push(`/indoor/${indoorCode}` as Href)}
+                                >
+                                    <Ionicons name="map-outline" size={16} color="#fff" />
+                                    <Text style={styles.indoorButtonText}>Indoor</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    );
+                }}
             />
         </View>
     );
@@ -121,7 +176,6 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
         <View style={styles.container}>
 
             <View style={styles.inputs}>
-                {/* From a particular direction (starting direction)*/}
                 <View>
                     <View style={styles.inputRow}>
                         <TouchableOpacity testID="reset-button" onPress={onResetFrom}>
@@ -149,7 +203,6 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                         renderSuggestions(fromSuggestions, onSelectFrom)}
                 </View>
 
-                {/* To a particular direction (Finishing directions) */}
                 <View>
                     <View style={styles.inputRow}>
                         <Ionicons name="navigate-outline" size={20} color="#000" />
@@ -172,7 +225,6 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 </View>
             </View>
 
-            {/* Actions such as swapping the directions and closing the directions bars*/}
             <View style={styles.actions}>
                 <TouchableOpacity testID="swap-button" onPress={onSwap} style={styles.actionButton}>
                     <Ionicons name="swap-vertical" size={22} />
@@ -187,7 +239,6 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
 };
 
 export default DirectionBar;
-
 
 const styles = StyleSheet.create({
     container: {
@@ -232,10 +283,17 @@ const styles = StyleSheet.create({
         marginTop: 4,
         elevation: 4,
     },
-    suggestionItem: {
-        padding: 10,
+    suggestionItemContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: "#ddd",
+        paddingRight: 10,
+    },
+    suggestionItem: {
+        flex: 1,
+        padding: 10,
+        borderBottomWidth: 0,
     },
     suggestionTitle: {
         fontWeight: "600",
@@ -244,4 +302,18 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#666",
     },
+    indoorButton: { 
+        flexDirection: 'row', 
+        backgroundColor: '#9d1e30', 
+        paddingHorizontal: 8, 
+        paddingVertical: 6, 
+        borderRadius: 6, 
+        alignItems: 'center', 
+        gap: 4 
+    },
+    indoorButtonText: { 
+        color: '#fff', 
+        fontSize: 11, 
+        fontWeight: '600' 
+    }
 });
