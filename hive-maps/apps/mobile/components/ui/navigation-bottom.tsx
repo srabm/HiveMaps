@@ -105,39 +105,61 @@ export function NavigationBottom({
     }, [selectedMode, slideAnim]);
 
     useEffect(() => {
-        let active = true;
-        const fetchDirections = async () => {
-            setIsLoading(true);
-            setDirections(null);
-            setShowScheduleModal(false);
-            if (selectedMode === 'Shuttle') {
-                setIsLoading(false);
-                return;
-            }
-            try {
-                const request: DirectionsRequest = {
-                    origin,
-                    destination,
-                    transportMode: mapUiModeToTransportMode(selectedMode),
-                    provider: mapUiModeToProvider(selectedMode),
-                };
-                const resp = await getDirections(request);
-                if (!active) return;
-                setDirections(resp);
-                onDirectionsChange?.(resp);
-            } catch (err) {
-                if (!active) return;
+            let active = true;
+            let timeoutId: NodeJS.Timeout;
+
+            const fetchDirections = async () => {
+                setIsLoading(true);
                 setDirections(null);
-                console.warn('Failed to load directions', err);
-            } finally {
-                if (active) setIsLoading(false);
-            }
-        };
-        fetchDirections();
-        return () => {
-            active = false;
-        };
-    }, [origin, destination, selectedMode, onDirectionsChange]);
+                setShowScheduleModal(false);
+
+                if (selectedMode === 'Shuttle') {
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    const request: DirectionsRequest = {
+                        origin,
+                        destination,
+                        transportMode: mapUiModeToTransportMode(selectedMode),
+                        provider: mapUiModeToProvider(selectedMode),
+                    };
+                    const resp = await getDirections(request);
+                    if (!active) return;
+                    setDirections(resp);
+                    onDirectionsChange?.(resp);
+                } catch (err) {
+                    if (!active) return;
+                    setDirections(null);
+                    console.warn('Failed to load directions', err);
+                } finally {
+                    if (active) setIsLoading(false);
+                }
+            };
+
+            // 1. Throttling/Debouncing:
+            // We wait 1000ms after the last location update before fetching.
+            // This prevents hitting the API multiple times per second while the user is moving.
+            timeoutId = setTimeout(() => {
+                fetchDirections();
+            }, 1000);
+
+            return () => {
+                active = false;
+                clearTimeout(timeoutId);
+            };
+            // 2. Dependency Optimization:
+            // Use primitive values (lat/lng) instead of the 'origin' and 'destination' objects.
+            // This ensures the effect doesn't fire just because the parent re-rendered.
+        }, [
+            origin.longitude,
+            origin.latitude,
+            destination.longitude,
+            destination.latitude,
+            selectedMode,
+            onDirectionsChange
+        ]);
 
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);

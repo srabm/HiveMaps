@@ -216,11 +216,17 @@ export default function MapScreen() {
                 />
                 <MapboxGL.UserLocation
                     visible={false}
-                    showsUserHeadingIndicator={false}
                     onUpdate={(loc: any) => {
                         const coords = loc?.coords;
                         if (!coords) return;
-                        setUserLocation([coords.longitude, coords.latitude]);
+                        const newLocation: [number, number] = [coords.longitude, coords.latitude];
+
+                        setUserLocation(newLocation);
+
+                        if (fromCoordinatesIsUserLocation.current) {
+                            setFromCoordinates(newLocation);
+                        }
+
                         setLocationPermissionStatus('granted');
                         setShowLocationPrompt(false);
                     }}
