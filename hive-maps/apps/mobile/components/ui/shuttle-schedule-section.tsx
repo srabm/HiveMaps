@@ -13,6 +13,12 @@ type ShuttleScheduleSectionProps = {
     onFallbackPress?: () => void;
     /** When true, removes the top margin/border separator (metrics row is hidden above) */
     noTopSpacing?: boolean;
+    /** Inline metrics to show when the main metrics row is hidden (no departures / next service day) */
+    inlineMetrics?: {
+        durationText: string;
+        distanceText: string;
+        arrivalLabel: string;
+    } | null;
 };
 
 export function ShuttleScheduleSection({
@@ -26,6 +32,7 @@ export function ShuttleScheduleSection({
     onOpenModal,
     onFallbackPress,
     noTopSpacing,
+    inlineMetrics,
 }: ShuttleScheduleSectionProps) {
     const showTransitSuggestion =
         (!hasSchedule || showNextServiceLabel || departures.length === 0) && !!onFallbackPress;
@@ -35,6 +42,24 @@ export function ShuttleScheduleSection({
 
     return (
         <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
+            {inlineMetrics && (
+                <View style={styles.inlineMetricsRow}>
+                    <View style={styles.inlineMetricItem}>
+                        <Text style={styles.inlineMetricValue}>
+                            {inlineMetrics.durationText.split(' ')[0]}
+                        </Text>
+                        <Text style={styles.inlineMetricUnit}>
+                            {inlineMetrics.durationText.split(' ')[1] ?? 'min'}
+                        </Text>
+                    </View>
+                    <View style={styles.inlineMetricDivider} />
+                    <View style={styles.inlineMetricItem}>
+                        <Text style={styles.inlineMetricArrival}>{inlineMetrics.arrivalLabel}</Text>
+                        <Text style={styles.inlineMetricDistance}>{inlineMetrics.distanceText}</Text>
+                    </View>
+                </View>
+            )}
+
             {showTransitSuggestion && (
                 <Pressable onPress={onFallbackPress} style={styles.transitSuggestion}>
                     <Text style={styles.transitSuggestionText}>{suggestionText}</Text>
@@ -137,4 +162,26 @@ const styles = StyleSheet.create({
     transitSuggestionText: {fontSize: 12, color: '#6B7280'},
     transitSuggestionLink: {fontSize: 12, fontWeight: '700', color: '#9d1e30'},
     seeMoreLink: {fontSize: 12, fontWeight: '600', color: '#9d1e30'},
+    inlineMetricsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        gap: 12,
+    },
+    inlineMetricItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    inlineMetricDivider: {
+        width: 1,
+        height: 32,
+        backgroundColor: '#E5E7EB',
+    },
+    inlineMetricValue: {fontSize: 20, fontWeight: '700', color: '#10B981'},
+    inlineMetricUnit: {fontSize: 12, fontWeight: '600', color: '#10B981'},
+    inlineMetricArrival: {fontSize: 13, fontWeight: '600', color: '#111827'},
+    inlineMetricDistance: {fontSize: 12, color: '#6B7280', marginTop: 2},
 });

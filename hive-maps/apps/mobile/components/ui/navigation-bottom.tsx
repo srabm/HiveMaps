@@ -9,6 +9,7 @@ import {
     Provider
 } from '@/services/maps/directions-api-adapter';
 import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
+import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleScheduleModal} from '@/components/ui/shuttle-schedule-modal';
 import {ShuttleScheduleSection} from '@/components/ui/shuttle-schedule-section';
 
@@ -153,22 +154,81 @@ export function NavigationBottom({
         outputRange: ['0%', '25%', '50%', '75%'],
     });
 
-    const durationText = formatDuration(directions?.durationSeconds);
-    const distanceText = formatDistance(directions?.distanceMeters);
-    const durationParts = useMemo(() => durationText.split(' '), [durationText]);
-    const durationValue = durationParts[0] ?? durationText;
-    const durationUnit = durationParts[1] ?? 'min';
     const shuttleScheduleContext = useShuttleSchedule({
         enabled: selectedMode === 'Shuttle',
         origin,
         destination,
     });
 
+    const shuttleRouting = useShuttleRouting({
+        enabled: selectedMode === 'Shuttle',
+        origin,
+        destination,
+    });
+
+    // Compute composite shuttle metrics from the three route legs
+    const shuttleMetrics = useMemo(() => {
+        if (selectedMode !== 'Shuttle') return null;
+        const {walkToStop, shuttleLeg, walkFromStop} = shuttleRouting;
+        if (!walkToStop || !shuttleLeg || !walkFromStop) return null;
+
+        const totalDurationSeconds =
+            walkToStop.durationSeconds + shuttleLeg.durationSeconds + walkFromStop.durationSeconds;
+        const totalDistanceMeters =
+            walkToStop.distanceMeters + shuttleLeg.distanceMeters + walkFromStop.distanceMeters;
+
+        // Only consider departures you can actually walk to in time
+        const walkMinutes = Math.ceil(walkToStop.durationSeconds / 60);
+        const reachableDepartures = shuttleScheduleContext?.departures?.filter(
+            (d) => d.minutesUntil >= walkMinutes,
+        );
+
+        const nextDeparture = reachableDepartures?.[0];
+        const arrivalDate = nextDeparture
+            ? new Date(nextDeparture.departureDate.getTime() + (shuttleLeg.durationSeconds + walkFromStop.durationSeconds) * 1000)
+            : null;
+        const arrivalLabel = arrivalDate
+            ? `Arrive by ${arrivalDate.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})}`
+            : arrivalTime;
+
+        return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes};
+    }, [selectedMode, shuttleRouting, shuttleScheduleContext, arrivalTime]);
+
+    // Departures filtered to only those reachable given the walk-to-stop time
+    const reachableDepartures = useMemo(() => {
+        if (!shuttleScheduleContext?.departures) return [];
+        if (shuttleScheduleContext.isNextServiceDay || shuttleMetrics == null) {
+            return shuttleScheduleContext.departures;
+        }
+        return shuttleScheduleContext.departures.filter(
+            (item) => item.minutesUntil >= shuttleMetrics.walkMinutes,
+        );
+    }, [shuttleScheduleContext, shuttleMetrics]);
+
     const hideMetricsRow =
         selectedMode === 'Shuttle' &&
-        (!shuttleScheduleContext?.schedule ||
+        ((!shuttleScheduleContext?.schedule ||
             !!shuttleScheduleContext?.showNextServiceLabel ||
-            shuttleScheduleContext?.departures?.length === 0);
+            reachableDepartures.length === 0) ||
+            !shuttleMetrics);
+
+    const activeDurationSeconds =
+        selectedMode === 'Shuttle' && shuttleMetrics
+            ? shuttleMetrics.totalDurationSeconds
+            : directions?.durationSeconds;
+    const activeDistanceMeters =
+        selectedMode === 'Shuttle' && shuttleMetrics
+            ? shuttleMetrics.totalDistanceMeters
+            : directions?.distanceMeters;
+    const activeArrivalTime =
+        selectedMode === 'Shuttle' && shuttleMetrics ? shuttleMetrics.arrivalLabel : arrivalTime;
+
+    const durationText = formatDuration(activeDurationSeconds);
+    const distanceText = formatDistance(activeDistanceMeters);
+    const durationParts = useMemo(() => durationText.split(' '), [durationText]);
+    const durationValue = durationParts[0] ?? durationText;
+    const durationUnit = durationParts[1] ?? 'min';
+
     const formatTimeLabel = (time: string, baseDate: Date) => {
         const [hoursStr, minutesStr] = time.split(':');
         const hours = Number(hoursStr);
@@ -221,7 +281,7 @@ export function NavigationBottom({
 
                     <View style={[styles.metricCell, styles.middleCell]}>
                         <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                            {arrivalTime}
+                            {activeArrivalTime}
                         </Text>
                         <Text style={styles.distanceText}>{distanceText}</Text>
                     </View>
@@ -246,21 +306,30 @@ export function NavigationBottom({
                             : undefined
                     }
                     departures={
-                        shuttleScheduleContext?.departures?.slice(0, 3).map((item) => ({
-                            key: `${shuttleScheduleContext.directionLabel}-${item.time}`,
+                        reachableDepartures.slice(0, 3).map((item) => ({
+                            key: `${shuttleScheduleContext?.directionLabel}-${item.time}`,
                             timeLabel: formatDepartureTime(item.departureDate),
-                            etaLabel: shuttleScheduleContext.isNextServiceDay
+                            etaLabel: shuttleScheduleContext?.isNextServiceDay
                                 ? `on ${shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})}`
                                 : formatMinutesUntil(item.minutesUntil),
-                        })) ?? []
+                        }))
                     }
                     showSeeMoreButton={
                         !!shuttleScheduleContext?.showSeeMoreButton ||
-                        (shuttleScheduleContext?.departures?.length ?? 0) > 3
+                        reachableDepartures.length > 3
                     }
                     onOpenModal={() => setShowScheduleModal(true)}
                     onFallbackPress={() => handleModeChange('Transit')}
                     noTopSpacing={hideMetricsRow}
+                    inlineMetrics={
+                        hideMetricsRow && shuttleMetrics
+                            ? {
+                                  durationText: formatDuration(shuttleMetrics.totalDurationSeconds),
+                                  distanceText: formatDistance(shuttleMetrics.totalDistanceMeters),
+                                  arrivalLabel: shuttleMetrics.arrivalLabel,
+                              }
+                            : null
+                    }
                 />
             )}
 
