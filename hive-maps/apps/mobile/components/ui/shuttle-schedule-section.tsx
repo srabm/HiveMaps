@@ -11,6 +11,7 @@ type ShuttleScheduleSectionProps = {
     showSeeMoreButton: boolean;
     onOpenModal: () => void;
     onFallbackPress?: () => void;
+    noTopSpacing?: boolean;
 };
 
 export function ShuttleScheduleSection({
@@ -23,9 +24,10 @@ export function ShuttleScheduleSection({
     showSeeMoreButton,
     onOpenModal,
     onFallbackPress,
+    noTopSpacing,
 }: ShuttleScheduleSectionProps) {
     return (
-        <View style={styles.shuttleSection}>
+        <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
             <View style={styles.shuttleHeaderRow}>
                 <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
                 {validPeriod ? <Text style={styles.shuttleSubtle}>{validPeriod}</Text> : null}
@@ -93,6 +95,11 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: '#E5E7EB',
+    },
+    shuttleSectionNoTopSpacing: {
+        marginTop: 4,
+        paddingTop: 8,
+        borderTopWidth: 0,
     },
     shuttleHeaderRow: {
         flexDirection: 'row',

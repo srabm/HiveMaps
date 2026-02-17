@@ -156,6 +156,12 @@ export function NavigationBottom({
         origin,
         destination,
     });
+
+    const hideMetricsRow =
+        selectedMode === 'Shuttle' &&
+        (!shuttleScheduleContext?.schedule ||
+            !!shuttleScheduleContext?.showNextServiceLabel ||
+            (shuttleScheduleContext?.departures?.length === 0 && !shuttleScheduleContext?.showNextServiceLabel));
     const formatTimeLabel = (time: string, baseDate: Date) => {
         const [hoursStr, minutesStr] = time.split(':');
         const hours = Number(hoursStr);
@@ -199,25 +205,27 @@ export function NavigationBottom({
                 ))}
             </View>
 
-            <View style={styles.metricsRow}>
-                <View style={[styles.metricCell, styles.durationCell]}>
-                    <Text style={styles.durationValue}>{durationValue}</Text>
-                    <Text style={styles.durationUnit}>{durationUnit}</Text>
-                </View>
+            {!hideMetricsRow && (
+                <View style={styles.metricsRow}>
+                    <View style={[styles.metricCell, styles.durationCell]}>
+                        <Text style={styles.durationValue}>{durationValue}</Text>
+                        <Text style={styles.durationUnit}>{durationUnit}</Text>
+                    </View>
 
-                <View style={[styles.metricCell, styles.middleCell]}>
-                    <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                        {arrivalTime}
-                    </Text>
-                    <Text style={styles.distanceText}>{distanceText}</Text>
-                </View>
+                    <View style={[styles.metricCell, styles.middleCell]}>
+                        <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                            {arrivalTime}
+                        </Text>
+                        <Text style={styles.distanceText}>{distanceText}</Text>
+                    </View>
 
-                <View style={[styles.metricCell, styles.startCell]}>
-                    <Pressable style={styles.startButton} onPress={onStartPress}>
-                        <Text style={styles.startButtonText}>Start</Text>
-                    </Pressable>
+                    <View style={[styles.metricCell, styles.startCell]}>
+                        <Pressable style={styles.startButton} onPress={onStartPress}>
+                            <Text style={styles.startButtonText}>Start</Text>
+                        </Pressable>
+                    </View>
                 </View>
-            </View>
+            )}
 
             {selectedMode === 'Shuttle' && (
                 <ShuttleScheduleSection
@@ -242,6 +250,7 @@ export function NavigationBottom({
                     showSeeMoreButton={!!shuttleScheduleContext?.showSeeMoreButton}
                     onOpenModal={() => setShowScheduleModal(true)}
                     onFallbackPress={() => handleModeChange('Transit')}
+                    noTopSpacing={hideMetricsRow}
                 />
             )}
 
