@@ -14,5 +14,5 @@ spring:
     locations: classpath:db/migration
 
 google:
-  places: 
-    api-key: ${GOOGLE_PLACES_API_KEY:test-key}
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
