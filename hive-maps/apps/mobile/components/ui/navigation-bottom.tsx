@@ -8,8 +8,11 @@ import {
     Coordinate,
     Provider
 } from '@/services/maps/directions-api-adapter';
+import {TimePickerModal, TimeMode} from './TimePickerModal';
+import {formatISOToTime, getCurrentTimeISO} from '@/utils/timeFormatter';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
+
 
 interface NavigationBottomProps {
     origin: Coordinate;
@@ -71,6 +74,9 @@ export function NavigationBottom({
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [departureTimeISO, setDepartureTimeISO] = useState(getCurrentTimeISO());
+    const [timePickerVisible, setTimePickerVisible] = useState(false);
+    const [timeMode, setTimeMode] = useState<TimeMode>('depart');
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
 
     useEffect(() => {
@@ -117,6 +123,12 @@ export function NavigationBottom({
         onModeChange?.(mode);
     };
 
+    const handleDepartureTimeChange = (time: string, mode: TimeMode) => {
+        setDepartureTimeISO(time);
+        setTimeMode(mode);
+        setTimePickerVisible(false);
+    };
+
     const indicatorWidth = slideAnim.interpolate({
         inputRange: [0, 3],
         outputRange: ['25%', '25%'],
@@ -133,60 +145,79 @@ export function NavigationBottom({
     const durationValue = durationParts[0] ?? durationText;
     const durationUnit = durationParts[1] ?? 'min';
 
+    const displayDepartureTime = formatISOToTime(departureTimeISO);
+    const timeModeLabel = timeMode === 'depart' ? 'Depart at' : 'Arrive by';
+
     return (
-        <View style={styles.navCard}>
-            <View style={styles.navHeaderRow}>
-                <Text style={styles.navHeaderText}>{selectedMode}</Text>
-            </View>
-
-            <View style={styles.modeBarContainer}>
-                <Animated.View
-                    style={[
-                        styles.modeIndicator,
-                        {
-                            width: indicatorWidth,
-                            left: indicatorLeft,
-                        },
-                    ]}
-                />
-                {MODES.map((mode, index) => (
+        <>
+            <View style={styles.navCard}>
+                <View style={styles.navHeaderRow}>
+                    <Text style={styles.navHeaderText}>{selectedMode}</Text>
                     <Pressable
-                        key={mode}
-                        onPress={() => handleModeChange(mode)}
-                        style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
+                        style={styles.departAtButton}
+                        onPress={() => setTimePickerVisible(true)}
                     >
-                        <Text
-                            style={[
-                                styles.modeOptionText,
-                                selectedMode === mode && styles.modeOptionTextActive,
-                            ]}
+                        <Text style={styles.departAtButtonText}>{timeModeLabel}: {displayDepartureTime}</Text>
+                    </Pressable>
+                </View>
+
+                <View style={styles.modeBarContainer}>
+                    <Animated.View
+                        style={[
+                            styles.modeIndicator,
+                            {
+                                width: indicatorWidth,
+                                left: indicatorLeft,
+                            },
+                        ]}
+                    />
+                    {MODES.map((mode, index) => (
+                        <Pressable
+                            key={mode}
+                            onPress={() => handleModeChange(mode)}
+                            style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
                         >
-                            {mode}
+                            <Text
+                                style={[
+                                    styles.modeOptionText,
+                                    selectedMode === mode && styles.modeOptionTextActive,
+                                ]}
+                            >
+                                {mode}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+
+                <View style={styles.metricsRow}>
+                    <View style={[styles.metricCell, styles.durationCell]}>
+                        <Text style={styles.durationValue}>{durationValue}</Text>
+                        <Text style={styles.durationUnit}>{durationUnit}</Text>
+                    </View>
+
+                    <View style={[styles.metricCell, styles.middleCell]}>
+                        <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                            {arrivalTime}
                         </Text>
-                    </Pressable>
-                ))}
-            </View>
+                        <Text style={styles.distanceText}>{distanceText}</Text>
+                    </View>
 
-            <View style={styles.metricsRow}>
-                <View style={[styles.metricCell, styles.durationCell]}>
-                    <Text style={styles.durationValue}>{durationValue}</Text>
-                    <Text style={styles.durationUnit}>{durationUnit}</Text>
-                </View>
-
-                <View style={[styles.metricCell, styles.middleCell]}>
-                    <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                        {arrivalTime}
-                    </Text>
-                    <Text style={styles.distanceText}>{distanceText}</Text>
-                </View>
-
-                <View style={[styles.metricCell, styles.startCell]}>
-                    <Pressable style={styles.startButton} onPress={onStartPress}>
-                        <Text style={styles.startButtonText}>Start</Text>
-                    </Pressable>
+                    <View style={[styles.metricCell, styles.startCell]}>
+                        <Pressable style={styles.startButton} onPress={onStartPress}>
+                            <Text style={styles.startButtonText}>Start</Text>
+                        </Pressable>
+                    </View>
                 </View>
             </View>
-        </View>
+
+            <TimePickerModal
+                visible={timePickerVisible}
+                initialTime={departureTimeISO}
+                initialMode={timeMode}
+                onConfirm={handleDepartureTimeChange}
+                onCancel={() => setTimePickerVisible(false)}
+            />
+        </>
     );
 }
 
@@ -213,6 +244,15 @@ const styles = StyleSheet.create({
     },
     navHeaderText: {fontSize: 16, fontWeight: '700', color: '#111827'},
     navArrival: {fontSize: 12, color: '#10B981', fontWeight: '600'},
+    departAtButton: {
+        backgroundColor: '#F5F3FF',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    departAtButtonText: {color: '#111827', fontWeight: '600', fontSize: 12},
     modeBarContainer: {
         position: 'relative',
         flexDirection: 'row',
