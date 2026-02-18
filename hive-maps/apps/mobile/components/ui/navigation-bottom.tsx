@@ -241,6 +241,7 @@ export function NavigationBottom({
                     }
                     showSeeMoreButton={!!shuttleScheduleContext?.showSeeMoreButton}
                     onOpenModal={() => setShowScheduleModal(true)}
+                    onFallbackPress={() => handleModeChange('Transit')}
                 />
             )}
 

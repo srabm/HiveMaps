@@ -10,6 +10,7 @@ type ShuttleScheduleSectionProps = {
     departures: Array<{timeLabel: string; etaLabel: string; key: string}>;
     showSeeMoreButton: boolean;
     onOpenModal: () => void;
+    onFallbackPress?: () => void;
 };
 
 export function ShuttleScheduleSection({
@@ -21,6 +22,7 @@ export function ShuttleScheduleSection({
     departures,
     showSeeMoreButton,
     onOpenModal,
+    onFallbackPress,
 }: ShuttleScheduleSectionProps) {
     return (
         <View style={styles.shuttleSection}>
@@ -30,17 +32,42 @@ export function ShuttleScheduleSection({
             </View>
 
             {!hasSchedule && (
-                <Text style={styles.shuttleEmptyText}>No shuttle schedule available today.</Text>
+                <View style={styles.unavailableContainer}>
+                    <Text style={styles.shuttleEmptyText}>The shuttle service is currently unavailable.</Text>
+                    {onFallbackPress && (
+                        <Pressable onPress={onFallbackPress} style={styles.fallbackButton}>
+                            <Text style={styles.fallbackButtonText}>View Transit Alternatives</Text>
+                        </Pressable>
+                    )}
+                </View>
             )}
 
             {hasSchedule && (
                 <View style={styles.shuttleList}>
-                    <Text style={styles.shuttleListTitle}>{directionLabel}</Text>
-                    {showNextServiceLabel && nextServiceLabel ? (
-                        <Text style={styles.shuttleNextService}>Next service: {nextServiceLabel}</Text>
-                    ) : null}
-                    {departures.length === 0 ? (
-                        <Text style={styles.shuttleEmptyText}>No more departures today.</Text>
+                    <View style={styles.directionHeader}>
+                        <Text style={styles.shuttleListTitle}>{directionLabel}</Text>
+                        {showNextServiceLabel && nextServiceLabel && (
+                             <View style={styles.nextServiceBadge}>
+                                 <Text style={styles.nextServiceBadgeText}>Next service: {nextServiceLabel}</Text>
+                             </View>
+                        )}
+                    </View>
+
+                    {showNextServiceLabel && onFallbackPress && (
+                        <Pressable onPress={onFallbackPress} style={styles.fallbackButtonInline}>
+                            <Text style={styles.fallbackButtonTextInline}>Shuttle is not running today. Try Transit instead?</Text>
+                        </Pressable>
+                    )}
+
+                    {departures.length === 0 && !showNextServiceLabel ? (
+                        <View style={styles.unavailableContainer}>
+                            <Text style={styles.shuttleEmptyText}>No more departures today.</Text>
+                            {onFallbackPress && (
+                                <Pressable onPress={onFallbackPress} style={styles.fallbackButton}>
+                                    <Text style={styles.fallbackButtonText}>View Transit Alternatives</Text>
+                                </Pressable>
+                            )}
+                        </View>
                     ) : (
                         departures.map((item) => (
                             <View key={item.key} style={styles.shuttleRow}>
@@ -78,11 +105,27 @@ const styles = StyleSheet.create({
     shuttleList: {
         flex: 1,
     },
+    directionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
     shuttleListTitle: {
         fontSize: 12,
         fontWeight: '700',
         color: '#9d1e30',
-        marginBottom: 6,
+    },
+    nextServiceBadge: {
+        backgroundColor: '#F3F4F6',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    nextServiceBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#374151',
     },
     shuttleRow: {
         flexDirection: 'row',
@@ -92,7 +135,6 @@ const styles = StyleSheet.create({
     shuttleTime: {fontSize: 12, color: '#111827', fontWeight: '600'},
     shuttleEta: {fontSize: 11, color: '#6B7280'},
     shuttleEmptyText: {fontSize: 11, color: '#6B7280'},
-    shuttleNextService: {fontSize: 11, color: '#6B7280', marginBottom: 6},
     shuttleSeeMoreButton: {
         marginTop: 6,
         alignSelf: 'flex-start',
@@ -104,4 +146,34 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
     },
     shuttleSeeMoreText: {fontSize: 11, fontWeight: '600', color: '#9d1e30'},
+    unavailableContainer: {
+        paddingVertical: 8,
+    },
+    fallbackButton: {
+        marginTop: 10,
+        backgroundColor: '#9d1e30',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    fallbackButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    fallbackButtonInline: {
+        marginBottom: 12,
+        backgroundColor: '#FFFBEB',
+        padding: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#FEF3C7',
+    },
+    fallbackButtonTextInline: {
+        color: '#92400E',
+        fontSize: 12,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
 });
