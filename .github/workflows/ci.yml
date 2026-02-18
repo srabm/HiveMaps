@@ -123,10 +123,11 @@ jobs:
         run: bash ./gradlew --no-daemon clean test jacocoTestReport
 
       - name: Sonar Analysis
+        if: ${{ always() && !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
+        run: ./gradlew --no-daemon sonar -x test
 
       - name: Upload API test reports
         if: always()
@@ -139,6 +140,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload API coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
