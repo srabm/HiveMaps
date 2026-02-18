@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
@@ -28,6 +29,8 @@ const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
 
 export default function MapScreen() {
+    const router = useRouter();
+    
     const {
         campus,
         setCampus,
@@ -525,6 +528,16 @@ export default function MapScreen() {
         visible={!!selectedBuilding}
         building={selectedBuilding}
         onClose={() => setSelectedBuilding(null)}
+
+        onIndoorMap={() => {
+        if (selectedBuilding?.code) {
+            setSelectedBuilding(null);
+            router.push({
+                pathname: "/indoor/[building]",
+                params: { building: selectedBuilding.code }
+            });
+        }
+    }}
       />
 
             <Modal
