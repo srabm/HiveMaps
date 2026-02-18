@@ -75,8 +75,6 @@ export function DirectionsLine({
         [directions.polyline],
     );
 
-    if (!coordinates.length) return null;
-
     const featureCollection = useMemo(
         () => ({
             type: 'FeatureCollection' as const,
@@ -92,25 +90,31 @@ export function DirectionsLine({
     );
 
     const endpointsCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    id: 'start-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[0]},
-                    properties: {type: 'start'},
-                },
-                {
-                    type: 'Feature' as const,
-                    id: 'end-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
-                    properties: {type: 'end'},
-                },
-            ],
-        }),
+        () => {
+            const start = coordinates[0] ?? [0, 0];
+            const end = coordinates[coordinates.length - 1] ?? [0, 0];
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        id: 'start-point',
+                        geometry: {type: 'Point' as const, coordinates: start},
+                        properties: {type: 'start'},
+                    },
+                    {
+                        type: 'Feature' as const,
+                        id: 'end-point',
+                        geometry: {type: 'Point' as const, coordinates: end},
+                        properties: {type: 'end'},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
+
+    if (!coordinates.length) return null;
 
     return (
         <>

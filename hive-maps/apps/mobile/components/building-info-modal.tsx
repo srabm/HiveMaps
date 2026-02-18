@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SUPPORTED_INDOOR_BUILDINGS } from '@/services/http/indoor-api';
+import { SUPPORTED_INDOOR_BUILDINGS, parseIndoorBuildingCode } from '@/services/http/indoor-api';
 
 export type BuildingInfo = {
   code?: string;
@@ -57,7 +57,8 @@ export function BuildingInfoModal({
 
   if (!visible) return null;
 
-  const hasIndoorMap = building?.code && SUPPORTED_INDOOR_BUILDINGS.has(building.code);
+  const indoorBuildingCode = parseIndoorBuildingCode(building?.code);
+  const hasIndoorMap = indoorBuildingCode && SUPPORTED_INDOOR_BUILDINGS.has(indoorBuildingCode);
 
   return (
     <Modal

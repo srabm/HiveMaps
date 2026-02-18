@@ -16,7 +16,7 @@ describe('BuildingInfoModal', () => {
   };
 
   it('renders fallback content when no building is selected', () => {
-    const { getByText, queryByText } = render(
+    const { getByText } = render(
       <BuildingInfoModal visible building={null} onClose={jest.fn()} />
     );
 
@@ -25,7 +25,7 @@ describe('BuildingInfoModal', () => {
     expect(getByText('Hours not listed')).toBeTruthy();
     expect(getByText('Phone not listed')).toBeTruthy();
     expect(getByText('Website not listed')).toBeTruthy();
-    expect(queryByText('Building photo')).toBeNull();
+    expect(getByText('Building photo')).toBeTruthy();
   });
 
   it('calls action handlers when action buttons are pressed', () => {

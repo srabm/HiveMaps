@@ -13,14 +13,26 @@ class IndoorMapController(
     private val objectMapper: ObjectMapper
 ) {
 
+    private fun ensureBuildingInCampus(campusId: String, buildingCode: String) {
+        val existsSql = "SELECT COUNT(1) FROM building WHERE campus_id = ? AND code = ?"
+        val exists = jdbcTemplate.queryForObject(existsSql, Int::class.java, campusId, buildingCode) ?: 0
+        if (exists == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Building not found for campus")
+        }
+    }
+
     @GetMapping
     fun getFloors(
         @PathVariable campusId: String, 
         @PathVariable buildingCode: String
     ): List<Map<String, Any>> {
+        val normalizedCampusId = campusId.uppercase()
+        val normalizedBuildingCode = buildingCode.uppercase()
+        ensureBuildingInCampus(normalizedCampusId, normalizedBuildingCode)
+
         val sql = "SELECT id, label, sort_order FROM building_floor WHERE building_code = ? ORDER BY sort_order ASC"
         
-        return jdbcTemplate.queryForList(sql, buildingCode).map { row ->
+        return jdbcTemplate.queryForList(sql, normalizedBuildingCode).map { row ->
             mapOf(
                 "id" to row["id"],
                 "label" to row["label"],
@@ -35,13 +47,23 @@ class IndoorMapController(
         @PathVariable buildingCode: String,
         @PathVariable floorId: String
     ): Map<String, Any> {
-        
+        val normalizedCampusId = campusId.uppercase()
+        val normalizedBuildingCode = buildingCode.uppercase()
+        val normalizedFloorId = floorId.uppercase()
+
+        ensureBuildingInCampus(normalizedCampusId, normalizedBuildingCode)
+
         val floorSql = "SELECT label, plan_geometry FROM building_floor WHERE building_code = ? AND id = ?"
-        val floorRow = jdbcTemplate.queryForList(floorSql, buildingCode, floorId).firstOrNull() 
+        val floorRow = jdbcTemplate.queryForList(floorSql, normalizedBuildingCode, normalizedFloorId).firstOrNull() 
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Floor not found")
 
-        val roomsSql = "SELECT id, label, room_type, geometry FROM room WHERE building_code = ? AND floor_id = ?"
-        val roomRows = jdbcTemplate.queryForList(roomsSql, buildingCode, floorId)
+        val roomsSql = """
+            SELECT id, COALESCE(label, id) AS label, COALESCE(room_type, 'room') AS room_type, geometry
+            FROM room
+            WHERE building_code = ? AND floor_id = ?
+            ORDER BY id
+        """.trimIndent()
+        val roomRows = jdbcTemplate.queryForList(roomsSql, normalizedBuildingCode, normalizedFloorId)
 
         val features = roomRows.map { room ->
             mapOf(
@@ -61,9 +83,9 @@ class IndoorMapController(
         )
 
         return mapOf(
-            "buildingCode" to buildingCode,
+            "buildingCode" to normalizedBuildingCode,
             "floor" to mapOf(
-                "id" to floorId,
+                "id" to normalizedFloorId,
                 "label" to floorRow["label"]
             ),
             "planGeometry" to objectMapper.readValue(floorRow["plan_geometry"].toString(), Map::class.java),
