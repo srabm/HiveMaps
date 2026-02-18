@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { fetchBuildingFloors, FloorSummary, BuildingCode } from '@/services/http/indoor-api';
+import { FloorPlanViewer } from '@/components/indoor/floor-plan-viewer';
 
 export default function IndoorMapScreen() {
   const { building } = useLocalSearchParams<{ building: string }>();
@@ -61,9 +62,7 @@ export default function IndoorMapScreen() {
           </View>
 
           <View style={styles.rendererRegion}>
-            <Text style={styles.placeholderText}>
-              [ Mapbox Renderer ] Passing floor {activeFloorId} data down...
-            </Text>
+            <FloorPlanViewer />
           </View>
         </>
       )}

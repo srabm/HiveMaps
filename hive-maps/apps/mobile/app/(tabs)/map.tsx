@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
@@ -532,10 +532,7 @@ export default function MapScreen() {
         onIndoorMap={() => {
         if (selectedBuilding?.code) {
             setSelectedBuilding(null);
-            router.push({
-                pathname: "/indoor/[building]",
-                params: { building: selectedBuilding.code }
-            });
+            router.push(`/indoor/${selectedBuilding.code}` as Href);
         }
     }}
       />
