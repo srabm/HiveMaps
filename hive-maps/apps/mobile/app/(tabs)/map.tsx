@@ -55,11 +55,15 @@ export default function MapScreen() {
     const fromCoordinatesIsUserLocation = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
 
-    function navigateToSelectedBuilding() {
-        if (!selectedBuilding) return;
+    function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
         setFromCoordinates(userLocation);
         fromCoordinatesIsUserLocation.current = true;
+    }
+
+    function navigateToSelectedBuilding() {
+        if (!selectedBuilding) return;
+        setStartingPointAsUserCoordinates();
         setTo(selectedBuilding.name + (!!selectedBuilding.addresses && selectedBuilding.addresses.length > 0 ? ', ' + selectedBuilding.addresses[0] : ''));
         if (!cameraRef.current) return;
         if (selectedBuilding.coordinates) {
@@ -349,9 +353,7 @@ export default function MapScreen() {
                             setTo(text)
                         }}
                         onClickButton={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
+                            setStartingPointAsUserCoordinates();
                             setSeeDirectionBar(true);
                             if (userLocation) {
                                 cameraRef?.current?.setCamera({
@@ -439,9 +441,7 @@ export default function MapScreen() {
                             // Note: We can't track if the original "to" was user location, so we reset this flag
                         }}
                         onResetFrom={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
+                            setStartingPointAsUserCoordinates();
                             if (userLocation) {
                                 cameraRef?.current?.setCamera({
                                     centerCoordinate: userLocation,
