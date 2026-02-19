@@ -55,6 +55,24 @@ export default function MapScreen() {
     const fromCoordinatesIsUserLocation = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
 
+    function navigateToSelectedBuilding() {
+        if (!selectedBuilding) return;
+        setFrom('Your location');
+        setFromCoordinates(userLocation);
+        fromCoordinatesIsUserLocation.current = true;
+        setTo(selectedBuilding.name + (!!selectedBuilding.addresses && selectedBuilding.addresses.length > 0 ? ', ' + selectedBuilding.addresses[0] : ''));
+        if (!cameraRef.current) return;
+        if (selectedBuilding.coordinates) {
+            setToCoordinates(selectedBuilding.coordinates);
+            cameraRef.current.setCamera({
+                centerCoordinate: selectedBuilding.coordinates,
+                zoomLevel: 18,
+                animationDuration: 800,
+            });
+        }
+        setSeeDirectionBar(true);
+        setSelectedBuilding(null);
+    }
 
     useEffect(() => {
         initializeDirectionsCache();
@@ -118,32 +136,32 @@ export default function MapScreen() {
     const polys = [];
     const dots = [];
 
-        for (const point of points) {
-            const loc = point.building.location as any;
-            if (loc && loc.type === 'Polygon' && loc.coordinates) {
-                let coords = loc.coordinates;
-                let depth = 0;
-                let current = coords;
-                while (Array.isArray(current)) {
-                    depth++;
-                    current = current[0];
-                }
-                if (depth === 4) {
-                    coords = coords[0];
-                } else if (depth === 2) {
-                    coords = [coords];
-                }
-                const inUserBuilding = userLocation
-                    ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
-                    : false;
+    for (const point of points) {
+        const loc = point.building.location as any;
+        if (loc && loc.type === 'Polygon' && loc.coordinates) {
+            let coords = loc.coordinates;
+            let depth = 0;
+            let current = coords;
+            while (Array.isArray(current)) {
+                depth++;
+                current = current[0];
+            }
+            if (depth === 4) {
+                coords = coords[0];
+            } else if (depth === 2) {
+                coords = [coords];
+            }
+            const inUserBuilding = userLocation
+                ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
+                : false;
 
-        polys.push({
-          type: 'Feature' as const,
-          id: point.id,
-          geometry: { type: 'Polygon' as const, coordinates: coords },
-          properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding},
-        });
-    }
+            polys.push({
+            type: 'Feature' as const,
+            id: point.id,
+            geometry: { type: 'Polygon' as const, coordinates: coords },
+            properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding, center: point.building.center},
+            });
+        }
     }
     return { polygonFeatures: polys};
   }, [points, userLocation]);
@@ -233,7 +251,7 @@ export default function MapScreen() {
               
               const point = points.find(p => p.id === f.properties?.id);
               const details = point?.details as any;
-                            
+
               setSelectedBuilding({
                 ...f.properties,
                 phone: details?.nationalPhoneNumber,
@@ -241,7 +259,8 @@ export default function MapScreen() {
                 hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
                         ?? 'Hours not listed',
                 allHours: details?.regularOpeningHours?.weekdayDescriptions,
-              });
+                coordinates: f.properties?.center,
+            });
             }}
           >
             {/* LAYER A: Burgundy Background */}
@@ -525,6 +544,8 @@ export default function MapScreen() {
         visible={!!selectedBuilding}
         building={selectedBuilding}
         onClose={() => setSelectedBuilding(null)}
+        onDirections={navigateToSelectedBuilding}
+        onStart={navigateToSelectedBuilding} //temporary implementation
       />
 
             <Modal
