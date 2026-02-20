@@ -26,4 +26,14 @@ class CampusController(
         campusService.getCampus(id)?.let {
             ResponseEntity.ok(campusService.getBuildings(id))
         } ?: ResponseEntity.notFound().build()
+
+    @GetMapping("indoor-path/{building}/from/{startNodeId}/to/{endNodeId}")
+    fun getIndoorPath(
+        @PathVariable building: String,
+        @PathVariable startNodeId: String,
+        @PathVariable endNodeId: String
+    ): ResponseEntity<Any> {
+        val path = campusService.getPath(building, startNodeId, endNodeId)
+        return if (path != null) ResponseEntity.ok(path) else ResponseEntity.notFound().build()
+    }
 }
