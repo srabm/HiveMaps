@@ -142,6 +142,17 @@ export default function MapScreen() {
         });
     }, [campusMeta]);
 
+
+    const SEARCH_FOCUS_ZOOM = 18;
+    const focusCamera = (coordinates: [number, number] | null) => {
+        if (!cameraRef.current || !coordinates) return;
+        cameraRef.current.setCamera({
+            centerCoordinate: coordinates,
+            zoomLevel: SEARCH_FOCUS_ZOOM,
+            animationDuration: 800,
+        });
+    };
+
     useEffect(() => {
         let active = true;
         const ensureAndroidPermissions = async () => {
@@ -360,7 +371,9 @@ export default function MapScreen() {
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View/>
+                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
+                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
+                        </View>
                     </MapboxGL.PointAnnotation>
                 }
                 {directions && (
@@ -405,11 +418,7 @@ export default function MapScreen() {
                             if (!cameraRef.current) return;
                             if (coordinates) {
                                 setToCoordinates(coordinates);
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onClear={() => {
@@ -431,11 +440,7 @@ export default function MapScreen() {
                             if (coordinates) {
                                 setFromCoordinates(coordinates);
                                 fromCoordinatesIsUserLocation.current = false;
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onSelectTo={(mapLocation, coordinates) => {
@@ -482,11 +487,7 @@ export default function MapScreen() {
                             setFromCoordinates(userLocation);
                             fromCoordinatesIsUserLocation.current = true;
                             if (userLocation) {
-                                cameraRef?.current?.setCamera({
-                                    centerCoordinate: userLocation,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(userLocation);
                             }
                         }}
                         onClose={() => {
