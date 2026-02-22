@@ -15,7 +15,7 @@ class BuildingShapeTest {
 
     private fun building(code: String, campusId: CampusId, location: Map<String, Any>? = null): BuildingEntity {
         return BuildingEntity(
-            code, campusEntity(campusId), code, location
+            code, campusEntity(campusId), code, location, mutableListOf(), 0.0, 0.0
         )
     }
     private fun polygonLocation(coordinates: List<List<List<Double>>>): Map<String, Any> {
@@ -221,7 +221,7 @@ class BuildingShapeTest {
             )
         )
         val loc = polygonLocation(coords)
-        val b = BuildingEntity("H1", campusEntity(CampusId.SGW), "Hall H1", loc)
+        val b = BuildingEntity("H1", campusEntity(CampusId.SGW), "Hall H1", loc, mutableListOf(), 0.0, 0.0)
         val feature = BuildingShape.toGeoJsonFeature(b)
         val expected = mapOf(
             "type" to "Feature",

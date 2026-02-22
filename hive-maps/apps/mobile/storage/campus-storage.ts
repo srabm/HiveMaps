@@ -4,6 +4,7 @@ import type { CampusId } from '@/constants/campus';
 
 const CAMPUS_KEY = 'settings.selectedCampus';
 const BUILDING_CACHE_KEY = 'data.buildingCoordinates';
+const DETAILS_CACHE_KEY = 'data.placeDetails';
 
 export type BuildingCoordinateCache = Record<string, [number, number]>;
 
@@ -45,4 +46,25 @@ export async function mergeBuildingCache(update: BuildingCoordinateCache) {
     /* ignore write failure */
   }
   return merged;
+}
+
+export type PlaceDetailsCache = Record<string, any>;
+
+export async function loadDetailsCache(): Promise<PlaceDetailsCache> {
+  try {
+    const raw = await AsyncStorage.getItem(DETAILS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function mergeDetailsCache(update: PlaceDetailsCache) {
+  const existing = await loadDetailsCache();
+  const merged = {...existing, ...update};
+  try {
+    await AsyncStorage.setItem(DETAILS_CACHE_KEY, JSON.stringify(merged));
+  } catch (e) {
+    console.error("Failed to save details cache", e);
+  }
 }

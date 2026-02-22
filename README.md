@@ -169,12 +169,20 @@ npx expo run:android   # or: npx expo run:ios
 Stop Metro (gracefully): press `Ctrl+C` in the terminal running Expo.
 
 ## Configuration (.env)
-Mobile reads config from `hive-maps/apps/mobile/.env`:
+Frontend (`hive-maps/apps/mobile/.env`):
 - `EXPO_PUBLIC_API_BASE_URL`
   - Android emulator: `http://10.0.2.2:8080` (host alias)
   - iOS simulator: `http://localhost:8080`
 - `EXPO_PUBLIC_MAPBOX_TOKEN`: Mapbox access token (required to render maps + geocode markers).
-- `RNMAPBOX_MAPS_DOWNLOAD_TOKEN`: Mapbox “downloads:read” token (required for native builds with `@rnmapbox/maps`).
+- `RNMAPBOX_MAPS_DOWNLOAD_TOKEN`: Mapbox "downloads:read" token (required for native builds with `@rnmapbox/maps`).
+
+Backend (`hive-maps/services/api/.env`):
+- `GOOGLE_PLACES_API_KEY`: used by API Places endpoints.
+- For local Docker Compose, create `hive-maps/services/api/.env` from `hive-maps/services/api/.env.example`.
+- Spring resolves this key from the environment; `.env` is a convenient way for Docker Compose to provide it locally.
+
+CI note:
+- Current API unit/smoke CI jobs do not need a real Google key unless tests are added that call Google services directly.
 
 ## Campus Data & Endpoints
 The API is the source of truth for campuses/buildings:
