@@ -57,11 +57,16 @@ export function TimePickerModal({
 
     useEffect(() => {
         if (visible) {
+            const next = parseInitialTime();
+            setSelectedHour(next.hour);
+            setSelectedMinute(next.minute);
+            setSelectedPeriod(next.period);
             setTimeMode(initialMode);
+
             setTimeout(() => {
-                const hourIndex = hours.indexOf(selectedHour);
-                const minuteIndex = minutes.indexOf(selectedMinute);
-                const periodIndex = periods.indexOf(selectedPeriod);
+                const hourIndex = hours.indexOf(next.hour);
+                const minuteIndex = minutes.indexOf(next.minute);
+                const periodIndex = periods.indexOf(next.period);
 
                 hourScrollRef.current?.scrollTo({
                     y: hourIndex * ITEM_HEIGHT,
@@ -77,7 +82,7 @@ export function TimePickerModal({
                 });
             }, 0);
         }
-    }, [visible, initialMode]);
+    }, [visible, initialTime, initialMode]);
 
     const handleHourScroll = (event: any) => {
         const offsetY = event.nativeEvent.contentOffset.y;

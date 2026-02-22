@@ -303,14 +303,6 @@ async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, time
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    // Log request details
-    // console.log('[Fetch] Request:', {
-    //     url: input,
-    //     method: init.method || 'GET',
-    //     headers: init.headers,
-    //     body: init.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : undefined
-    // });
-
     try {
         return await fetch(input, {...init, signal: controller.signal});
     } catch (err: any) {
@@ -413,11 +405,6 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 }
 
 async function getGoogleMapsDirections(request: DirectionsRequest): Promise<DirectionsResponse> {
-    /*console.log(`[Google Maps API] Fetching directions for ${getGoogleTravelMode(request.transportMode)} mode`, {
-        origin: request.origin,
-        destination: request.destination
-    });*/
-
     const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
     const body: any = {

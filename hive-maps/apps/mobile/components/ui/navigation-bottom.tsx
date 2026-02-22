@@ -102,10 +102,10 @@ export function NavigationBottom({
                     timeFilterMode,
                     timeFilter,
                 };
-                const resp = await getDirections(request);
+                const directionsResponse = await getDirections(request);
                 if (!active) return;
-                setDirections(resp);
-                onDirectionsChange?.(resp);
+                setDirections(directionsResponse);
+                onDirectionsChange?.(directionsResponse);
             } catch (err) {
                 if (!active) return;
                 setDirections(null);
@@ -141,10 +141,10 @@ export function NavigationBottom({
 
                 if (firstTransitIndex === -1) {
                     if (timeFilterMode === 'depart') {
-                        const arrivalTime = new Date(new Date(timeFilter).getTime() / 1000 + directions.durationSeconds);
+                        const arrivalTime = new Date(new Date(timeFilter).getTime() + directions.durationSeconds * 1000);
                         setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
                     } else {
-                        const departureTime = new Date(new Date(timeFilter).getTime() / 1000 - directions.durationSeconds)
+                        const departureTime = new Date(new Date(timeFilter).getTime() - directions.durationSeconds * 1000)
                         setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`)
                     }
                     setArriveLeaveDetails('');
