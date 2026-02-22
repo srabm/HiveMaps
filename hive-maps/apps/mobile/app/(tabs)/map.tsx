@@ -22,6 +22,8 @@ import {
     initializeDirectionsCache,
     addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
+import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
+import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -54,6 +56,8 @@ export default function MapScreen() {
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
     const fromCoordinatesIsUserLocation = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
+    const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
+    const [showValidationError, setShowValidationError] = useState(false);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -95,6 +99,43 @@ export default function MapScreen() {
         return unsubscribe;
     }, []);
 
+    // 2.4.2 — Validate campus-to-campus route when both endpoints are set
+    useEffect(() => {
+        if (!fromCoordinates || !toCoordinates) {
+            setRouteValidation(null);
+            return;
+        }
+        const result = validateCampusRoute({
+            origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+            destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+        });
+        setRouteValidation(result);
+        if (!result.valid) {
+            setShowValidationError(true);
+            setDirections(null);
+        }
+    }, [fromCoordinates, toCoordinates]);
+
+    // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
+    useEffect(() => {
+        if (!directions || !routeValidation || !routeValidation.valid) return;
+        if (!cameraRef.current) return;
+        const {route} = routeValidation;
+        const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
+        if (bounds.bounds) {
+            cameraRef.current.setCamera({
+                bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
+                animationDuration: bounds.animationDuration,
+            });
+        } else {
+            cameraRef.current.setCamera({
+                centerCoordinate: bounds.centerCoordinate,
+                zoomLevel: bounds.zoomLevel,
+                animationDuration: bounds.animationDuration,
+            });
+        }
+    }, [directions, routeValidation]);
+
     useEffect(() => {
         if (!cameraRef.current) return;
         cameraRef.current.setCamera({
@@ -103,6 +144,17 @@ export default function MapScreen() {
             animationDuration: 800,
         });
     }, [campusMeta]);
+
+
+    const SEARCH_FOCUS_ZOOM = 18;
+    const focusCamera = (coordinates: [number, number] | null) => {
+        if (!cameraRef.current || !coordinates) return;
+        cameraRef.current.setCamera({
+            centerCoordinate: coordinates,
+            zoomLevel: SEARCH_FOCUS_ZOOM,
+            animationDuration: 800,
+        });
+    };
 
     useEffect(() => {
         let active = true;
@@ -325,7 +377,9 @@ export default function MapScreen() {
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View/>
+                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
+                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
+                        </View>
                     </MapboxGL.PointAnnotation>
                 }
                 {directions && (
@@ -368,11 +422,7 @@ export default function MapScreen() {
                             if (!cameraRef.current) return;
                             if (coordinates) {
                                 setToCoordinates(coordinates);
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onClear={() => {
@@ -394,11 +444,7 @@ export default function MapScreen() {
                             if (coordinates) {
                                 setFromCoordinates(coordinates);
                                 fromCoordinatesIsUserLocation.current = false;
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onSelectTo={(mapLocation, coordinates) => {
@@ -443,11 +489,7 @@ export default function MapScreen() {
                         onResetFrom={() => {
                             setStartingPointAsUserCoordinates();
                             if (userLocation) {
-                                cameraRef?.current?.setCamera({
-                                    centerCoordinate: userLocation,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(userLocation);
                             }
                         }}
                         onClose={() => {
@@ -463,7 +505,7 @@ export default function MapScreen() {
                 }
             </View>
 
-            {fromCoordinates && toCoordinates && (
+            {fromCoordinates && toCoordinates && routeValidation?.valid && (
                 <View style={styles.navigationBottomContainer}>
                     <NavigationBottom
                         origin={{
@@ -547,6 +589,39 @@ export default function MapScreen() {
         onDirections={navigateToSelectedBuilding}
         onStart={navigateToSelectedBuilding} //temporary implementation
       />
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showValidationError}
+                onRequestClose={() => setShowValidationError(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowValidationError(false)}
+                    />
+                    <ThemedView
+                        style={[
+                            styles.modalCard,
+                            {backgroundColor: theme.background, borderColor: theme.icon},
+                        ]}
+                    >
+                        <ThemedText type="subtitle" style={styles.modalTitle}>
+                            Invalid Route
+                        </ThemedText>
+                        <ThemedText style={styles.modalBody}>
+                            {routeValidation && !routeValidation.valid ? routeValidation.message : 'This route could not be validated.'}
+                        </ThemedText>
+                        <Pressable
+                            style={[styles.modalButton, {backgroundColor: theme.tint}]}
+                            onPress={() => setShowValidationError(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Dismiss</Text>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            </Modal>
 
             <Modal
                 transparent
