@@ -12,3 +12,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}

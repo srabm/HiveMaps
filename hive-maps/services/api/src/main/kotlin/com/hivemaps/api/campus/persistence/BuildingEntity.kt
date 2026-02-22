@@ -26,7 +26,13 @@ class BuildingEntity(
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "building_address", joinColumns = [JoinColumn(name = "building_code")])
     @Column(name = "address")
-    var addresses: MutableList<String> = mutableListOf()
+    var addresses: MutableList<String> = mutableListOf(),
+
+    @Column(nullable = false)
+    var centerLon: Double,
+
+    @Column(nullable = false)
+    var centerLat: Double
 ) {
-    constructor() : this("CODE", CampusEntity(CampusId.SGW, "SGW", "SGW", 0.0, 0.0, 0.0), "Building", null, mutableListOf())
+    constructor() : this("CODE", CampusEntity(CampusId.SGW, "SGW", "SGW", 0.0, 0.0, 0.0), "Building", null, mutableListOf(), 0.0, 0.0)
 }

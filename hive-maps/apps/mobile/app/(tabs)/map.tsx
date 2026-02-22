@@ -2,16 +2,17 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
-import {PolygonUtils} from '@/domain/PolygonUtils';
-import {CampusBadge} from '@/components/campus-badge';
-import {CampusSwitch} from '@/components/campus-switch';
-import {LocateMeButton} from '@/components/locate-me-button';
-import {ThemedText} from '@/components/themed-text';
-import {ThemedView} from '@/components/themed-view';
-import {Colors} from '@/constants/theme';
-import {useColorScheme} from '@/hooks/use-color-scheme';
-import {useNavigationController} from '@/controllers/navigation-controller';
-import {MapboxGL} from '@/services/mapbox';
+import { PolygonUtils } from '@/domain/PolygonUtils';
+import { CampusBadge } from '@/components/campus-badge';
+import { CampusSwitch } from '@/components/campus-switch';
+import { BuildingInfoModal } from '@/components/building-info-modal';
+import { LocateMeButton } from '@/components/locate-me-button';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNavigationController } from '@/controllers/navigation-controller';
+import { MapboxGL } from '@/services/mapbox';
 import MapSearchBar from '@/components/search-bar';
 import {Coordinates} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
@@ -21,32 +22,12 @@ import {
     initializeDirectionsCache,
     addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
+import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
+import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
-
-const isPointInRing = (point: [number, number], ring: [number, number][]) => {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const xi = ring[i][0], yi = ring[i][1];
-        const xj = ring[j][0], yj = ring[j][1];
-        const intersect =
-            yi > point[1] !== yj > point[1] &&
-            point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
-        if (intersect) inside = !inside;
-    }
-    return inside;
-};
-
-const isPointInPolygon = (point: [number, number], coordinates: [number, number][][]) => {
-    if (!coordinates?.length) return false;
-    if (!isPointInRing(point, coordinates[0])) return false;
-    for (let i = 1; i < coordinates.length; i += 1) {
-        if (isPointInRing(point, coordinates[i])) return false;
-    }
-    return true;
-};
 
 export default function MapScreen() {
     const {
@@ -67,13 +48,39 @@ export default function MapScreen() {
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [from, setFrom] = useState<string>("");
+    const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
+
+  const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
     const fromCoordinatesIsUserLocation = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
+    const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
+    const [showValidationError, setShowValidationError] = useState(false);
 
+    function setStartingPointAsUserCoordinates() {
+        setFrom('Your location');
+        setFromCoordinates(userLocation);
+        fromCoordinatesIsUserLocation.current = true;
+    }
+
+    function navigateToSelectedBuilding() {
+        if (!selectedBuilding) return;
+        setStartingPointAsUserCoordinates();
+        setTo(selectedBuilding.name + (!!selectedBuilding.addresses && selectedBuilding.addresses.length > 0 ? ', ' + selectedBuilding.addresses[0] : ''));
+        if (!cameraRef.current) return;
+        if (selectedBuilding.coordinates) {
+            setToCoordinates(selectedBuilding.coordinates);
+            cameraRef.current.setCamera({
+                centerCoordinate: selectedBuilding.coordinates,
+                zoomLevel: 18,
+                animationDuration: 800,
+            });
+        }
+        setSeeDirectionBar(true);
+        setSelectedBuilding(null);
+    }
 
     useEffect(() => {
         initializeDirectionsCache();
@@ -92,6 +99,43 @@ export default function MapScreen() {
         return unsubscribe;
     }, []);
 
+    // 2.4.2 — Validate campus-to-campus route when both endpoints are set
+    useEffect(() => {
+        if (!fromCoordinates || !toCoordinates) {
+            setRouteValidation(null);
+            return;
+        }
+        const result = validateCampusRoute({
+            origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+            destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+        });
+        setRouteValidation(result);
+        if (!result.valid) {
+            setShowValidationError(true);
+            setDirections(null);
+        }
+    }, [fromCoordinates, toCoordinates]);
+
+    // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
+    useEffect(() => {
+        if (!directions || !routeValidation || !routeValidation.valid) return;
+        if (!cameraRef.current) return;
+        const {route} = routeValidation;
+        const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
+        if (bounds.bounds) {
+            cameraRef.current.setCamera({
+                bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
+                animationDuration: bounds.animationDuration,
+            });
+        } else {
+            cameraRef.current.setCamera({
+                centerCoordinate: bounds.centerCoordinate,
+                zoomLevel: bounds.zoomLevel,
+                animationDuration: bounds.animationDuration,
+            });
+        }
+    }, [directions, routeValidation]);
+
     useEffect(() => {
         if (!cameraRef.current) return;
         cameraRef.current.setCamera({
@@ -100,6 +144,17 @@ export default function MapScreen() {
             animationDuration: 800,
         });
     }, [campusMeta]);
+
+
+    const SEARCH_FOCUS_ZOOM = 18;
+    const focusCamera = (coordinates: [number, number] | null) => {
+        if (!cameraRef.current || !coordinates) return;
+        cameraRef.current.setCamera({
+            centerCoordinate: coordinates,
+            zoomLevel: SEARCH_FOCUS_ZOOM,
+            animationDuration: 800,
+        });
+    };
 
     useEffect(() => {
         let active = true;
@@ -132,42 +187,40 @@ export default function MapScreen() {
         [campusMeta],
     );
 
-    // --- FEATURE BUILDER ---
-    const {polygonFeatures, dotPoints} = useMemo(() => {
-        const polys = [];
-        const dots = [];
+  // --- FEATURE BUILDER ---
+  const { polygonFeatures } = useMemo(() => {
+    const polys = [];
+    const dots = [];
 
-        for (const point of points) {
-            const loc = point.building.location as any;
-            if (loc && loc.type === 'Polygon' && loc.coordinates) {
-                let coords = loc.coordinates;
-                let depth = 0;
-                let current = coords;
-                while (Array.isArray(current)) {
-                    depth++;
-                    current = current[0];
-                }
-                if (depth === 4) {
-                    coords = coords[0];
-                } else if (depth === 2) {
-                    coords = [coords];
-                }
-                const inUserBuilding = userLocation
-                    ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
-                    : false;
-
-                polys.push({
-                    type: 'Feature' as const,
-                    id: point.id,
-                    geometry: {type: 'Polygon' as const, coordinates: coords},
-                    properties: {name: point.building.name, isUserBuilding: inUserBuilding},
-                });
-            } else {
-                dots.push(point);
+    for (const point of points) {
+        const loc = point.building.location as any;
+        if (loc && loc.type === 'Polygon' && loc.coordinates) {
+            let coords = loc.coordinates;
+            let depth = 0;
+            let current = coords;
+            while (Array.isArray(current)) {
+                depth++;
+                current = current[0];
             }
+            if (depth === 4) {
+                coords = coords[0];
+            } else if (depth === 2) {
+                coords = [coords];
+            }
+            const inUserBuilding = userLocation
+                ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
+                : false;
+
+            polys.push({
+            type: 'Feature' as const,
+            id: point.id,
+            geometry: { type: 'Polygon' as const, coordinates: coords },
+            properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding, center: point.building.center},
+            });
         }
-        return {polygonFeatures: polys, dotPoints: dots};
-    }, [points, userLocation]);
+    }
+    return { polygonFeatures: polys};
+  }, [points, userLocation]);
 
     const shapeCollection = useMemo(() => ({
         type: 'FeatureCollection' as const,
@@ -244,20 +297,37 @@ export default function MapScreen() {
                     </MapboxGL.ShapeSource>
                 )}
 
-                {polygonFeatures.length > 0 && (
-                    <MapboxGL.ShapeSource
-                        id="campus-buildings-source"
-                        shape={shapeCollection}
-                    >
-                        {/* LAYER A: Burgundy Background */}
-                        <MapboxGL.FillLayer
-                            id="campus-buildings-base"
-                            aboveLayerID="road-label"
-                            style={{
-                                fillColor: '#9d1e30',
-                                fillOpacity: 0.6,
-                            }}
-                        />
+        {polygonFeatures.length > 0 && (
+          <MapboxGL.ShapeSource
+            id="campus-buildings-source"
+            shape={shapeCollection}
+            onPress={(e) => {
+              const f = e.features[0];
+              console.log('Pressed feature:', f);
+              
+              const point = points.find(p => p.id === f.properties?.id);
+              const details = point?.details as any;
+
+              setSelectedBuilding({
+                ...f.properties,
+                phone: details?.nationalPhoneNumber,
+                website: details?.websiteUri,
+                hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
+                        ?? 'Hours not listed',
+                allHours: details?.regularOpeningHours?.weekdayDescriptions,
+                coordinates: f.properties?.center,
+            });
+            }}
+          >
+            {/* LAYER A: Burgundy Background */}
+            <MapboxGL.FillLayer
+              id="campus-buildings-base"
+              aboveLayerID="road-label" 
+              style={{
+                fillColor: '#9d1e30', 
+                fillOpacity: 0.6, 
+              }}
+            />
 
                         {/* LAYER B: The Honeycomb Pattern */}
                         <MapboxGL.FillLayer
@@ -291,18 +361,6 @@ export default function MapScreen() {
                         />
                     </MapboxGL.ShapeSource>
                 )}
-
-                {dotPoints.map((point) => (
-                    <MapboxGL.PointAnnotation
-                        key={point.id}
-                        id={point.id}
-                        coordinate={point.coordinate}
-                    >
-                        <View style={styles.markerPin}>
-                            <Text style={styles.markerText}>M</Text>
-                        </View>
-                    </MapboxGL.PointAnnotation>
-                ))}
                 {fromCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='fromPoint'
@@ -319,7 +377,9 @@ export default function MapScreen() {
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View/>
+                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
+                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
+                        </View>
                     </MapboxGL.PointAnnotation>
                 }
                 {directions && (
@@ -347,9 +407,7 @@ export default function MapScreen() {
                             setTo(text)
                         }}
                         onClickButton={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
+                            setStartingPointAsUserCoordinates();
                             setSeeDirectionBar(true);
                             if (userLocation) {
                                 cameraRef?.current?.setCamera({
@@ -364,11 +422,7 @@ export default function MapScreen() {
                             if (!cameraRef.current) return;
                             if (coordinates) {
                                 setToCoordinates(coordinates);
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onClear={() => {
@@ -390,11 +444,7 @@ export default function MapScreen() {
                             if (coordinates) {
                                 setFromCoordinates(coordinates);
                                 fromCoordinatesIsUserLocation.current = false;
-                                cameraRef.current.setCamera({
-                                    centerCoordinate: coordinates,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(coordinates);
                             }
                         }}
                         onSelectTo={(mapLocation, coordinates) => {
@@ -437,15 +487,9 @@ export default function MapScreen() {
                             // Note: We can't track if the original "to" was user location, so we reset this flag
                         }}
                         onResetFrom={() => {
-                            setFrom('Your location');
-                            setFromCoordinates(userLocation);
-                            fromCoordinatesIsUserLocation.current = true;
+                            setStartingPointAsUserCoordinates();
                             if (userLocation) {
-                                cameraRef?.current?.setCamera({
-                                    centerCoordinate: userLocation,
-                                    zoomLevel: 18,
-                                    animationDuration: 800,
-                                });
+                                focusCamera(userLocation);
                             }
                         }}
                         onClose={() => {
@@ -461,7 +505,7 @@ export default function MapScreen() {
                 }
             </View>
 
-            {fromCoordinates && toCoordinates && (
+            {fromCoordinates && toCoordinates && routeValidation?.valid && (
                 <View style={styles.navigationBottomContainer}>
                     <NavigationBottom
                         origin={{
@@ -533,6 +577,47 @@ export default function MapScreen() {
                             onPress={() => setShowLocationPrompt(false)}
                         >
                             <Text style={styles.modalButtonText}>Got it</Text>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            </Modal>
+
+      <BuildingInfoModal
+        visible={!!selectedBuilding}
+        building={selectedBuilding}
+        onClose={() => setSelectedBuilding(null)}
+        onDirections={navigateToSelectedBuilding}
+        onStart={navigateToSelectedBuilding} //temporary implementation
+      />
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showValidationError}
+                onRequestClose={() => setShowValidationError(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowValidationError(false)}
+                    />
+                    <ThemedView
+                        style={[
+                            styles.modalCard,
+                            {backgroundColor: theme.background, borderColor: theme.icon},
+                        ]}
+                    >
+                        <ThemedText type="subtitle" style={styles.modalTitle}>
+                            Invalid Route
+                        </ThemedText>
+                        <ThemedText style={styles.modalBody}>
+                            {routeValidation && !routeValidation.valid ? routeValidation.message : 'This route could not be validated.'}
+                        </ThemedText>
+                        <Pressable
+                            style={[styles.modalButton, {backgroundColor: theme.tint}]}
+                            onPress={() => setShowValidationError(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Dismiss</Text>
                         </Pressable>
                     </ThemedView>
                 </View>
