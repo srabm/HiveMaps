@@ -42,7 +42,7 @@ export function ShuttleScheduleSection({
 
     return (
         <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
-            {inlineMetrics && (
+            {inlineMetrics && !showNextServiceLabel && (
                 <View style={styles.inlineMetricsRow}>
                     <View style={styles.inlineMetricItem}>
                         <Text style={styles.inlineMetricValue}>
@@ -116,15 +116,15 @@ const styles = StyleSheet.create({
         borderTopColor: '#E5E7EB',
     },
     shuttleSectionNoTopSpacing: {
-        marginTop: 4,
-        paddingTop: 6,
+        marginTop: 0,
+        paddingTop: 0,
         borderTopWidth: 0,
     },
     shuttleHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 0,
+        marginBottom: 8,
     },
     shuttleTitle: {fontSize: 13, fontWeight: '700', color: '#111827'},
     shuttleSubtle: {fontSize: 11, fontWeight: '400', color: '#9CA3AF', marginTop: 1},
