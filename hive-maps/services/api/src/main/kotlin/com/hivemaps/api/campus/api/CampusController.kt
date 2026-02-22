@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.RequestParam
 
 @RestController
 @RequestMapping("/api/campuses")
@@ -27,13 +28,14 @@ class CampusController(
             ResponseEntity.ok(campusService.getBuildings(id))
         } ?: ResponseEntity.notFound().build()
 
-    @GetMapping("indoor-path/{building}/from/{startNodeId}/to/{endNodeId}")
-    fun getIndoorPath(
+    @GetMapping("indoor-direction/building/{building}/from/{startNodeId}/to/{endNodeId}")
+    fun getIndoorDirections(
         @PathVariable building: String,
         @PathVariable startNodeId: String,
-        @PathVariable endNodeId: String
+        @PathVariable endNodeId: String,
+        @RequestParam(defaultValue = "false") accessible: Boolean
     ): ResponseEntity<Any> {
-        val path = campusService.getPath(building, startNodeId, endNodeId)
-        return if (path != null) ResponseEntity.ok(path) else ResponseEntity.notFound().build()
+        val directions = campusService.getDirections(building, startNodeId, endNodeId, accessible).map { it.toResponse() }
+        return if (directions.isEmpty()) ResponseEntity.notFound().build() else ResponseEntity.ok(directions)
     }
 }
