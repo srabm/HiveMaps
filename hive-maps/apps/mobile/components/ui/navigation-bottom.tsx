@@ -6,10 +6,14 @@ import {
     DirectionsResponse,
     DirectionsRequest,
     Coordinate,
-    Provider
+    Provider,
+    TimeFilterMode,
 } from '@/services/maps/directions-api-adapter';
+import {TimePickerModal} from './TimePickerModal';
+import {formatISOToTime, getCurrentTimeISO} from '@/utils/timeFormatter';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Bike';
+
 
 interface NavigationBottomProps {
     origin: Coordinate;
@@ -18,7 +22,6 @@ interface NavigationBottomProps {
     onStartPress?: () => void;
     onModeChange?: (mode: TransportModeLabel) => void;
     initialMode?: TransportModeLabel;
-    arrivalTime?: string;
 }
 
 const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Bike'];
@@ -66,12 +69,15 @@ export function NavigationBottom({
                                      onStartPress,
                                      onModeChange,
                                      initialMode = 'Drive',
-                                     arrivalTime = 'Arrive by 10:27 PM',
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [timeFilter, setTimeFilter] = useState(getCurrentTimeISO());
+    const [timePickerVisible, setTimePickerVisible] = useState(false);
+    const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>('depart');
     const slideAnim = useRef(new Animated.Value(MODES.indexOf(initialMode))).current;
+    const [arriveLeaveDetails, setArriveLeaveDetails] = useState<string>('');
 
     useEffect(() => {
         Animated.spring(slideAnim, {
@@ -93,11 +99,13 @@ export function NavigationBottom({
                     destination,
                     transportMode: mapUiModeToTransportMode(selectedMode),
                     provider: mapUiModeToProvider(selectedMode),
+                    timeFilterMode,
+                    timeFilter,
                 };
-                const resp = await getDirections(request);
+                const directionsResponse = await getDirections(request);
                 if (!active) return;
-                setDirections(resp);
-                onDirectionsChange?.(resp);
+                setDirections(directionsResponse);
+                onDirectionsChange?.(directionsResponse);
             } catch (err) {
                 if (!active) return;
                 setDirections(null);
@@ -110,11 +118,128 @@ export function NavigationBottom({
         return () => {
             active = false;
         };
-    }, [origin, destination, selectedMode, onDirectionsChange]);
+    }, [origin, destination, selectedMode, timeFilter, timeFilterMode, onDirectionsChange]);
+
+    // Calculate arrival/departure details
+    useEffect(() => {
+        if (!directions) {
+            setArriveLeaveDetails('');
+            return;
+        }
+
+        try {
+            if (selectedMode === 'Transit') {
+                const steps = directions.steps;
+
+                if (!steps || steps.length === 0) {
+                    setArriveLeaveDetails('');
+                    return;
+                }
+
+                // Find first transit step
+                const firstTransitIndex = steps.findIndex(step => step.transitDetails);
+
+                if (firstTransitIndex === -1) {
+                    if (timeFilterMode === 'depart') {
+                        const arrivalTime = new Date(new Date(timeFilter).getTime() + directions.durationSeconds * 1000);
+                        setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
+                    } else {
+                        const departureTime = new Date(new Date(timeFilter).getTime() - directions.durationSeconds * 1000)
+                        setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`)
+                    }
+                    setArriveLeaveDetails('');
+                    return;
+                }
+
+                // Find last transit step
+                let lastTransitIndex = firstTransitIndex;
+                for (let i = steps.length - 1; i >= 0; i--) {
+                    if (steps[i].transitDetails) {
+                        lastTransitIndex = i;
+                        break;
+                    }
+                }
+
+                if (timeFilterMode === 'depart') {
+                    // For depart mode: show when you'll ARRIVE if you depart now
+                    const firstTransitStep = steps[firstTransitIndex];
+                    const departureTimeStr = firstTransitStep.transitDetails?.departureTime;
+
+                    if (!departureTimeStr) {
+                        setArriveLeaveDetails('');
+                        return;
+                    }
+
+                    let firstTransitTime = new Date(departureTimeStr);
+                    let initialWalkingDuration = 0;
+
+                    // Sum duration of initial walking steps
+                    for (let i = 0; i < firstTransitIndex; i++) {
+                        initialWalkingDuration += steps[i].duration;
+                    }
+
+                    // Add total trip duration to get arrival time
+                    let durationWithoutInitialWalking = directions.durationSeconds - initialWalkingDuration;
+
+                    const arrivalTime = new Date(firstTransitTime.getTime() + durationWithoutInitialWalking * 1000);
+
+                    const formattedTime = formatISOToTime(arrivalTime.toISOString());
+                    setArriveLeaveDetails(`Arrive by ${formattedTime}`);
+                } else {
+                    // For arrive mode: show when you need to DEPART to arrive by that time
+                    const lastTransitStep = steps[lastTransitIndex];
+                    const arrivalTimeStr = lastTransitStep.transitDetails?.arrivalTime;
+
+                    if (!arrivalTimeStr) {
+                        setArriveLeaveDetails('');
+                        return;
+                    }
+
+                    let lastTransitTime = new Date(arrivalTimeStr)
+                    let finalWalkingDuration = 0
+
+                    // Sum final walking steps
+                    for (let i = steps.length - 1; i > lastTransitIndex; i--) {
+                        finalWalkingDuration += steps[i].duration
+                    }
+
+                    let durationWithoutFinalWalking = directions.durationSeconds - finalWalkingDuration
+
+                    const departureTime = new Date(lastTransitTime.getTime() - durationWithoutFinalWalking * 1000)
+
+                    const formattedTime = formatISOToTime(departureTime.toISOString())
+                    setArriveLeaveDetails(`Depart at ${formattedTime}`)
+                }
+            } else if (selectedMode === 'Walk' || selectedMode === 'Drive' || selectedMode === 'Bike') {
+                // For walk/drive/bike modes, use total duration
+                const baseTime = new Date(timeFilter);
+                const durationMs = directions.durationSeconds * 1000;
+
+                if (timeFilterMode === 'depart') {
+                    const arrivalTime = new Date(baseTime.getTime() + durationMs);
+                    setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
+                } else {
+                    const departureTime = new Date(baseTime.getTime() - durationMs);
+                    setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`);
+                }
+            } else {
+                setArriveLeaveDetails('');
+            }
+        } catch (err) {
+            console.warn('Failed to calculate arrival/departure time', err);
+            setArriveLeaveDetails('');
+        }
+    }, [directions, timeFilter, timeFilterMode, selectedMode]);
 
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);
         onModeChange?.(mode);
+    };
+
+    const handleTimeFilterChange = (time: string, mode: TimeFilterMode) => {
+        setTimeFilter(time);
+        setTimeFilterMode(mode);
+        setTimePickerVisible(false);
     };
 
     const indicatorWidth = slideAnim.interpolate({
@@ -133,60 +258,79 @@ export function NavigationBottom({
     const durationValue = durationParts[0] ?? durationText;
     const durationUnit = durationParts[1] ?? 'min';
 
+    const displayDepartureTime = formatISOToTime(timeFilter);
+    const timeModeLabel = timeFilterMode === 'depart' ? 'Depart at' : 'Arrive by';
+
     return (
-        <View style={styles.navCard}>
-            <View style={styles.navHeaderRow}>
-                <Text style={styles.navHeaderText}>{selectedMode}</Text>
-            </View>
-
-            <View style={styles.modeBarContainer}>
-                <Animated.View
-                    style={[
-                        styles.modeIndicator,
-                        {
-                            width: indicatorWidth,
-                            left: indicatorLeft,
-                        },
-                    ]}
-                />
-                {MODES.map((mode, index) => (
+        <>
+            <View style={styles.navCard}>
+                <View style={styles.navHeaderRow}>
+                    <Text style={styles.navHeaderText}>{selectedMode}</Text>
                     <Pressable
-                        key={mode}
-                        onPress={() => handleModeChange(mode)}
-                        style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
+                        style={styles.departAtButton}
+                        onPress={() => setTimePickerVisible(true)}
                     >
-                        <Text
-                            style={[
-                                styles.modeOptionText,
-                                selectedMode === mode && styles.modeOptionTextActive,
-                            ]}
+                        <Text style={styles.departAtButtonText}>{timeModeLabel}: {displayDepartureTime}</Text>
+                    </Pressable>
+                </View>
+
+                <View style={styles.modeBarContainer}>
+                    <Animated.View
+                        style={[
+                            styles.modeIndicator,
+                            {
+                                width: indicatorWidth,
+                                left: indicatorLeft,
+                            },
+                        ]}
+                    />
+                    {MODES.map((mode, index) => (
+                        <Pressable
+                            key={mode}
+                            onPress={() => handleModeChange(mode)}
+                            style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
                         >
-                            {mode}
+                            <Text
+                                style={[
+                                    styles.modeOptionText,
+                                    selectedMode === mode && styles.modeOptionTextActive,
+                                ]}
+                            >
+                                {mode}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+
+                <View style={styles.metricsRow}>
+                    <View style={[styles.metricCell, styles.durationCell]}>
+                        <Text style={styles.durationValue}>{durationValue}</Text>
+                        <Text style={styles.durationUnit}>{durationUnit}</Text>
+                    </View>
+
+                    <View style={[styles.metricCell, styles.middleCell]}>
+                        <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                            {arriveLeaveDetails}
                         </Text>
-                    </Pressable>
-                ))}
-            </View>
+                        <Text style={styles.distanceText}>{distanceText}</Text>
+                    </View>
 
-            <View style={styles.metricsRow}>
-                <View style={[styles.metricCell, styles.durationCell]}>
-                    <Text style={styles.durationValue}>{durationValue}</Text>
-                    <Text style={styles.durationUnit}>{durationUnit}</Text>
-                </View>
-
-                <View style={[styles.metricCell, styles.middleCell]}>
-                    <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                        {arrivalTime}
-                    </Text>
-                    <Text style={styles.distanceText}>{distanceText}</Text>
-                </View>
-
-                <View style={[styles.metricCell, styles.startCell]}>
-                    <Pressable style={styles.startButton} onPress={onStartPress}>
-                        <Text style={styles.startButtonText}>Start</Text>
-                    </Pressable>
+                    <View style={[styles.metricCell, styles.startCell]}>
+                        <Pressable style={styles.startButton} onPress={onStartPress}>
+                            <Text style={styles.startButtonText}>Start</Text>
+                        </Pressable>
+                    </View>
                 </View>
             </View>
-        </View>
+
+            <TimePickerModal
+                visible={timePickerVisible}
+                initialTime={timeFilter}
+                initialMode={timeFilterMode}
+                onConfirm={handleTimeFilterChange}
+                onCancel={() => setTimePickerVisible(false)}
+            />
+        </>
     );
 }
 
@@ -213,6 +357,15 @@ const styles = StyleSheet.create({
     },
     navHeaderText: {fontSize: 16, fontWeight: '700', color: '#111827'},
     navArrival: {fontSize: 12, color: '#10B981', fontWeight: '600'},
+    departAtButton: {
+        backgroundColor: '#F5F3FF',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    departAtButtonText: {color: '#111827', fontWeight: '600', fontSize: 12},
     modeBarContainer: {
         position: 'relative',
         flexDirection: 'row',
