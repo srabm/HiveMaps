@@ -37,7 +37,7 @@ describe('NavigationBottom rendering', () => {
         expect(getAllByText('Drive').length).toBeGreaterThanOrEqual(1);
         expect(getByText('Walk')).toBeTruthy();
         expect(getByText('Transit')).toBeTruthy();
-        expect(getByText('Bike')).toBeTruthy();
+        expect(getByText('Shuttle')).toBeTruthy();
         await waitFor(() => {});
     });
 
@@ -102,8 +102,8 @@ describe('NavigationBottom mode switching', () => {
         const {getByText, getAllByText} = render(
             <NavigationBottom origin = {origin} destination = {destination} initialMode = 'Drive'/>
         );
-        fireEvent.press(getByText('Bike'));
-        expect(getAllByText('Bike').length).toBeGreaterThanOrEqual(1);
+        fireEvent.press(getByText('Shuttle'));
+        expect(getAllByText('Shuttle').length).toBeGreaterThanOrEqual(1);
         await waitFor(() => {});
     });
 
