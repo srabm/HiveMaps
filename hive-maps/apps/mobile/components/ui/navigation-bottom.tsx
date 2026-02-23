@@ -25,7 +25,6 @@ interface NavigationBottomProps {
     onStartPress?: () => void;
     onModeChange?: (mode: TransportModeLabel) => void;
     initialMode?: TransportModeLabel;
-    arrivalTime?: string;
 }
 
 const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Shuttle'];
@@ -339,10 +338,10 @@ export function NavigationBottom({
             : null;
         const arrivalLabel = arrivalDate
             ? `Arrive by ${arrivalDate.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})}`
-            : arrivalTime;
+            : arriveLeaveDetails;
 
         return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes};
-    }, [selectedMode, shuttleRouting, shuttleScheduleContext, arrivalTime]);
+    }, [selectedMode, shuttleRouting, shuttleScheduleContext, arriveLeaveDetails]);
 
     // Departures filtered to only those reachable given the walk-to-stop time
     const reachableDepartures = useMemo(() => {
@@ -371,7 +370,7 @@ export function NavigationBottom({
             ? shuttleMetrics.totalDistanceMeters
             : directions?.distanceMeters;
     const activeArrivalTime =
-        selectedMode === 'Shuttle' && shuttleMetrics ? shuttleMetrics.arrivalLabel : arrivalTime;
+        selectedMode === 'Shuttle' && shuttleMetrics ? shuttleMetrics.arrivalLabel : arriveLeaveDetails;
 
     const durationText = formatDuration(activeDurationSeconds);
     const distanceText = formatDistance(activeDistanceMeters);

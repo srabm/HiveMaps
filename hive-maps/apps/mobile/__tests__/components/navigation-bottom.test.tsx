@@ -49,22 +49,6 @@ describe('NavigationBottom rendering', () => {
         await waitFor(() => {});
     });
 
-    it('displays default arrival time', async () => {
-        const {getByText} = render(
-            <NavigationBottom origin = {origin} destination = {destination}/>
-        );
-        expect(getByText('Arrive by 10:27 PM')).toBeTruthy();
-        await waitFor(() => {});
-    });
-
-    it('displays custom arrial time when provided', async () => {
-        const {getByText} = render(
-            <NavigationBottom origin = {origin} destination = {destination} arrivalTime="Arrive by 3:00 PM"/>
-        );
-        expect(getByText('Arrive by 3:00 PM')).toBeTruthy();
-        await waitFor(() => {});
-    });
-
     it('shows distance and duration', async () => {
         const {getByText} = render(
             <NavigationBottom origin = {origin} destination = {destination}/>
