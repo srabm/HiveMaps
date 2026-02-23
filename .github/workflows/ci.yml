@@ -123,11 +123,11 @@ jobs:
         run: bash ./gradlew --no-daemon clean test jacocoTestReport
 
       - name: Sonar Analysis
-        if: ${{ always() && !cancelled() }}
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew --no-daemon sonar -x test
+        run: ./gradlew
 
       - name: Upload API test reports
         if: always()
