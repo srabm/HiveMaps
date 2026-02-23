@@ -39,24 +39,31 @@ export const useShuttleRouting = ({
             setStopsForTrip(stops);
 
             try {
+                const now = new Date().toISOString();
                 const [walkTo, shuttleRoute, walkFrom] = await Promise.all([
                     getDirections({
                         origin,
                         destination: stops.originStop.coordinate,
                         transportMode: TransportMode.WALKING,
                         provider: Provider.MAPBOX,
+                        timeFilter: now,
+                        timeFilterMode: 'depart',
                     }),
                     getDirections({
                         origin: stops.originStop.coordinate,
                         destination: stops.destinationStop.coordinate,
                         transportMode: TransportMode.DRIVING,
                         provider: Provider.MAPBOX,
+                        timeFilter: now,
+                        timeFilterMode: 'depart',
                     }),
                     getDirections({
                         origin: stops.destinationStop.coordinate,
                         destination,
                         transportMode: TransportMode.WALKING,
                         provider: Provider.MAPBOX,
+                        timeFilter: now,
+                        timeFilterMode: 'depart',
                     }),
                 ]);
                 if (!active) return;

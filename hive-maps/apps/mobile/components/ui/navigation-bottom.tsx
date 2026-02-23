@@ -260,8 +260,8 @@ export function NavigationBottom({
                     const formattedTime = formatISOToTime(departureTime.toISOString())
                     setArriveLeaveDetails(`Depart at ${formattedTime}`)
                 }
-            } else if (selectedMode === 'Walk' || selectedMode === 'Drive' || selectedMode === 'Bike') {
-                // For walk/drive/bike modes, use total duration
+            } else if (selectedMode === 'Walk' || selectedMode === 'Drive' || selectedMode === 'Shuttle') {
+                // For walk/drive/shuttle modes, use total duration
                 const baseTime = new Date(timeFilter);
                 const durationMs = directions.durationSeconds * 1000;
 
