@@ -26,6 +26,8 @@ const {getDirections} = require('@/services/maps/directions-api-adapter');
 
 const SGW = {latitude: 45.497, longitude: -73.579};
 const LOY = {latitude: 45.458, longitude: -73.639};
+const TEST_TIME_FILTER = '2026-02-23T12:00:00Z';
+const TEST_TIME_FILTER_MODE = 'depart' as const;
 
 afterEach(() => {
     jest.clearAllMocks();
@@ -34,7 +36,7 @@ afterEach(() => {
 describe('useShuttleRouting — disabled / missing inputs', () => {
     it('returns all nulls when enabled=false', () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: false, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: false, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         expect(result.current.walkToStop).toBeNull();
         expect(result.current.shuttleLeg).toBeNull();
@@ -44,7 +46,7 @@ describe('useShuttleRouting — disabled / missing inputs', () => {
 
     it('returns all nulls when origin is null', () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: null, destination: LOY})
+            useShuttleRouting({enabled: true, origin: null, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         expect(result.current.walkToStop).toBeNull();
         expect(result.current.shuttleLeg).toBeNull();
@@ -54,7 +56,7 @@ describe('useShuttleRouting — disabled / missing inputs', () => {
 
     it('returns all nulls when destination is null', () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: null})
+            useShuttleRouting({enabled: true, origin: SGW, destination: null, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         expect(result.current.walkToStop).toBeNull();
         expect(result.current.shuttleLeg).toBeNull();
@@ -64,7 +66,7 @@ describe('useShuttleRouting — disabled / missing inputs', () => {
 
     it('does not call getDirections when disabled', () => {
         renderHook(() =>
-            useShuttleRouting({enabled: false, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: false, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         expect(getDirections).not.toHaveBeenCalled();
     });
@@ -73,7 +75,7 @@ describe('useShuttleRouting — disabled / missing inputs', () => {
 describe('useShuttleRouting — always returns stopMarkers', () => {
     it('stopMarkers always equals SHUTTLE_STOPS regardless of enabled state', () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: false, origin: null, destination: null})
+            useShuttleRouting({enabled: false, origin: null, destination: null, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         expect(result.current.stopMarkers).toEqual(SHUTTLE_STOPS);
     });
@@ -82,7 +84,7 @@ describe('useShuttleRouting — always returns stopMarkers', () => {
 describe('useShuttleRouting — successful fetch', () => {
     it('populates all three legs after fetch resolves', async () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(result.current.walkToStop).not.toBeNull());
         expect(result.current.walkToStop).toEqual(mockDirectionsResponse);
@@ -92,7 +94,7 @@ describe('useShuttleRouting — successful fetch', () => {
 
     it('sets stopsForTrip correctly when origin is near SGW', async () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(result.current.stopsForTrip).not.toBeNull());
         expect(result.current.stopsForTrip?.originStop.id).toBe('SGW');
@@ -101,7 +103,7 @@ describe('useShuttleRouting — successful fetch', () => {
 
     it('sets stopsForTrip correctly when origin is near LOY', async () => {
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: LOY, destination: SGW})
+            useShuttleRouting({enabled: true, origin: LOY, destination: SGW, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(result.current.stopsForTrip).not.toBeNull());
         expect(result.current.stopsForTrip?.originStop.id).toBe('LOY');
@@ -110,14 +112,14 @@ describe('useShuttleRouting — successful fetch', () => {
 
     it('calls getDirections exactly 3 times (walkTo, shuttle, walkFrom)', async () => {
         renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(getDirections).toHaveBeenCalledTimes(3));
     });
 
     it('first call uses WALKING mode (walk to stop)', async () => {
         renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(getDirections).toHaveBeenCalled());
         const {TransportMode, Provider} = jest.requireActual('@/services/maps/directions-api-adapter');
@@ -128,7 +130,7 @@ describe('useShuttleRouting — successful fetch', () => {
 
     it('second call uses DRIVING mode (shuttle leg)', async () => {
         renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(getDirections).toHaveBeenCalledTimes(3));
         const {TransportMode} = jest.requireActual('@/services/maps/directions-api-adapter');
@@ -137,7 +139,7 @@ describe('useShuttleRouting — successful fetch', () => {
 
     it('third call uses WALKING mode (walk from stop)', async () => {
         renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(getDirections).toHaveBeenCalledTimes(3));
         const {TransportMode} = jest.requireActual('@/services/maps/directions-api-adapter');
@@ -149,7 +151,7 @@ describe('useShuttleRouting — fetch failure', () => {
     it('resets all legs to null on error', async () => {
         getDirections.mockRejectedValueOnce(new Error('network failure'));
         const {result} = renderHook(() =>
-            useShuttleRouting({enabled: true, origin: SGW, destination: LOY})
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE})
         );
         await waitFor(() => expect(result.current.stopsForTrip).not.toBeNull());
         expect(result.current.walkToStop).toBeNull();
@@ -162,7 +164,7 @@ describe('useShuttleRouting — re-fetch on input change', () => {
     it('clears legs when enabled switches from true to false', async () => {
         const {result, rerender} = renderHook(
             ({enabled}: {enabled: boolean}) =>
-                useShuttleRouting({enabled, origin: SGW, destination: LOY}),
+                useShuttleRouting({enabled, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: TEST_TIME_FILTER_MODE}),
             {initialProps: {enabled: true}}
         );
         await waitFor(() => expect(result.current.walkToStop).not.toBeNull());

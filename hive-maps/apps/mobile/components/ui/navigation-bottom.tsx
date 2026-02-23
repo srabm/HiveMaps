@@ -10,6 +10,7 @@ import {
     TimeFilterMode,
 } from '@/services/maps/directions-api-adapter';
 import {TimePickerModal} from './TimePickerModal';
+import {validateCampusRoute} from '@/services/maps/route-validator';
 import {formatISOToTime, getCurrentTimeISO} from '@/utils/timeFormatter';
 import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
@@ -24,6 +25,7 @@ interface NavigationBottomProps {
     onDirectionsChange?: (directions: DirectionsResponse) => void;
     onStartPress?: () => void;
     onModeChange?: (mode: TransportModeLabel) => void;
+    onTimeFilterChange?: (timeFilter: string, timeFilterMode: TimeFilterMode) => void;
     initialMode?: TransportModeLabel;
 }
 
@@ -88,6 +90,7 @@ export function NavigationBottom({
                                      onDirectionsChange,
                                      onStartPress,
                                      onModeChange,
+                                     onTimeFilterChange,
                                      initialMode = 'Drive',
                                  }: NavigationBottomProps) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
@@ -282,6 +285,17 @@ export function NavigationBottom({
     }, [directions, timeFilter, timeFilterMode, selectedMode]);
 
 
+    // Detect whether both endpoints sit on the same campus — if so the shuttle
+    // cannot help and we surface a redirect banner instead of silently switching.
+    const isSameCampus = useMemo((): boolean => {
+        const result = validateCampusRoute({
+            origin: {type: 'coordinate', longitude: origin.longitude, latitude: origin.latitude},
+            destination: {type: 'coordinate', longitude: destination.longitude, latitude: destination.latitude},
+        });
+        if (!result.valid) return true;
+        return !result.route.isInterCampus;
+    }, [origin.longitude, origin.latitude, destination.longitude, destination.latitude]);
+
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);
         onModeChange?.(mode);
@@ -291,6 +305,7 @@ export function NavigationBottom({
         setTimeFilter(time);
         setTimeFilterMode(mode);
         setTimePickerVisible(false);
+        onTimeFilterChange?.(time, mode);
     };
 
     const indicatorWidth = slideAnim.interpolate({
@@ -307,12 +322,16 @@ export function NavigationBottom({
         enabled: selectedMode === 'Shuttle',
         origin,
         destination,
+        timeFilter,
+        timeFilterMode,
     });
 
     const shuttleRouting = useShuttleRouting({
-        enabled: selectedMode === 'Shuttle',
+        enabled: selectedMode === 'Shuttle' && !isSameCampus,
         origin,
         destination,
+        timeFilter,
+        timeFilterMode,
     });
 
     // Compute composite shuttle metrics from the three route legs
@@ -326,40 +345,55 @@ export function NavigationBottom({
         const totalDistanceMeters =
             walkToStop.distanceMeters + shuttleLeg.distanceMeters + walkFromStop.distanceMeters;
 
-        // Only consider departures you can actually walk to in time
         const walkMinutes = Math.ceil(walkToStop.durationSeconds / 60);
-        const reachableDepartures = shuttleScheduleContext?.departures?.filter(
-            (d) => d.minutesUntil >= walkMinutes,
-        );
+        const shuttleMinutes = Math.ceil(shuttleLeg.durationSeconds / 60);
+        const walkFromMinutes = Math.ceil(walkFromStop.durationSeconds / 60);
+        const totalTripMinutes = walkMinutes + shuttleMinutes + walkFromMinutes;
 
-        const nextDeparture = reachableDepartures?.[0];
-        const arrivalDate = nextDeparture
-            ? new Date(nextDeparture.departureDate.getTime() + (shuttleLeg.durationSeconds + walkFromStop.durationSeconds) * 1000)
-            : null;
-        const arrivalLabel = arrivalDate
-            ? `Arrive by ${arrivalDate.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})}`
-            : arriveLeaveDetails;
+        // Derive arrival/departure label directly from timeFilter + chained leg durations.
+        // In depart mode: arrival = timeFilter + all three legs.
+        // In arrive mode: departure = timeFilter - all three legs.
+        const baseTime = new Date(timeFilter);
+        let arrivalLabel: string;
+        if (timeFilterMode === 'depart') {
+            const arrivalTime = new Date(baseTime.getTime() + totalDurationSeconds * 1000);
+            arrivalLabel = `Arrive by ${arrivalTime.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})}`;
+        } else {
+            const departureTime = new Date(baseTime.getTime() - totalDurationSeconds * 1000);
+            arrivalLabel = `Depart at ${departureTime.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'})}`;
+        }
 
-        return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes};
-    }, [selectedMode, shuttleRouting, shuttleScheduleContext, arriveLeaveDetails]);
+        return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes, shuttleMinutes, walkFromMinutes, totalTripMinutes};
+    }, [selectedMode, shuttleRouting, timeFilter, timeFilterMode]);
 
-    // Departures filtered to only those reachable given the walk-to-stop time
+    // Departures filtered to only those reachable given the walk-to-stop time.
+    // Uses minutesFromFilter (relative to timeFilter) so the filter respects
+    // the selected time, while minutesUntil (wall clock) drives display labels.
     const reachableDepartures = useMemo(() => {
         if (!shuttleScheduleContext?.departures) return [];
         if (shuttleScheduleContext.isNextServiceDay || shuttleMetrics == null) {
             return shuttleScheduleContext.departures;
         }
+        if (timeFilterMode === 'arrive') {
+            // A shuttle departure is valid if: shuttleDeparture + shuttleRide + walkFromStop <= arriveByTime
+            // i.e. minutesFromFilter <= -(shuttleMinutes + walkFromMinutes)
+            const postBoardMinutes = shuttleMetrics.shuttleMinutes + shuttleMetrics.walkFromMinutes;
+            return shuttleScheduleContext.departures.filter(
+                (item) => item.minutesFromFilter <= -postBoardMinutes,
+            );
+        }
         return shuttleScheduleContext.departures.filter(
-            (item) => item.minutesUntil >= shuttleMetrics.walkMinutes,
+            (item) => item.minutesFromFilter >= shuttleMetrics.walkMinutes,
         );
-    }, [shuttleScheduleContext, shuttleMetrics]);
+    }, [shuttleScheduleContext, shuttleMetrics, timeFilterMode]);
 
     const hideMetricsRow =
-        selectedMode === 'Shuttle' &&
-        ((!shuttleScheduleContext?.schedule ||
-            !!shuttleScheduleContext?.showNextServiceLabel ||
-            reachableDepartures.length === 0) ||
-            !shuttleMetrics);
+        (selectedMode === 'Shuttle' && isSameCampus) ||
+        (selectedMode === 'Shuttle' &&
+            ((!shuttleScheduleContext?.schedule ||
+                !!shuttleScheduleContext?.showNextServiceLabel ||
+                reachableDepartures.length === 0) ||
+                !shuttleMetrics));
 
     const activeDurationSeconds =
         selectedMode === 'Shuttle' && shuttleMetrics
@@ -479,6 +513,8 @@ export function NavigationBottom({
                     }
                     onOpenModal={() => setShowScheduleModal(true)}
                     onFallbackPress={() => handleModeChange('Transit')}
+                    showSameCampusRedirect={isSameCampus}
+                    onSameCampusRedirect={() => handleModeChange('Walk')}
                     noTopSpacing={hideMetricsRow}
                     inlineMetrics={
                         hideMetricsRow && shuttleMetrics

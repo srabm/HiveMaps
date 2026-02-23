@@ -379,19 +379,25 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
     });
 
     // Add departure or arrival time only for TRANSIT and DRIVING modes
+    // Mapbox does not accept milliseconds in the timestamp, so strip them
+    const mapboxTimeFilter = request.timeFilter.replace(/\.\d{3}Z$/, 'Z');
     if (request.transportMode === TransportMode.TRANSIT || request.transportMode === TransportMode.DRIVING) {
         if (request.timeFilterMode === 'depart') {
-            params.append('depart_at', request.timeFilter);
+            params.append('depart_at', mapboxTimeFilter);
         } else if (request.timeFilterMode === 'arrive') {
-            params.append('arrive_by', request.timeFilter);
+            params.append('arrive_by', mapboxTimeFilter);
         }
     }
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
+    console.log('[Mapbox API] Request URL', url);
+
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
+        const errorBody = typeof response.json === 'function' ? await response.json().catch(() => null) : null;
+        console.error('[Mapbox API] Error response', response.status, JSON.stringify(errorBody));
         throw new Error(`Mapbox API error: ${response.status}`);
     }
 

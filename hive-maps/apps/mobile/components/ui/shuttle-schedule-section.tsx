@@ -11,6 +11,10 @@ type ShuttleScheduleSectionProps = {
     showSeeMoreButton: boolean;
     onOpenModal: () => void;
     onFallbackPress?: () => void;
+    /** When true, shows a banner redirecting same-campus users to Walk */
+    showSameCampusRedirect?: boolean;
+    /** Called when the user taps the same-campus Walk redirect banner */
+    onSameCampusRedirect?: () => void;
     /** When true, removes the top margin/border separator (metrics row is hidden above) */
     noTopSpacing?: boolean;
     /** Inline metrics to show when the main metrics row is hidden (no departures / next service day) */
@@ -31,6 +35,8 @@ export function ShuttleScheduleSection({
     showSeeMoreButton,
     onOpenModal,
     onFallbackPress,
+    showSameCampusRedirect,
+    onSameCampusRedirect,
     noTopSpacing,
     inlineMetrics,
 }: ShuttleScheduleSectionProps) {
@@ -39,6 +45,32 @@ export function ShuttleScheduleSection({
     const suggestionText = !hasSchedule
         ? 'Service currently unavailable.'
         : 'Not running today — need a ride now?';
+
+    // When the route is same-campus, only show the redirect banner and the
+    // "See full schedule" button — no metrics, no route-specific departures.
+    if (showSameCampusRedirect) {
+        return (
+            <View style={[styles.shuttleSection, styles.shuttleSectionNoTopSpacing]}>
+                {!!onSameCampusRedirect && (
+                    <Pressable onPress={onSameCampusRedirect} style={styles.transitSuggestion}>
+                        <Text style={styles.transitSuggestionText}>Both locations are on the same campus.</Text>
+                        <Text style={styles.transitSuggestionLink}>Switch to Walk</Text>
+                    </Pressable>
+                )}
+                <View style={styles.shuttleHeaderRow}>
+                    <View>
+                        <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
+                        {validPeriod ? (
+                            <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
+                        ) : null}
+                    </View>
+                    <Pressable onPress={onOpenModal}>
+                        <Text style={styles.seeMoreLink}>See full schedule</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>

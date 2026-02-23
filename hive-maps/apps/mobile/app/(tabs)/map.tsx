@@ -50,6 +50,8 @@ export default function MapScreen() {
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [selectedMode, setSelectedMode] = useState<'Drive' | 'Walk' | 'Transit' | 'Shuttle'>('Drive');
+    const [timeFilter, setTimeFilter] = useState(() => new Date().toISOString());
+    const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
 
@@ -102,10 +104,23 @@ export default function MapScreen() {
         return unsubscribe;
     }, []);
 
+    const isSameCampusRoute =
+        fromCoordinates && toCoordinates
+            ? (() => {
+                  const result = validateCampusRoute({
+                      origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+                      destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+                  });
+                  return !result.valid || !result.route.isInterCampus;
+              })()
+            : false;
+
     const shuttleRouting = useShuttleRouting({
-        enabled: selectedMode === 'Shuttle',
+        enabled: selectedMode === 'Shuttle' && !isSameCampusRoute,
         origin: fromCoordinates ? {longitude: fromCoordinates[0], latitude: fromCoordinates[1]} : null,
         destination: toCoordinates ? {longitude: toCoordinates[0], latitude: toCoordinates[1]} : null,
+        timeFilter,
+        timeFilterMode,
     });
 
     // 2.4.2 — Validate campus-to-campus route when both endpoints are set
@@ -542,6 +557,7 @@ export default function MapScreen() {
                         }}
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
+                        onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
                         onStartPress={() => console.log('Start navigation')}
                     />
                 </View>

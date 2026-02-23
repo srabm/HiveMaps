@@ -17,7 +17,7 @@ export const SHUTTLE_STOPS: Record<'SGW' | 'LOY', ShuttleStop> = {
         label: 'SGW',
         name: 'Henry F. Hall Building (Front Doors)',
         address: '1455 De Maisonneuve Blvd. W.',
-        coordinate: {latitude: 45.49727, longitude: -73.57892},
+        coordinate: {latitude: 45.497066, longitude: -73.578524}
     },
     LOY: {
         id: 'LOY',
@@ -25,7 +25,7 @@ export const SHUTTLE_STOPS: Record<'SGW' | 'LOY', ShuttleStop> = {
         label: 'Loyola',
         name: 'Loyola Chapel (F.C. Smith Building)',
         address: '7137 Sherbrooke St. W.',
-        coordinate: {latitude: 45.45817789834343, longitude: -73.6391711329374},
+        coordinate: {latitude: 45.4584600, longitude: -73.6382397},
     },
 };
 
