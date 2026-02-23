@@ -750,9 +750,9 @@ const styles = StyleSheet.create({
     },
     navigationBottomContainer: {
         position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 20,
+        left: 4,
+        right: 4,
+        bottom: 5,
         zIndex: 15,
     },
 });

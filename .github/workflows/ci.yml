@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true' || needs.changes.outputs.ci == 'true' }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true' || needs.changes.outputs.ci == 'true') }}
 
     steps:
       - name: Checkout
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true' }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true') }}
     defaults:
       run:
         working-directory: hive-maps/services/api
@@ -123,10 +123,11 @@ jobs:
         run: bash ./gradlew --no-daemon clean test jacocoTestReport
 
       - name: Sonar Analysis
+        if: ${{ always() && !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
+        run: ./gradlew --no-daemon sonar -x test
 
       - name: Upload API test reports
         if: always()
@@ -139,6 +140,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload API coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -152,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true' }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.api == 'true' || needs.changes.outputs.ci == 'true')}}
     defaults:
       run:
         working-directory: hive-maps/services/api
@@ -189,3 +191,18 @@ jobs:
       - name: Stop API stack and clean volumes
         if: always()
         run: docker compose down -v
+  
+  # frontend sonarqube workflow
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Frontend Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: hive-maps/apps/mobile
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_FRONTEND }}
