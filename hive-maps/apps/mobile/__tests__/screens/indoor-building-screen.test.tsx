@@ -115,6 +115,20 @@ describe('Indoor building screen', () => {
     expect(getByText('RoomCount:1')).toBeTruthy();
   });
 
+  it('shows unsupported-building message when building code is invalid', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ building: 'UNKNOWN' });
+    mockParseIndoorBuildingCode.mockReturnValue(null);
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(getByText('This building does not currently support indoor maps.')).toBeTruthy();
+    });
+
+    expect(mockFetchBuildingFloors).not.toHaveBeenCalled();
+    expect(mockFetchFloorDetails).not.toHaveBeenCalled();
+  });
+
   it('falls back to default floor for an invalid floor query and shows notice', async () => {
     mockUseLocalSearchParams.mockReturnValue({ building: 'H', floor: '99' });
     mockFetchBuildingFloors.mockResolvedValue([
@@ -201,5 +215,45 @@ describe('Indoor building screen', () => {
 
     expect(getByText('Floor 2 is unavailable.')).toBeTruthy();
     expect(getByText('Retry')).toBeTruthy();
+  });
+
+  it('shows no-floors state when API returns an empty floor list', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([]);
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchBuildingFloors).toHaveBeenCalledWith('SGW', 'H');
+    });
+
+    expect(getByText('No floors are available for this building yet.')).toBeTruthy();
+    expect(mockFetchFloorDetails).not.toHaveBeenCalled();
+  });
+
+  it('shows floor-list error and retry re-triggers loading', async () => {
+    mockFetchBuildingFloors.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([]);
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Could not load available floors. Please try again.')).toBeTruthy();
+    });
+
+    fireEvent.press(getByText('Retry'));
+
+    await waitFor(() => {
+      expect(mockFetchBuildingFloors).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('shows floor-details error when selected floor request fails', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([{ id: '1', label: 'L1', sortOrder: 1 }]);
+    mockFetchFloorDetails.mockRejectedValue(new Error('network'));
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
+    });
   });
 });

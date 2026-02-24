@@ -2,20 +2,27 @@ package com.hivemaps.api.indoor
 
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.hasItems
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.setup.MockMvcBuilders
+import org.springframework.web.context.WebApplicationContext
 
 @SpringBootTest
-@AutoConfigureMockMvc
 class IndoorMapControllerTest(
-    @Autowired private val mockMvc: MockMvc
+    @Autowired private val webApplicationContext: WebApplicationContext
 ) {
+    private lateinit var mockMvc: MockMvc
+
+    @BeforeEach
+    fun setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build()
+    }
 
     @Test
     fun `floors endpoint returns seeded floor list for valid campus-building pair`() {

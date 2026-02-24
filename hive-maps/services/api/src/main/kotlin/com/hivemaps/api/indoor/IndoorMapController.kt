@@ -22,9 +22,20 @@ class IndoorMapController(
         @PathVariable campusId: String,
         @PathVariable buildingCode: String
     ): List<Map<String, Any?>> {
-        val sql = "SELECT id, label, sort_order FROM building_floor WHERE building_code = ? ORDER BY sort_order ASC"
-        
-        return jdbcTemplate.queryForList(sql, buildingCode).map { row ->
+        val sql = """
+            SELECT bf.id, bf.label, bf.sort_order
+            FROM building_floor bf
+            JOIN building b ON b.code = bf.building_code
+            WHERE b.campus_id = ? AND bf.building_code = ?
+            ORDER BY bf.sort_order ASC
+        """.trimIndent()
+
+        val rows = jdbcTemplate.queryForList(sql, campusId, buildingCode)
+        if (rows.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Building not found for campus")
+        }
+
+        return rows.map { row ->
             mapOf(
                 "id" to row["id"],
                 "label" to row["label"],
@@ -39,9 +50,14 @@ class IndoorMapController(
         @PathVariable buildingCode: String,
         @PathVariable floorId: String
     ): Map<String, Any?> {
-        
-        val floorSql = "SELECT label, plan_geometry FROM building_floor WHERE building_code = ? AND id = ?"
-        val floorRow = jdbcTemplate.queryForList(floorSql, buildingCode, floorId).firstOrNull() 
+
+        val floorSql = """
+            SELECT bf.label, bf.plan_geometry
+            FROM building_floor bf
+            JOIN building b ON b.code = bf.building_code
+            WHERE b.campus_id = ? AND bf.building_code = ? AND bf.id = ?
+        """.trimIndent()
+        val floorRow = jdbcTemplate.queryForList(floorSql, campusId, buildingCode, floorId).firstOrNull()
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Floor not found")
 
         val roomsSql = "SELECT id, label, room_type, geometry FROM room WHERE building_code = ? AND floor_id = ?"
@@ -50,7 +66,7 @@ class IndoorMapController(
         val features = roomRows.map { room ->
             mapOf(
                 "type" to "Feature",
-                "geometry" to objectMapper.readValue(room["geometry"].toString(), Map::class.java),
+                "geometry" to parseJsonColumn(room["geometry"]),
                 "properties" to mapOf(
                     "id" to room["id"],
                     "label" to room["label"],
@@ -70,8 +86,22 @@ class IndoorMapController(
                 "id" to floorId,
                 "label" to floorRow["label"]
             ),
-            "planGeometry" to objectMapper.readValue(floorRow["plan_geometry"].toString(), Map::class.java),
+            "planGeometry" to parseJsonColumn(floorRow["plan_geometry"]),
             "rooms" to featureCollection
         )
+    }
+
+    private fun parseJsonColumn(value: Any?): Any? {
+        if (value == null) return null
+        val raw = when (value) {
+            is ByteArray -> value.toString(Charsets.UTF_8)
+            else -> value.toString()
+        }
+        val parsed: Any? = objectMapper.readValue(raw, Any::class.java)
+        return if (parsed is String && (parsed.trim().startsWith("{") || parsed.trim().startsWith("["))) {
+            objectMapper.readValue(parsed, Any::class.java)
+        } else {
+            parsed
+        }
     }
 }

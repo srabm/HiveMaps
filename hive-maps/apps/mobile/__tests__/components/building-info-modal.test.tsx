@@ -16,7 +16,7 @@ describe('BuildingInfoModal', () => {
   };
 
   it('renders fallback content when no building is selected', () => {
-    const { getByText } = render(
+    const { getByText, queryByText } = render(
       <BuildingInfoModal visible building={null} onClose={jest.fn()} />
     );
 
@@ -25,7 +25,7 @@ describe('BuildingInfoModal', () => {
     expect(getByText('Hours not listed')).toBeTruthy();
     expect(getByText('Phone not listed')).toBeTruthy();
     expect(getByText('Website not listed')).toBeTruthy();
-    expect(getByText('Building photo')).toBeTruthy();
+    expect(queryByText('Building photo')).toBeNull();
   });
 
   it('calls action handlers when action buttons are pressed', () => {
@@ -60,5 +60,32 @@ describe('BuildingInfoModal', () => {
 
     expect(getByText('Accessible entrance')).toBeTruthy();
     expect(getByText('Accessible elevator')).toBeTruthy();
+  });
+
+  it('renders indoor action for supported building and calls handler', () => {
+    const onIndoorMap = jest.fn();
+    const { getByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{ ...baseBuilding, code: 'H' }}
+        onClose={jest.fn()}
+        onIndoorMap={onIndoorMap}
+      />
+    );
+
+    fireEvent.press(getByText('Indoor'));
+    expect(onIndoorMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render indoor action for unsupported building', () => {
+    const { queryByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{ ...baseBuilding, code: 'XYZ' }}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(queryByText('Indoor')).toBeNull();
   });
 });
