@@ -68,7 +68,8 @@ private fun com.hivemaps.api.campus.persistence.BuildingEntity.toDomain() = Buil
     code = code,
     name = name,
     addresses = addresses,
-    location = location
+    location = location,
+    center = Coordinate(lon = centerLon, lat = centerLat)
 )
 
 private fun com.hivemaps.api.campus.persistence.IndoorNodeEntity.toDomain() = IndoorNode(

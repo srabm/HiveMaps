@@ -13,7 +13,8 @@ data class Building(
     val code: String,
     val name: String,
     val addresses: List<String>,
-    val location: Map<String, Any>? = null
+    val location: Map<String, Any>? = null,
+    val center: Coordinate
 )
 
 data class Coordinate(
