@@ -45,9 +45,19 @@ export async function getBuildingPointsByCampus(
   const buildingCache = await loadBuildingCache();
   const detailsCache = await loadDetailsCache();
 
-  let campusBuildings: Building[];
+  let campusBuildings: Building[] = [];
   try {
-    campusBuildings = await fetchBuildings(campus);
+    const remote = await fetchBuildings(campus);
+    remote.forEach((b) => {
+      campusBuildings.push({
+        campus: b.campus,
+        code: b.code,
+        name: b.name,
+        location: b.location,
+        addresses: b.addresses,
+        center: [b.center.lon, b.center.lat],
+      })
+    });
     console.log(`Using API buildings for ${campus}: ${campusBuildings.length} buildings`);
   } catch {
     // fallback to bundled constants if backend unreachable

@@ -10,6 +10,15 @@ export type CampusResponse = {
   zoom: number;
 };
 
+export type BuildingResponse = {
+  campus: CampusId;
+  code: string;
+  name: string;
+  location?: any;
+  addresses: string[];
+  center: { lon: number; lat: number };
+};
+
 // Prefer EXPO_PUBLIC_* env var so local .env can override app.json defaults
 // (e.g. iOS simulator typically needs http://localhost:8080).
 const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -43,8 +52,8 @@ export async function fetchCampuses(): Promise<CampusResponse[]> {
   return getJson<CampusResponse[]>('/api/campuses');
 }
 
-export async function fetchBuildings(campus: CampusId): Promise<Building[]> {
-  return getJson<Building[]>(`/api/campuses/${campus}/buildings`);
+export async function fetchBuildings(campus: CampusId): Promise<BuildingResponse[]> {
+  return getJson<BuildingResponse[]>(`/api/campuses/${campus}/buildings`);
 }
 
 export async function searchPlaceByAddress(address: string){
