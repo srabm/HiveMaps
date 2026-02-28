@@ -80,5 +80,6 @@ private fun com.hivemaps.api.campus.persistence.IndoorNodeEntity.toDomain() = In
     building = building,
     longitude = lon,
     latitude = lat,
-    outgoingEdges = mutableListOf()
+    outgoingEdges = mutableListOf(),
+    isVirtual = isVirtual
 )

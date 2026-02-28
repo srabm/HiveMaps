@@ -8,7 +8,8 @@ data class IndoorNode(
     val building: String,
     val longitude: Double,
     val latitude: Double,
-    val outgoingEdges: MutableList<IndoorEdge>
+    val outgoingEdges: MutableList<IndoorEdge>,
+    val isVirtual: Boolean
 )
 
 data class IndoorEdge(

@@ -27,8 +27,11 @@ class IndoorNodeEntity(
     @Column(nullable = false)
     var lat: Double,
 
+    @Column(name = "is_virtual", nullable = false)
+    var isVirtual: Boolean,
+
     @OneToMany(mappedBy = "startNode")
     var outgoingEdges: MutableList<IndoorEdgeEntity> = mutableListOf()
 ) {
-    constructor() : this("ID", "LABEL", true, "", "", 0.0, 0.0)
+    constructor() : this("ID", "LABEL", true, "", "", 0.0, 0.0, false)
 }

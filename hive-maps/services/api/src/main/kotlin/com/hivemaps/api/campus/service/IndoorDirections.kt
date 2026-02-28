@@ -9,28 +9,38 @@ import org.springframework.stereotype.Component
 
 @Component
 class IndoorDirections {
+    // using Dijkstra's algorithm to find the shortest path
     private fun getPath(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<IndoorEdge> {
+        // the start and end nodes must be accessible if wheechairAcessible is true
         if (accessibleOnly && !startNode.wheelchairAccessible) return emptyList()
         if (accessibleOnly && !endNode.wheelchairAccessible) return emptyList()
 
-        val distances = mutableMapOf<String, Double>().withDefault { Double.MAX_VALUE }
-        val connectingEdge = mutableMapOf<String, IndoorEdge?>().withDefault { null }
-        val visited = mutableMapOf<String, Boolean>().withDefault { false }
-        val pq = PriorityQueue<Pair<Double, IndoorNode>>(compareBy { it.first })
+        val distances = mutableMapOf<String, Double>().withDefault { Double.MAX_VALUE } // the shortest distance to the node (node_id, distance)
+        val connectingEdge = mutableMapOf<String, IndoorEdge?>().withDefault { null } // the edge connecting the node to the shortest path to the node (node_id, IndoorEdge)
+        val visited = mutableMapOf<String, Boolean>().withDefault { false } // whether the node has already been visited or not (node_id, true/false)
+        val pq = PriorityQueue<Pair<Double, IndoorNode>>(compareBy { it.first }) // the priority queue to sort the candidate indoor nodes (distance, IndoorNode)
         var pathFound = false
 
         distances[startNode.id] = 0.0
         pq.add(0.0 to startNode)
 
+        // while there are IndoorNode candidates
         while (pq.isNotEmpty()) {
             val (dist, node) = pq.poll()
 
+            // skip if the node has already been visited
             if (visited.getValue(node.id)) continue
+
+            // break if the destination node has been found
             if (node.id == endNode.id) {
                 pathFound = true
                 break
             }
 
+            // we can only traverse virtual nodes if they are the starting point
+            if (node.id != startNode.id && node.isVirtual) continue
+
+            // for each neighbouring node, add it to the list of candidates
             node.outgoingEdges.forEach { edge ->
                 val newDist = dist + edge.distance
                 if (newDist < distances.getValue(edge.endNode.id) && //criteria 1: endNode can be navigated to in a faster way
@@ -52,7 +62,10 @@ class IndoorDirections {
         val path = mutableListOf<IndoorEdge>()
         var current: IndoorEdge? = connectingEdge.getValue(endNode.id)
         while (current != null) {
-            path.add(current)
+            // only add the edge if both the start node and the end node are not virtual
+            if (!current.startNode.isVirtual && !current.endNode.isVirtual) {
+                path.add(current)
+            }
             current = connectingEdge.getValue(current.startNode.id)
         }
 
