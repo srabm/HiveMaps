@@ -15,7 +15,7 @@ export function ShuttleScheduleModal({
     serviceDateLabel,
     times,
     onClose,
-}: ShuttleScheduleModalProps) {
+}: Readonly<ShuttleScheduleModalProps>) {
     return (
         <Modal
             transparent
