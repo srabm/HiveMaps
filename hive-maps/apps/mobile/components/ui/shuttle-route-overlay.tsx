@@ -19,7 +19,7 @@ export function ShuttleRouteOverlay({
     walkFromStop,
     stopsForTrip,
     stopMarkers,
-}: ShuttleRouteOverlayProps) {
+}: Readonly<ShuttleRouteOverlayProps>) {
     return (
         <>
             {walkToStop && (
