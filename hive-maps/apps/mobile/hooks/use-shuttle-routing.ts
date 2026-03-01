@@ -10,6 +10,11 @@ type ShuttleRoutingState = {
     stopMarkers: typeof SHUTTLE_STOPS;
 };
 
+type ShuttleLegs = {
+    walkToStop: DirectionsResponse;
+    shuttleLeg: DirectionsResponse;
+    walkFromStop: DirectionsResponse;
+};
 /**
  * Advance (or rewind) an ISO timestamp by `seconds`.
  * Guards against NaN/Infinity so a bad API response duration never
@@ -21,6 +26,100 @@ function addSeconds(iso: string, seconds: number): string {
         return iso;
     }
     return new Date(new Date(iso).getTime() + seconds * 1000).toISOString();
+}
+
+async function fetchDepartLegs({
+    origin,
+    destination,
+    stops,
+    timeFilter,
+}: {
+    origin: Coordinate;
+    destination: Coordinate;
+    stops: ReturnType<typeof getShuttleStopsForTrip>;
+    timeFilter: string;
+}): Promise<ShuttleLegs> {
+    const walkTo = await getDirections({
+        origin,
+        destination: stops.originStop.coordinate,
+        transportMode: TransportMode.WALKING,
+        provider: Provider.MAPBOX,
+        timeFilter,
+        timeFilterMode: 'depart',
+    });
+
+    const shuttleDepartTime = addSeconds(timeFilter, walkTo.durationSeconds);
+    const shuttleRoute = await getDirections({
+        origin: stops.originStop.coordinate,
+        destination: stops.destinationStop.coordinate,
+        transportMode: TransportMode.DRIVING,
+        provider: Provider.MAPBOX,
+        timeFilter: shuttleDepartTime,
+        timeFilterMode: 'depart',
+    });
+
+    const walkFromDepartTime = addSeconds(shuttleDepartTime, shuttleRoute.durationSeconds);
+    const walkFrom = await getDirections({
+        origin: stops.destinationStop.coordinate,
+        destination,
+        transportMode: TransportMode.WALKING,
+        provider: Provider.MAPBOX,
+        timeFilter: walkFromDepartTime,
+        timeFilterMode: 'depart',
+    });
+
+    return {
+        walkToStop: walkTo,
+        shuttleLeg: shuttleRoute,
+        walkFromStop: walkFrom,
+    };
+}
+
+async function fetchArriveLegs({
+    origin,
+    destination,
+    stops,
+    timeFilter,
+}: {
+    origin: Coordinate;
+    destination: Coordinate;
+    stops: ReturnType<typeof getShuttleStopsForTrip>;
+    timeFilter: string;
+}): Promise<ShuttleLegs> {
+    const walkFrom = await getDirections({
+        origin: stops.destinationStop.coordinate,
+        destination,
+        transportMode: TransportMode.WALKING,
+        provider: Provider.MAPBOX,
+        timeFilter,
+        timeFilterMode: 'arrive',
+    });
+
+    const shuttleArriveTime = addSeconds(timeFilter, -walkFrom.durationSeconds);
+    const shuttleRoute = await getDirections({
+        origin: stops.originStop.coordinate,
+        destination: stops.destinationStop.coordinate,
+        transportMode: TransportMode.DRIVING,
+        provider: Provider.MAPBOX,
+        timeFilter: shuttleArriveTime,
+        timeFilterMode: 'arrive',
+    });
+
+    const walkToArriveTime = addSeconds(shuttleArriveTime, -shuttleRoute.durationSeconds);
+    const walkTo = await getDirections({
+        origin,
+        destination: stops.originStop.coordinate,
+        transportMode: TransportMode.WALKING,
+        provider: Provider.MAPBOX,
+        timeFilter: walkToArriveTime,
+        timeFilterMode: 'arrive',
+    });
+
+    return {
+        walkToStop: walkTo,
+        shuttleLeg: shuttleRoute,
+        walkFromStop: walkFrom,
+    };
 }
 
 export const useShuttleRouting = ({
@@ -42,12 +141,23 @@ export const useShuttleRouting = ({
     const [stopsForTrip, setStopsForTrip] = useState<ReturnType<typeof getShuttleStopsForTrip> | null>(null);
 
     useEffect(() => {
+        const clearLegs = () => {
+            setWalkToStop(null);
+            setShuttleLeg(null);
+            setWalkFromStop(null);
+        };
+
+        const setLegs = (legs: ShuttleLegs) => {
+            setWalkToStop(legs.walkToStop);
+            setShuttleLeg(legs.shuttleLeg);
+            setWalkFromStop(legs.walkFromStop);
+        };
+
         let active = true;
+
         const fetchLegs = async () => {
             if (!enabled || !origin || !destination) {
-                setWalkToStop(null);
-                setShuttleLeg(null);
-                setWalkFromStop(null);
+                clearLegs();
                 setStopsForTrip(null);
                 return;
             }
@@ -56,93 +166,15 @@ export const useShuttleRouting = ({
             setStopsForTrip(stops);
 
             try {
-                if (timeFilterMode === 'depart') {
-                    // Depart mode: chain times forward
-                    // 1. Walk to stop — depart at timeFilter
-                    const walkTo = await getDirections({
-                        origin,
-                        destination: stops.originStop.coordinate,
-                        transportMode: TransportMode.WALKING,
-                        provider: Provider.MAPBOX,
-                        timeFilter,
-                        timeFilterMode: 'depart',
-                    });
-                    if (!active) return;
-
-                    // 2. Shuttle leg — depart when walk-to-stop finishes
-                    const shuttleDepartTime = addSeconds(timeFilter, walkTo.durationSeconds);
-                    const shuttleRoute = await getDirections({
-                        origin: stops.originStop.coordinate,
-                        destination: stops.destinationStop.coordinate,
-                        transportMode: TransportMode.DRIVING,
-                        provider: Provider.MAPBOX,
-                        timeFilter: shuttleDepartTime,
-                        timeFilterMode: 'depart',
-                    });
-                    if (!active) return;
-
-                    // 3. Walk from stop — depart when shuttle arrives
-                    const walkFromDepartTime = addSeconds(shuttleDepartTime, shuttleRoute.durationSeconds);
-                    const walkFrom = await getDirections({
-                        origin: stops.destinationStop.coordinate,
-                        destination,
-                        transportMode: TransportMode.WALKING,
-                        provider: Provider.MAPBOX,
-                        timeFilter: walkFromDepartTime,
-                        timeFilterMode: 'depart',
-                    });
-                    if (!active) return;
-
-                    setWalkToStop(walkTo);
-                    setShuttleLeg(shuttleRoute);
-                    setWalkFromStop(walkFrom);
-                } else {
-                    // Arrive mode: chain times backward
-                    // 1. Walk from stop — arrive at timeFilter
-                    const walkFrom = await getDirections({
-                        origin: stops.destinationStop.coordinate,
-                        destination,
-                        transportMode: TransportMode.WALKING,
-                        provider: Provider.MAPBOX,
-                        timeFilter,
-                        timeFilterMode: 'arrive',
-                    });
-                    if (!active) return;
-
-                    // 2. Shuttle leg — arrive when walk-from-stop needs to depart
-                    const shuttleArriveTime = addSeconds(timeFilter, -walkFrom.durationSeconds);
-                    const shuttleRoute = await getDirections({
-                        origin: stops.originStop.coordinate,
-                        destination: stops.destinationStop.coordinate,
-                        transportMode: TransportMode.DRIVING,
-                        provider: Provider.MAPBOX,
-                        timeFilter: shuttleArriveTime,
-                        timeFilterMode: 'arrive',
-                    });
-                    if (!active) return;
-
-                    // 3. Walk to stop — arrive when shuttle departs
-                    const walkToArriveTime = addSeconds(shuttleArriveTime, -shuttleRoute.durationSeconds);
-                    const walkTo = await getDirections({
-                        origin,
-                        destination: stops.originStop.coordinate,
-                        transportMode: TransportMode.WALKING,
-                        provider: Provider.MAPBOX,
-                        timeFilter: walkToArriveTime,
-                        timeFilterMode: 'arrive',
-                    });
-                    if (!active) return;
-
-                    setWalkToStop(walkTo);
-                    setShuttleLeg(shuttleRoute);
-                    setWalkFromStop(walkFrom);
-                }
+                const legs = timeFilterMode === 'depart'
+                    ? await fetchDepartLegs({origin, destination, stops, timeFilter})
+                    : await fetchArriveLegs({origin, destination, stops, timeFilter});
+                if (!active) return;
+                setLegs(legs);
             } catch (err) {
                 if (!active) return;
                 console.warn('Failed to load shuttle routing directions', err);
-                setWalkToStop(null);
-                setShuttleLeg(null);
-                setWalkFromStop(null);
+                clearLegs();
             }
         };
         fetchLegs();

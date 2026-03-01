@@ -136,7 +136,7 @@ export function NavigationBottom({
 
     useEffect(() => {
         let active = true;
-        let timeoutId: NodeJS.Timeout;
+        let timeoutId: ReturnType<typeof setTimeout>;
 
         const fetchDirections = async () => {
             setIsLoading(true);
