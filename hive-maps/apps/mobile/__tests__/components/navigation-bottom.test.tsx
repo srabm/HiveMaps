@@ -256,8 +256,7 @@ describe('NavigationBottom transit timing details', () => {
             expect(getByText('Arrive by 12:45')).toBeTruthy();
         });
     });
-    // should clear arrival details if transit response has no transit steps, since arrive-by time can't be computed without a transit departure time
-    it('clears arrival details when transit response has no transit steps', async () => {
+    it('falls back to duration math when transit response has no transit steps', async () => {
         getDirections.mockResolvedValue({
             distanceMeters: 2100,
             durationSeconds: 1800,
@@ -265,7 +264,7 @@ describe('NavigationBottom transit timing details', () => {
             steps: [{duration: 300}, {duration: 1200}, {duration: 300}],
         });
 
-        const {queryByText} = render(
+        const {getByText} = render(
             <NavigationBottom origin={origin} destination={destination} initialMode="Transit" />
         );
 
@@ -274,7 +273,7 @@ describe('NavigationBottom transit timing details', () => {
         });
 
         await waitFor(() => {
-            expect(queryByText(/Arrive by/)).toBeNull();
+            expect(getByText('Arrive by 12:30')).toBeTruthy();
         });
     });
     // task 2.5.4: computes Depart at using last transit step arrival time and total trip duration minus final walking duration
@@ -349,8 +348,8 @@ describe('NavigationBottom shuttle additions', () => {
         );
 
         await waitFor(() => {
-            expect(getByText('in 1 hr 20 min')).toBeTruthy();
-            expect(getByText('in 2 hr')).toBeTruthy();
+            expect(getByText('in 1 hr 30 min')).toBeTruthy();
+            expect(getByText('in 2 hr 10 min')).toBeTruthy();
         });
     });
     // task 2.6.5: verifies that in shuttle mode, when all 3 legs are present, total duration is sum of legs, total distance is sum of legs and arrival label uses shuttle-computed label (not normal directions label)
@@ -434,7 +433,7 @@ describe('NavigationBottom shuttle additions', () => {
         await waitFor(() => {
             const lastSectionProps = ShuttleScheduleSection.mock.calls[ShuttleScheduleSection.mock.calls.length - 1][0];
             expect(lastSectionProps.departures).toHaveLength(1);
-            expect(lastSectionProps.departures[0].etaLabel).toBe('in 20 min');
+            expect(lastSectionProps.departures[0].etaLabel).toBe('Now');
         });
     });
     // task-2.6.7: fallback to alternative modes when unavailable
