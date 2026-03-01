@@ -430,12 +430,11 @@ export function NavigationBottom({
     //  • shuttle not running today (next-service-day) — show Transit redirect instead, OR
     //  • no reachable departures and routing hasn't resolved yet.
     const hideMetricsRow =
-        selectedMode !== 'Shuttle'
-            ? false
-            : isSameCampus ||
-              !shuttleScheduleContext?.schedule ||
-              !!shuttleScheduleContext?.isNextServiceDay ||
-              (!shuttleMetrics && reachableDepartures.length === 0);
+        selectedMode === 'Shuttle' &&
+        (isSameCampus ||
+            !shuttleScheduleContext?.schedule ||
+            !!shuttleScheduleContext?.isNextServiceDay ||
+            (!shuttleMetrics && reachableDepartures.length === 0));
 
     const activeDurationSeconds =
         selectedMode === 'Shuttle' && shuttleMetrics
