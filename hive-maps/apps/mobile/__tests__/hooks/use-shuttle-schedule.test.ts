@@ -143,6 +143,20 @@ describe('useShuttleSchedule — Friday schedule', () => {
         // Friday SGW first departure is 09:45
         expect(result.current?.departureTimes).toContain('09:45');
     });
+
+    it('uses explicit timeFilter (not wall clock) to select the service day', () => {
+        // System time is Friday from beforeEach, but the filter points to Monday.
+        const {result} = renderHook(() =>
+            useShuttleSchedule({
+                enabled: true,
+                origin: SGW,
+                destination: LOY,
+                timeFilter: '2026-02-23T09:00:00Z',
+            })
+        );
+        expect(result.current?.serviceDate.getDay()).toBe(1); // Monday
+        expect(result.current?.departureTimes).toContain('09:30'); // SGW Monday-Thursday includes 09:30
+    });
 });
 
 describe('useShuttleSchedule — weekend (no service)', () => {
@@ -165,5 +179,27 @@ describe('useShuttleSchedule — weekend (no service)', () => {
             useShuttleSchedule({enabled: true, origin: SGW, destination: LOY})
         );
         expect(result.current?.departures.length).toBeGreaterThan(0);
+    });
+});
+
+describe('useShuttleSchedule — arrive mode filtering', () => {
+    beforeEach(() => {
+        // Monday Feb 23 2026 at noon
+        jest.setSystemTime(new Date('2026-02-23T12:00:00'));
+    });
+
+    it('returns only departures at or before the arrive-by time', () => {
+        const {result} = renderHook(() =>
+            useShuttleSchedule({
+                enabled: true,
+                origin: SGW,
+                destination: LOY,
+                timeFilter: '2026-02-23T12:00:00Z',
+                timeFilterMode: 'arrive',
+            })
+        );
+        result.current?.departures.forEach((item) => {
+            expect(item.minutesFromFilter).toBeLessThanOrEqual(0);
+        });
     });
 });

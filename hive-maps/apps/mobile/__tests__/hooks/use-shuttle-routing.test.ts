@@ -145,6 +145,48 @@ describe('useShuttleRouting — successful fetch', () => {
         const {TransportMode} = jest.requireActual('@/services/maps/directions-api-adapter');
         expect(getDirections.mock.calls[2][0].transportMode).toBe(TransportMode.WALKING);
     });
+
+    it('chains depart-mode request times forward across all three legs', async () => {
+        getDirections
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 600}) // walkTo
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 900}) // shuttle
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 300}); // walkFrom
+
+        renderHook(() =>
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: 'depart'})
+        );
+
+        await waitFor(() => expect(getDirections).toHaveBeenCalledTimes(3));
+
+        expect(getDirections.mock.calls[0][0].timeFilter).toBe('2026-02-23T12:00:00Z');
+        expect(getDirections.mock.calls[1][0].timeFilter).toBe('2026-02-23T12:10:00.000Z');
+        expect(getDirections.mock.calls[2][0].timeFilter).toBe('2026-02-23T12:25:00.000Z');
+
+        expect(getDirections.mock.calls[0][0].timeFilterMode).toBe('depart');
+        expect(getDirections.mock.calls[1][0].timeFilterMode).toBe('depart');
+        expect(getDirections.mock.calls[2][0].timeFilterMode).toBe('depart');
+    });
+
+    it('chains arrive-mode request times backward across all three legs', async () => {
+        getDirections
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 300}) // walkFrom
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 900}) // shuttle
+            .mockResolvedValueOnce({...mockDirectionsResponse, durationSeconds: 600}); // walkTo
+
+        renderHook(() =>
+            useShuttleRouting({enabled: true, origin: SGW, destination: LOY, timeFilter: TEST_TIME_FILTER, timeFilterMode: 'arrive'})
+        );
+
+        await waitFor(() => expect(getDirections).toHaveBeenCalledTimes(3));
+
+        expect(getDirections.mock.calls[0][0].timeFilter).toBe('2026-02-23T12:00:00Z');
+        expect(getDirections.mock.calls[1][0].timeFilter).toBe('2026-02-23T11:55:00.000Z');
+        expect(getDirections.mock.calls[2][0].timeFilter).toBe('2026-02-23T11:40:00.000Z');
+
+        expect(getDirections.mock.calls[0][0].timeFilterMode).toBe('arrive');
+        expect(getDirections.mock.calls[1][0].timeFilterMode).toBe('arrive');
+        expect(getDirections.mock.calls[2][0].timeFilterMode).toBe('arrive');
+    });
 });
 
 describe('useShuttleRouting — fetch failure', () => {
