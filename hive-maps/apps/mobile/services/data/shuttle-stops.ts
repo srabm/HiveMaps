@@ -25,7 +25,7 @@ export const SHUTTLE_STOPS: Record<'SGW' | 'LOY', ShuttleStop> = {
         label: 'Loyola',
         name: 'Loyola Chapel (F.C. Smith Building)',
         address: '7137 Sherbrooke St. W.',
-        coordinate: {latitude: 45.4584600, longitude: -73.6382397},
+        coordinate: {latitude: 45.45846, longitude: -73.6382397},
     },
 };
 
