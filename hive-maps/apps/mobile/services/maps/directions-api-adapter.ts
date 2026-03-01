@@ -180,7 +180,7 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
  */
 function parseGoogleDuration(raw: string | number | undefined): number {
     if (raw == null) return 0;
-    const n = typeof raw === 'number' ? raw : parseInt(String(raw).replace(/s$/, ''), 10);
+    const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw).replace(/s$/, ''), 10);
     return Number.isFinite(n) ? n : 0;
 }
 
