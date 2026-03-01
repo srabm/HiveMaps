@@ -175,7 +175,7 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
 /**
  * Parse a Google Routes API duration string to whole seconds.
  * The v2 API returns durations as strings like "1543s" or "0s".
- * parseInt handles the trailing "s" suffix, but we strip it explicitly
+ * Number.parseInt handles the trailing "s" suffix, but we strip it explicitly
  * and fall back to 0 so downstream arithmetic never receives NaN.
  */
 function parseGoogleDuration(raw: string | number | undefined): number {
