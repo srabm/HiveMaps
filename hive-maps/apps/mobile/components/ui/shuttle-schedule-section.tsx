@@ -39,7 +39,7 @@ export function ShuttleScheduleSection({
     onSameCampusRedirect,
     noTopSpacing,
     inlineMetrics,
-}: ShuttleScheduleSectionProps) {
+}: Readonly<ShuttleScheduleSectionProps>) {
     const showTransitSuggestion =
         (!hasSchedule || showNextServiceLabel || departures.length === 0) && !!onFallbackPress;
     const suggestionText = !hasSchedule
