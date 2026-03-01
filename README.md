@@ -228,6 +228,13 @@ CI note:
 
 - Current API unit/smoke CI jobs do not need a real Google key unless tests are added that call Google services
   directly.
+- API unit tests run against PostgreSQL, not H2.
+- For a local backend test run, start from a fresh DB and wait for readiness:
+  `cd hive-maps/services/api && docker compose down -v && docker compose up -d --wait db`
+- Then run `./gradlew --no-daemon clean test jacocoTestReport`.
+- Local backend tests currently use the same PostgreSQL database/volume as the API Docker Compose setup, so wiping the DB
+  first avoids stale local data affecting test results.
+- See `hive-maps/services/api/README.md` for the full local test flow.
 
 ## Campus Data & Endpoints
 
