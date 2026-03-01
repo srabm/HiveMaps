@@ -410,16 +410,14 @@ export function NavigationBottom({
                     minute: '2-digit',
                 })}`;
             }
-        } else {
+        } else if (reachableDepartures.length > 0) {
             // Arrive mode: report when the user needs to leave to board the latest valid shuttle.
-            if (reachableDepartures.length > 0) {
-                const lastDep = reachableDepartures[reachableDepartures.length - 1];
-                const departMs = lastDep.departureDate.getTime() - walkMinutes * 60_000;
-                arrivalLabel = `Depart at ${new Date(departMs).toLocaleTimeString(undefined, {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                })}`;
-            }
+            const lastDep = reachableDepartures[reachableDepartures.length - 1];
+            const departMs = lastDep.departureDate.getTime() - walkMinutes * 60_000;
+            arrivalLabel = `Depart at ${new Date(departMs).toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+            })}`;
         }
 
         return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes, shuttleMinutes, walkFromMinutes, totalTripMinutes};
