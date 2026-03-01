@@ -10,7 +10,16 @@ type ShuttleRoutingState = {
     stopMarkers: typeof SHUTTLE_STOPS;
 };
 
+/**
+ * Advance (or rewind) an ISO timestamp by `seconds`.
+ * Guards against NaN/Infinity so a bad API response duration never
+ * propagates into subsequent leg requests as "Invalid Date".
+ */
 function addSeconds(iso: string, seconds: number): string {
+    if (!Number.isFinite(seconds)) {
+        console.warn('[addSeconds] Non-finite seconds received:', seconds, '— keeping original time');
+        return iso;
+    }
     return new Date(new Date(iso).getTime() + seconds * 1000).toISOString();
 }
 

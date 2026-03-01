@@ -172,6 +172,18 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
     return null;
 }
 
+/**
+ * Parse a Google Routes API duration string to whole seconds.
+ * The v2 API returns durations as strings like "1543s" or "0s".
+ * parseInt handles the trailing "s" suffix, but we strip it explicitly
+ * and fall back to 0 so downstream arithmetic never receives NaN.
+ */
+function parseGoogleDuration(raw: string | number | undefined): number {
+    if (raw == null) return 0;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw).replace(/s$/, ''), 10);
+    return Number.isFinite(n) ? n : 0;
+}
+
 // Google Maps Converter
 export function convertGoogleMapsResponse(data: any): DirectionsResponse {
     const route = data.routes[0];
@@ -194,8 +206,8 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
         }
 
         return {
-            distance: step.distanceMeters,
-            duration: parseInt(step.staticDuration),
+            distance: step.distanceMeters ?? 0,
+            duration: parseGoogleDuration(step.staticDuration),
             instruction: step.navigationInstruction?.instructions || '',
             maneuver: step.navigationInstruction?.maneuver || '',
             startLocation: {
@@ -212,8 +224,8 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
     });
 
     return {
-        distanceMeters: route.distanceMeters,
-        durationSeconds: parseInt(route.duration),
+        distanceMeters: route.distanceMeters ?? 0,
+        durationSeconds: parseGoogleDuration(route.duration),
         polyline: route.polyline?.encodedPolyline || '',
         steps
     };
