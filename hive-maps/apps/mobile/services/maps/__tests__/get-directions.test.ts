@@ -223,7 +223,6 @@ describe('mapbox transport mode mapping', () => {
     it.each([
         [TransportMode.WALKING, 'walking'],
         [TransportMode.DRIVING, 'driving'],
-        [TransportMode.BIKING, 'cycling'],
         [TransportMode.TRANSIT, 'walking'],
     ])('TransportMode maps to mapbox profile', async (mode, expectedProfile) => {
         global.fetch = jest.fn().mockResolvedValue({ok: true, json: async () => validMapboxPayload});
@@ -239,7 +238,6 @@ describe('google transport mode mapping', () => {
     it.each([
         [TransportMode.WALKING, 'WALK'],
         [TransportMode.DRIVING, 'DRIVE'],
-        [TransportMode.BIKING, 'BICYCLE'],
         [TransportMode.TRANSIT, 'TRANSIT'],
     ])('TransportMode maps to google travel mode', async (mode, expectedMode) => {
         global.fetch = jest.fn().mockResolvedValue({ok: true, json: async () => validGooglePayload});

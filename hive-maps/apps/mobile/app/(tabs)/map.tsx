@@ -22,6 +22,8 @@ import {
     initializeDirectionsCache,
     addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
+import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
+import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
 import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 
@@ -47,6 +49,9 @@ export default function MapScreen() {
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [selectedMode, setSelectedMode] = useState<'Drive' | 'Walk' | 'Transit' | 'Shuttle'>('Drive');
+    const [timeFilter, setTimeFilter] = useState(() => new Date().toISOString());
+    const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
 
@@ -98,6 +103,25 @@ export default function MapScreen() {
         });
         return unsubscribe;
     }, []);
+
+    const isSameCampusRoute =
+        fromCoordinates && toCoordinates
+            ? (() => {
+                  const result = validateCampusRoute({
+                      origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+                      destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+                  });
+                  return !result.valid || !result.route.isInterCampus;
+              })()
+            : false;
+
+    const shuttleRouting = useShuttleRouting({
+        enabled: selectedMode === 'Shuttle' && !isSameCampusRoute,
+        origin: fromCoordinates ? {longitude: fromCoordinates[0], latitude: fromCoordinates[1]} : null,
+        destination: toCoordinates ? {longitude: toCoordinates[0], latitude: toCoordinates[1]} : null,
+        timeFilter,
+        timeFilterMode,
+    });
 
     // 2.4.2 — Validate campus-to-campus route when both endpoints are set
     useEffect(() => {
@@ -260,11 +284,17 @@ export default function MapScreen() {
                 />
                 <MapboxGL.UserLocation
                     visible={false}
-                    showsUserHeadingIndicator={false}
                     onUpdate={(loc: any) => {
                         const coords = loc?.coords;
                         if (!coords) return;
-                        setUserLocation([coords.longitude, coords.latitude]);
+                        const newLocation: [number, number] = [coords.longitude, coords.latitude];
+
+                        setUserLocation(newLocation);
+
+                        if (fromCoordinatesIsUserLocation.current) {
+                            setFromCoordinates(newLocation);
+                        }
+
                         setLocationPermissionStatus('granted');
                         setShowLocationPrompt(false);
                     }}
@@ -304,7 +334,7 @@ export default function MapScreen() {
             onPress={(e) => {
               const f = e.features[0];
               console.log('Pressed feature:', f);
-              
+
               const point = points.find(p => p.id === f.properties?.id);
               const details = point?.details as any;
 
@@ -322,10 +352,10 @@ export default function MapScreen() {
             {/* LAYER A: Burgundy Background */}
             <MapboxGL.FillLayer
               id="campus-buildings-base"
-              aboveLayerID="road-label" 
+              aboveLayerID="road-label"
               style={{
-                fillColor: '#9d1e30', 
-                fillOpacity: 0.6, 
+                fillColor: '#9d1e30',
+                fillOpacity: 0.6,
               }}
             />
 
@@ -382,10 +412,19 @@ export default function MapScreen() {
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
-                {directions && (
+                {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                    />
+                )}
+                {selectedMode === 'Shuttle' && (
+                    <ShuttleRouteOverlay
+                        walkToStop={shuttleRouting.walkToStop}
+                        shuttleLeg={shuttleRouting.shuttleLeg}
+                        walkFromStop={shuttleRouting.walkFromStop}
+                        stopsForTrip={shuttleRouting.stopsForTrip}
+                        stopMarkers={shuttleRouting.stopMarkers}
                     />
                 )}
             </MapboxGL.MapView>
@@ -517,6 +556,8 @@ export default function MapScreen() {
                             latitude: toCoordinates[1]
                         }}
                         onDirectionsChange={setDirections}
+                        onModeChange={setSelectedMode}
+                        onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
                         onStartPress={() => console.log('Start navigation')}
                     />
                 </View>

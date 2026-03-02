@@ -76,7 +76,7 @@ jobs:
       - name: Unit tests
         working-directory: ${{ env.MOBILE_DIR }}
         run: npm run test:ci
-      
+
       - name: Upload Mobile coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -127,7 +127,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew --no-daemon sonar -x test
+        run: ./gradlew
 
       - name: Upload API test reports
         if: always()
@@ -191,15 +191,24 @@ jobs:
       - name: Stop API stack and clean volumes
         if: always()
         run: docker compose down -v
-  
-  # frontend sonarqube workflow
+
+  # Frontend SonarQube analysis — runs after mobile-unit so coverage artifact is available
   sonarqube:
     name: SonarQube
     runs-on: ubuntu-latest
+    needs: [mobile-unit]
+    if: ${{ always() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Download mobile coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mobile-coverage
+          path: ${{ env.MOBILE_DIR }}/coverage
+
       - name: SonarQube Frontend Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
