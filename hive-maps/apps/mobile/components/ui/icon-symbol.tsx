@@ -37,6 +37,9 @@ export function IconSymbol({
   size = 24,
   color,
   style,
+  weight,
 }: Readonly<IconSymbolProps>) {
+  // Kept for API parity with iOS SymbolView-based IconSymbol.
+  void weight;
   return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
 }
