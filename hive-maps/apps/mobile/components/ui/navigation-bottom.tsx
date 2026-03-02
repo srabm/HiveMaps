@@ -38,7 +38,7 @@ const MODE_META: Record<TransportModeLabel, {label: string; indicatorColor: stri
     Shuttle: {label: 'Shuttle', indicatorColor: '#f4b742'},
 };
 
-const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
+export const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
     switch (mode) {
         case 'Drive':
             return TransportMode.DRIVING;
@@ -57,12 +57,12 @@ const mapUiModeToProvider = (mode: TransportModeLabel) => {
     return mode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX;
 };
 
-const formatDistance = (meters?: number) => {
+export const formatDistance = (meters?: number) => {
     if (meters == null) return '—';
     return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
 };
 
-const formatDuration = (seconds?: number) => {
+export const formatDuration = (seconds?: number) => {
     if (seconds == null) return '— min';
     const totalMinutes = Math.round(seconds / 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -105,7 +105,7 @@ const pickDisplayMinutes = (
     isCustomFilter: boolean,
 ): number => (isCustomFilter ? item.minutesFromFilter : item.minutesUntil);
 
-function buildSimpleArrivalDepartureLabel(
+export function buildSimpleArrivalDepartureLabel(
     durationSeconds: number,
     timeFilter: string,
     timeFilterMode: TimeFilterMode,
@@ -120,7 +120,7 @@ function buildSimpleArrivalDepartureLabel(
     return `Depart at ${formatISOToTime(departureTime.toISOString())}`;
 }
 
-function calculateTransitArrivalDepartureLabel(
+export function calculateTransitArrivalDepartureLabel(
     directions: DirectionsResponse,
     timeFilter: string,
     timeFilterMode: TimeFilterMode,
