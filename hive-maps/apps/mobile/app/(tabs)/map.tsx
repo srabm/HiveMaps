@@ -513,7 +513,6 @@ export default function MapScreen() {
                             setToCoordinates(tempFromCoordinates);
 
                             // Swap user location flag
-                            const tempIsUserLocation = fromCoordinatesIsUserLocation.current;
                             fromCoordinatesIsUserLocation.current = false; // If "to" becomes "from", it's no longer user location
                             // Note: We can't track if the original "to" was user location, so we reset this flag
                         }}
