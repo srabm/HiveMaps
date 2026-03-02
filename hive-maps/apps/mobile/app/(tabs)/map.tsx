@@ -37,8 +37,6 @@ export default function MapScreen() {
         setCampus,
         hydrated,
         points,
-        loading,
-        progress,
         campusMeta,
         tokenAvailable,
         mapsAdapter,
