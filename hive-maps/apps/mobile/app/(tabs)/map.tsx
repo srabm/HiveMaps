@@ -202,10 +202,6 @@ export default function MapScreen() {
     }, []);
 
     const theme = Colors[colorScheme ?? 'light'];
-    const campusTitle = useMemo(
-        () => `${campusMeta.name} Campus (${campusMeta.label})`,
-        [campusMeta],
-    );
 
   // --- FEATURE BUILDER ---
   const { polygonFeatures } = useMemo(() => {
