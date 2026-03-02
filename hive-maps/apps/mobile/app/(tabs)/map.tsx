@@ -210,7 +210,7 @@ export default function MapScreen() {
 
     for (const point of points) {
         const loc = point.building.location as any;
-        if (loc && loc.type === 'Polygon' && loc.coordinates) {
+        if (loc?.type === 'Polygon' && loc?.coordinates) {
             let coords = loc.coordinates;
             let depth = 0;
             let current = coords;
