@@ -1,5 +1,5 @@
 import React from 'react';
-import {fireEvent, render, waitFor, act} from '@testing-library/react-native';
+import {fireEvent, render, waitFor, act, screen} from '@testing-library/react-native';
 import {NavigationBottom} from '../../components/ui/navigation-bottom';
 import {TransportMode, Provider} from '@/services/maps/directions-api-adapter';
 
@@ -500,5 +500,95 @@ describe('NavigationBottom shuttle additions', () => {
         fireEvent.press(getByText('Switch to Walk'));
 
         expect(onModeChange).toHaveBeenCalledWith('Walk');
+    });
+
+    it('suggests Transit when arrive-by time is much later than last practical shuttle', async () => {
+        const onModeChange = jest.fn();
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            schedule: {departures: {sgw: [], loyola: []}},
+            departureTimes: [],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '17:30',
+                    departureDate: new Date('2026-02-23T17:30:00.000Z'),
+                    minutesUntil: -80,
+                    minutesFromFilter: -140,
+                },
+                {
+                    time: '18:00',
+                    departureDate: new Date('2026-02-23T18:00:00.000Z'),
+                    minutesUntil: -50,
+                    minutesFromFilter: -110,
+                },
+            ],
+        });
+
+        const {getByText, getByTestId, queryByText} = render(
+            <NavigationBottom
+                origin={origin}
+                destination={destination}
+                initialMode="Shuttle"
+                onModeChange={onModeChange}
+            />
+        );
+
+        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('confirm-arrive-time'));
+
+        await waitFor(() => {
+            const lastSectionProps = ShuttleScheduleSection.mock.calls[ShuttleScheduleSection.mock.calls.length - 1][0];
+            expect(lastSectionProps.departures).toHaveLength(0);
+        });
+        expect(queryByText('Start')).toBeNull();
+
+        fireEvent.press(getByText('Check Transit'));
+        expect(onModeChange).toHaveBeenCalledWith('Transit');
+    });
+
+    it('flags when the recommended option is the last shuttle for the day', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            schedule: {departures: {sgw: [], loyola: []}},
+            departureTimes: ['17:30', '18:15'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '18:15',
+                    departureDate: new Date('2026-02-23T18:15:00.000Z'),
+                    minutesUntil: 30,
+                    minutesFromFilter: 30,
+                },
+            ],
+        });
+
+        render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Last shuttle for the day')).toBeTruthy();
+        });
     });
 });

@@ -69,6 +69,7 @@ describe('ShuttleScheduleSection — rendering', () => {
         const {queryByText} = render(<ShuttleScheduleSection {...baseProps} />);
         expect(queryByText('See full schedule')).toBeNull();
     });
+
 });
 
 describe('ShuttleScheduleSection — no schedule / fallback', () => {
@@ -116,8 +117,10 @@ describe('ShuttleScheduleSection — no schedule / fallback', () => {
                 {...baseProps}
                 departures={[]}
                 showNextServiceLabel={false}
+                onFallbackPress={jest.fn()}
             />
         );
+        expect(getByText('No more departures today — need a ride now?')).toBeTruthy();
         expect(getByText('No more departures today.')).toBeTruthy();
     });
 });

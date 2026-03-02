@@ -1,4 +1,4 @@
-import React, {useRef, useState, useEffect} from 'react';
+import React, {useRef, useState, useEffect, useMemo} from 'react';
 import {
     View,
     Text,
@@ -103,10 +103,32 @@ export function TimePickerModal({
     };
 
     const handleConfirm = () => {
+        if (isPastSelection) return;
         const timeString = `${selectedHour}:${selectedMinute} ${selectedPeriod}`;
         const isoString = formatTimeToISO(timeString);
         onConfirm(isoString, timeMode);
     };
+
+    const isPastSelection = useMemo(() => {
+        let hours = Number(selectedHour) % 12;
+        if (selectedPeriod === 'PM') {
+            hours += 12;
+        }
+        const minutes = Number(selectedMinute);
+        const now = new Date();
+        const selectedDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            hours,
+            minutes,
+            0,
+            0,
+        );
+        const nowAtMinute = new Date(now);
+        nowAtMinute.setSeconds(0, 0);
+        return selectedDate.getTime() < nowAtMinute.getTime();
+    }, [selectedHour, selectedMinute, selectedPeriod]);
 
     return (
         <Modal
@@ -237,12 +259,24 @@ export function TimePickerModal({
                         </View>
                     </View>
 
+                    {isPastSelection && (
+                        <Text style={styles.validationText}>
+                            Selected time is in the past. Pick a current or future time.
+                        </Text>
+                    )}
+
                     <View style={styles.buttonRow}>
                         <Pressable onPress={onCancel} style={styles.cancelButton}>
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </Pressable>
-                        <Pressable onPress={handleConfirm} style={styles.confirmButton}>
-                            <Text style={styles.confirmButtonText}>Confirm</Text>
+                        <Pressable
+                            onPress={handleConfirm}
+                            style={[styles.confirmButton, isPastSelection && styles.confirmButtonDisabled]}
+                            disabled={isPastSelection}
+                        >
+                            <Text style={[styles.confirmButtonText, isPastSelection && styles.confirmButtonTextDisabled]}>
+                                Confirm
+                            </Text>
                         </Pressable>
                     </View>
                 </View>
@@ -379,9 +413,21 @@ const styles = StyleSheet.create({
         backgroundColor: '#9d1e30',
         alignItems: 'center',
     },
+    confirmButtonDisabled: {
+        backgroundColor: '#D1D5DB',
+    },
     confirmButtonText: {
         fontSize: 16,
         fontWeight: '600',
         color: '#FFFFFF',
+    },
+    confirmButtonTextDisabled: {
+        color: '#6B7280',
+    },
+    validationText: {
+        marginTop: 8,
+        paddingHorizontal: 16,
+        fontSize: 12,
+        color: '#B91C1C',
     },
 });

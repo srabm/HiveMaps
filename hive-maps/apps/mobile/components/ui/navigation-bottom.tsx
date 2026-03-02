@@ -89,6 +89,11 @@ const formatMinutesUntil = (minutes: number) => {
     return m > 0 ? `in ${h} hr ${m} min` : `in ${h} hr`;
 };
 
+// In arrive-by mode, don't suggest shuttle options that would arrive far too early.
+// If the best shuttle would get you there way before the requested time, we prefer
+// showing the Transit fallback instead of misleading "available" shuttle rows.
+const MAX_ARRIVE_EARLY_BUFFER_MINUTES = 60;
+
 /**
  * When a custom timeFilter is active (more than 60 s away from real now), display
  * labels relative to the filter anchor so they are meaningful to the user.
@@ -370,8 +375,12 @@ export function NavigationBottom({
             // i.e. minutesFromFilter <= -(shuttleMinutes + walkFromMinutes)
             const postBoardMinutes =
                 (shuttleLegMetrics?.shuttleMinutes ?? 20) + (shuttleLegMetrics?.walkFromMinutes ?? 5);
+            const earliestAcceptableDepartureFromFilter =
+                -(postBoardMinutes + MAX_ARRIVE_EARLY_BUFFER_MINUTES);
             return shuttleScheduleContext.departures.filter(
-                (item) => item.minutesFromFilter <= -postBoardMinutes,
+                (item) =>
+                    item.minutesFromFilter <= -postBoardMinutes &&
+                    item.minutesFromFilter >= earliestAcceptableDepartureFromFilter,
             );
         }
 
@@ -380,6 +389,22 @@ export function NavigationBottom({
             (item) => item.minutesFromFilter >= walkMinutes,
         );
     }, [shuttleScheduleContext, shuttleLegMetrics, timeFilterMode]);
+
+    const showLastShuttleWarning = useMemo(() => {
+        if (selectedMode !== 'Shuttle') return false;
+        if (!shuttleScheduleContext?.departureTimes?.length) return false;
+        if (shuttleScheduleContext.isNextServiceDay) return false;
+        if (reachableDepartures.length === 0) return false;
+
+        const suggestedDeparture =
+            timeFilterMode === 'arrive'
+                ? reachableDepartures[reachableDepartures.length - 1]
+                : reachableDepartures[0];
+        const lastScheduledDepartureTime =
+            shuttleScheduleContext.departureTimes[shuttleScheduleContext.departureTimes.length - 1];
+
+        return suggestedDeparture.time === lastScheduledDepartureTime;
+    }, [selectedMode, shuttleScheduleContext, reachableDepartures, timeFilterMode]);
 
     // ── Full shuttle metrics including arrival label ───────────────────────────
     // Built AFTER reachableDepartures so the arrival label reflects the actual
@@ -434,7 +459,14 @@ export function NavigationBottom({
         (isSameCampus ||
             !shuttleScheduleContext?.schedule ||
             !!shuttleScheduleContext?.isNextServiceDay ||
-            (!shuttleMetrics && reachableDepartures.length === 0));
+            reachableDepartures.length === 0);
+
+    const showInlineShuttleMetrics =
+        selectedMode === 'Shuttle' &&
+        hideMetricsRow &&
+        !!shuttleMetrics &&
+        reachableDepartures.length > 0 &&
+        !shuttleScheduleContext?.isNextServiceDay;
 
     const activeDurationSeconds =
         selectedMode === 'Shuttle' && shuttleMetrics
@@ -517,7 +549,12 @@ export function NavigationBottom({
                             <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
                                 {selectedMode === 'Shuttle' ? activeArrivalTime : arriveLeaveDetails}
                             </Text>
-                            <Text style={styles.distanceText}>{distanceText}</Text>
+                            <View style={styles.distanceRow}>
+                                <Text style={styles.distanceText}>{distanceText}</Text>
+                                {selectedMode === 'Shuttle' && showLastShuttleWarning ? (
+                                    <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
+                                ) : null}
+                            </View>
                         </View>
 
                         <View style={[styles.metricCell, styles.startCell]}>
@@ -560,7 +597,7 @@ export function NavigationBottom({
                         onSameCampusRedirect={() => handleModeChange('Walk')}
                         noTopSpacing={hideMetricsRow}
                         inlineMetrics={
-                            hideMetricsRow && shuttleMetrics
+                            showInlineShuttleMetrics && shuttleMetrics
                                 ? {
                                       durationText: formatDuration(shuttleMetrics.totalDurationSeconds),
                                       distanceText: formatDistance(shuttleMetrics.totalDistanceMeters),
@@ -687,7 +724,9 @@ const styles = StyleSheet.create({
     durationValue: {fontSize: 20, fontWeight: '700', color: '#10B981'},
     durationUnit: {fontSize: 12, color: '#10B981', fontWeight: '600'},
     arrivalText: {fontSize: 13, color: '#111827', fontWeight: '600'},
-    distanceText: {fontSize: 12, color: '#6B7280', marginTop: 4},
+    distanceRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4},
+    distanceText: {fontSize: 12, color: '#6B7280'},
+    lastShuttleInlineWarning: {fontSize: 11, fontWeight: '700', color: '#B91C1C'},
     startButton: {
         backgroundColor: '#9d1e30',
         borderRadius: 12,

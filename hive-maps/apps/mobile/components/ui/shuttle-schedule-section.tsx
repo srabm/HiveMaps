@@ -43,9 +43,11 @@ export function ShuttleScheduleSection({
     const hasFallbackPress = onFallbackPress != null;
     const showTransitSuggestion =
         (!hasSchedule || showNextServiceLabel || departures.length === 0) && hasFallbackPress;
-    const suggestionText = hasSchedule
-        ? 'Not running today — need a ride now?'
-        : 'Service currently unavailable.';
+    const suggestionText = !hasSchedule
+        ? 'Service currently unavailable.'
+        : showNextServiceLabel
+            ? 'Not running today — need a ride now?'
+            : 'No more departures today — need a ride now?';
 
     // When the route is same-campus, only show the redirect banner and the
     // "See full schedule" button — no metrics, no route-specific departures.
