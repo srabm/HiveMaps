@@ -105,6 +105,85 @@ const pickDisplayMinutes = (
     isCustomFilter: boolean,
 ): number => (isCustomFilter ? item.minutesFromFilter : item.minutesUntil);
 
+type ShuttleLegMetrics = {
+    totalDistanceMeters: number;
+    walkMinutes: number;
+    shuttleMinutes: number;
+    walkFromMinutes: number;
+};
+
+type ShuttleMetrics = {
+    totalDurationSeconds: number;
+    totalDistanceMeters: number;
+    arrivalLabel: string;
+    walkMinutes: number;
+    shuttleMinutes: number;
+    walkFromMinutes: number;
+    totalTripMinutes: number;
+};
+
+type ShuttleScheduleContextLike = {
+    schedule?: unknown;
+    isNextServiceDay?: boolean;
+} | null;
+
+function computeDisplayState({
+    selectedMode,
+    isSameCampus,
+    shuttleScheduleContext,
+    reachableDeparturesLength,
+    shuttleMetrics,
+    directions,
+    arriveLeaveDetails,
+    showLastShuttleWarning,
+}: {
+    selectedMode: TransportModeLabel;
+    isSameCampus: boolean;
+    shuttleScheduleContext: ShuttleScheduleContextLike;
+    reachableDeparturesLength: number;
+    shuttleMetrics: ShuttleMetrics | null;
+    directions: DirectionsResponse | null;
+    arriveLeaveDetails: string;
+    showLastShuttleWarning: boolean;
+}) {
+    const isShuttleMode = selectedMode === 'Shuttle';
+
+    const hideMetricsRow =
+        isShuttleMode &&
+        (isSameCampus ||
+            !shuttleScheduleContext?.schedule ||
+            !!shuttleScheduleContext?.isNextServiceDay ||
+            reachableDeparturesLength === 0);
+
+    const showInlineShuttleMetrics =
+        isShuttleMode &&
+        hideMetricsRow &&
+        !!shuttleMetrics &&
+        reachableDeparturesLength > 0 &&
+        !shuttleScheduleContext?.isNextServiceDay;
+
+    const activeDurationSeconds =
+        isShuttleMode && shuttleMetrics
+            ? shuttleMetrics.totalDurationSeconds
+            : directions?.durationSeconds;
+    const activeDistanceMeters =
+        isShuttleMode && shuttleMetrics
+            ? shuttleMetrics.totalDistanceMeters
+            : directions?.distanceMeters;
+    const activeArrivalTime = isShuttleMode && shuttleMetrics ? shuttleMetrics.arrivalLabel : arriveLeaveDetails;
+    const displayedArrivalText = isShuttleMode ? activeArrivalTime : arriveLeaveDetails;
+    const showShuttleLastWarningInline = isShuttleMode && showLastShuttleWarning;
+
+    return {
+        hideMetricsRow,
+        showInlineShuttleMetrics,
+        activeDurationSeconds,
+        activeDistanceMeters,
+        displayedArrivalText,
+        showShuttleLastWarningInline,
+    };
+}
+
 export function NavigationBottom({
     origin,
     destination,
@@ -341,7 +420,7 @@ export function NavigationBottom({
 
     // ── Leg-based routing metrics (distance / walk segments) ──────────────────
     // Computed independently of reachableDepartures to avoid a circular dep.
-    const shuttleLegMetrics = useMemo(() => {
+    const shuttleLegMetrics = useMemo<ShuttleLegMetrics | null>(() => {
         if (selectedMode !== 'Shuttle') return null;
         const {walkToStop, shuttleLeg, walkFromStop} = shuttleRouting;
         if (!walkToStop || !shuttleLeg || !walkFromStop) return null;
@@ -414,7 +493,7 @@ export function NavigationBottom({
     // Arrive by 9:31 AM" anchored to Monday's first departure at 7 AM Saturday
     // is technically correct math but deeply misleading. In that state the card
     // shows only the Transit redirect + the next-day schedule list.
-    const shuttleMetrics = useMemo(() => {
+    const shuttleMetrics = useMemo<ShuttleMetrics | null>(() => {
         if (selectedMode !== 'Shuttle' || !shuttleLegMetrics) return null;
         if (shuttleScheduleContext?.isNextServiceDay) return null;
         const {totalDistanceMeters, walkMinutes, shuttleMinutes, walkFromMinutes} = shuttleLegMetrics;
@@ -448,36 +527,36 @@ export function NavigationBottom({
         return {totalDurationSeconds, totalDistanceMeters, arrivalLabel, walkMinutes, shuttleMinutes, walkFromMinutes, totalTripMinutes};
     }, [selectedMode, shuttleLegMetrics, reachableDepartures, timeFilterMode]);
 
-    // ── Metrics-row visibility ────────────────────────────────────────────────
-    // Hide the top metrics row when:
-    //  • same-campus (redirect banner handles UI), OR
-    //  • schedule unavailable entirely, OR
-    //  • shuttle not running today (next-service-day) — show Transit redirect instead, OR
-    //  • no reachable departures and routing hasn't resolved yet.
-    const hideMetricsRow =
-        selectedMode === 'Shuttle' &&
-        (isSameCampus ||
-            !shuttleScheduleContext?.schedule ||
-            !!shuttleScheduleContext?.isNextServiceDay ||
-            reachableDepartures.length === 0);
-
-    const showInlineShuttleMetrics =
-        selectedMode === 'Shuttle' &&
-        hideMetricsRow &&
-        !!shuttleMetrics &&
-        reachableDepartures.length > 0 &&
-        !shuttleScheduleContext?.isNextServiceDay;
-
-    const activeDurationSeconds =
-        selectedMode === 'Shuttle' && shuttleMetrics
-            ? shuttleMetrics.totalDurationSeconds
-            : directions?.durationSeconds;
-    const activeDistanceMeters =
-        selectedMode === 'Shuttle' && shuttleMetrics
-            ? shuttleMetrics.totalDistanceMeters
-            : directions?.distanceMeters;
-    const activeArrivalTime =
-        selectedMode === 'Shuttle' && shuttleMetrics ? shuttleMetrics.arrivalLabel : arriveLeaveDetails;
+    const {
+        hideMetricsRow,
+        showInlineShuttleMetrics,
+        activeDurationSeconds,
+        activeDistanceMeters,
+        displayedArrivalText,
+        showShuttleLastWarningInline,
+    } = useMemo(
+        () =>
+            computeDisplayState({
+                selectedMode,
+                isSameCampus,
+                shuttleScheduleContext,
+                reachableDeparturesLength: reachableDepartures.length,
+                shuttleMetrics,
+                directions,
+                arriveLeaveDetails,
+                showLastShuttleWarning,
+            }),
+        [
+            selectedMode,
+            isSameCampus,
+            shuttleScheduleContext,
+            reachableDepartures.length,
+            shuttleMetrics,
+            directions,
+            arriveLeaveDetails,
+            showLastShuttleWarning,
+        ],
+    );
 
     const durationText = formatDuration(activeDurationSeconds);
     const distanceText = formatDistance(activeDistanceMeters);
@@ -547,11 +626,11 @@ export function NavigationBottom({
 
                         <View style={[styles.metricCell, styles.middleCell]}>
                             <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                                {selectedMode === 'Shuttle' ? activeArrivalTime : arriveLeaveDetails}
+                                {displayedArrivalText}
                             </Text>
                             <View style={styles.distanceRow}>
                                 <Text style={styles.distanceText}>{distanceText}</Text>
-                                {selectedMode === 'Shuttle' && showLastShuttleWarning ? (
+                                {showShuttleLastWarningInline ? (
                                     <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
                                 ) : null}
                             </View>
