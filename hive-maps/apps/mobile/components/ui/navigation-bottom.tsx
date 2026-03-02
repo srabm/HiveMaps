@@ -261,7 +261,6 @@ export function NavigationBottom({
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [timeFilter, setTimeFilter] = useState(getCurrentTimeISO());
     const [timePickerVisible, setTimePickerVisible] = useState(false);
     const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>('depart');
@@ -288,12 +287,10 @@ export function NavigationBottom({
         let timeoutId: ReturnType<typeof setTimeout>;
 
         const fetchDirections = async () => {
-            setIsLoading(true);
             setDirections(null);
             setShowScheduleModal(false);
 
             if (selectedMode === 'Shuttle') {
-                setIsLoading(false);
                 return;
             }
 
@@ -314,8 +311,6 @@ export function NavigationBottom({
                 if (!active) return;
                 setDirections(null);
                 console.warn('Failed to load directions', err);
-            } finally {
-                if (active) setIsLoading(false);
             }
         };
 
