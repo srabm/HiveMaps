@@ -41,13 +41,16 @@ export function ShuttleScheduleSection({
     inlineMetrics,
 }: Readonly<ShuttleScheduleSectionProps>) {
     const hasFallbackPress = onFallbackPress != null;
+    const isServiceUnavailable = hasSchedule === false;
     const showTransitSuggestion =
-        (!hasSchedule || showNextServiceLabel || departures.length === 0) && hasFallbackPress;
+        (isServiceUnavailable || showNextServiceLabel || departures.length === 0) && hasFallbackPress;
     let suggestionText = 'No more departures today — need a ride now?';
-    if (!hasSchedule) {
+    if (hasSchedule) {
+        if (showNextServiceLabel) {
+            suggestionText = 'Not running today — need a ride now?';
+        }
+    } else {
         suggestionText = 'Service currently unavailable.';
-    } else if (showNextServiceLabel) {
-        suggestionText = 'Not running today — need a ride now?';
     }
 
     // When the route is same-campus, only show the redirect banner and the
