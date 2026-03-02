@@ -34,7 +34,8 @@ export function TimePickerModal({
 
     const parseInitialTime = () => {
         const readableTime = formatISOToTime(initialTime);
-        const match = readableTime.match(/(\d+):(\d+)\s(AM|PM)/);
+        const timeRegex = /(\d+):(\d+)\s(AM|PM)/;
+        const match = timeRegex.exec(readableTime);
         if (match) {
             return {
                 hour: match[1].padStart(2, '0'),
