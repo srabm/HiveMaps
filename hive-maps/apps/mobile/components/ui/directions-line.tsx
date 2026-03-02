@@ -12,6 +12,8 @@ interface DirectionsDisplayProps {
     lineColor?: string;
     lineWidth?: number;
     infoCardPosition?: 'top' | 'bottom';
+    showInfoCard?: boolean;
+    lineDasharray?: number[];
 }
 
 /**
@@ -69,6 +71,8 @@ export function DirectionsLine({
                                    lineColor = '#e5a712',
                                    lineWidth = 10,
                                    infoCardPosition = 'bottom',
+                                   showInfoCard = true,
+                                   lineDasharray,
                                }: DirectionsDisplayProps) {
     const coordinates = useMemo(
         () => decodePolyline(directions.polyline),
@@ -122,6 +126,7 @@ export function DirectionsLine({
                         lineWidth,
                         lineCap: 'round',
                         lineJoin: 'round',
+                        ...(lineDasharray ? {lineDasharray} : {}),
                     }}
                 />
             </MapboxGL.ShapeSource>
@@ -138,26 +143,28 @@ export function DirectionsLine({
                 />
             </MapboxGL.ShapeSource>
 
-            <View
-                style={[
-                    styles.infoCard,
-                    infoCardPosition === 'top' ? styles.infoCardTop : styles.infoCardBottom,
-                ]}
-            >
-                <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Distance</Text>
-                    <Text style={styles.infoValue}>
-                        {formatDistance(directions.distanceMeters)}
-                    </Text>
+            {showInfoCard && (
+                <View
+                    style={[
+                        styles.infoCard,
+                        infoCardPosition === 'top' ? styles.infoCardTop : styles.infoCardBottom,
+                    ]}
+                >
+                    <View style={styles.infoItem}>
+                        <Text style={styles.infoLabel}>Distance</Text>
+                        <Text style={styles.infoValue}>
+                            {formatDistance(directions.distanceMeters)}
+                        </Text>
+                    </View>
+                    <View style={styles.divider}/>
+                    <View style={styles.infoItem}>
+                        <Text style={styles.infoLabel}>Duration</Text>
+                        <Text style={styles.infoValue}>
+                            {formatDuration(directions.durationSeconds)}
+                        </Text>
+                    </View>
                 </View>
-                <View style={styles.divider}/>
-                <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Duration</Text>
-                    <Text style={styles.infoValue}>
-                        {formatDuration(directions.durationSeconds)}
-                    </Text>
-                </View>
-            </View>
+            )}
         </>
     );
 }
