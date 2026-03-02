@@ -73,7 +73,7 @@ export function DirectionsLine({
                                    infoCardPosition = 'bottom',
                                    showInfoCard = true,
                                    lineDasharray,
-                               }: DirectionsDisplayProps) {
+                               }: Readonly<DirectionsDisplayProps>) {
     const coordinates = useMemo(
         () => decodePolyline(directions.polyline),
         [directions.polyline],

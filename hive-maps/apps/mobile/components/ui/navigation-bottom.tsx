@@ -257,7 +257,7 @@ export function NavigationBottom({
     onModeChange,
     onTimeFilterChange,
     initialMode = 'Drive',
-}: NavigationBottomProps) {
+}: Readonly<NavigationBottomProps>) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
