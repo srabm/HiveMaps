@@ -590,6 +590,7 @@ export default function MapScreen() {
         building={selectedBuilding}
         onClose={() => setSelectedBuilding(null)}
         
+
         onIndoorMap={() => {
         if (selectedBuilding?.code) {
             setSelectedBuilding(null);
