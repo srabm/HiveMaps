@@ -41,8 +41,8 @@ export function formatTimeToISO(timeString: string): string {
         if (!match) return toISOString(new Date());
 
         const [, hourStr, minuteStr, period] = match;
-        let hours = parseInt(hourStr, 10);
-        const minutes = parseInt(minuteStr, 10);
+        let hours = Number.parseInt(hourStr, 10);
+        const minutes = Number.parseInt(minuteStr, 10);
 
         if (period === 'PM' && hours !== 12) {
             hours += 12;
