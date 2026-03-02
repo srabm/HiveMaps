@@ -30,7 +30,7 @@ export const campuses: Record<CampusId, CampusMeta> = {
     label: 'LOYOLA',
     name: 'LOYOLA',
     center: [-73.6406, 45.4583],
-    zoom: 16.0,
+    zoom: 16,
   },
 };
 

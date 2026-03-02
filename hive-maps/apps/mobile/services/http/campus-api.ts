@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 
-import { CampusId, type Building } from '@/constants/campus';
+import { CampusId } from '@/constants/campus';
 
 export type CampusResponse = {
   id: CampusId;
