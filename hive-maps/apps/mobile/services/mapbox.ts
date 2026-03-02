@@ -148,7 +148,9 @@ class MapboxMapsAdapter implements MapsProviderPort {
       if(!res.ok) return null;
       const json = await res.json();
       if(!json) return null;
-      const[lon,lat] = json?.features?.[0]?.geometry.coordinates;
+      const coordinates = json?.features?.[0]?.geometry?.coordinates;
+      if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+      const [lon,lat] = coordinates;
       return [lon,lat];}
 
     catch(error){
