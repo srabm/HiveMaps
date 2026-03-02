@@ -317,11 +317,11 @@ export default function MapScreen() {
                     images={{
                         honeycomb: {
                             uri: Image.resolveAssetSource(HONEYCOMB_IMAGE).uri,
-                            scale: 10.0
+                            scale: 10
                         },
                         bee: {
                             uri: Image.resolveAssetSource(BEE_IMAGE).uri,
-                            scale: 1.0,
+                            scale: 1,
                         },
                     }}
                 />
@@ -378,7 +378,7 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-base"
                             style={{
                                 fillPattern: 'honeycomb',
-                                fillOpacity: 1.0,
+                                fillOpacity: 1,
                             }}
                         />
 
