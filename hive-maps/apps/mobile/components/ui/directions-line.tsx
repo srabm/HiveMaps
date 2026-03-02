@@ -79,42 +79,58 @@ export function DirectionsLine({
         [directions.polyline],
     );
 
-    if (!coordinates.length) return null;
-
     const featureCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    geometry: {type: 'LineString' as const, coordinates},
-                    properties: {},
-                },
-            ],
-        }),
+        () => {
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        geometry: {type: 'LineString' as const, coordinates},
+                        properties: {},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
 
     const endpointsCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    id: 'start-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[0]},
-                    properties: {type: 'start'},
-                },
-                {
-                    type: 'Feature' as const,
-                    id: 'end-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
-                    properties: {type: 'end'},
-                },
-            ],
-        }),
+        () => {
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        id: 'start-point',
+                        geometry: {type: 'Point' as const, coordinates: coordinates[0]},
+                        properties: {type: 'start'},
+                    },
+                    {
+                        type: 'Feature' as const,
+                        id: 'end-point',
+                        geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
+                        properties: {type: 'end'},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
+
+    if (!coordinates.length) return null;
 
     return (
         <>
