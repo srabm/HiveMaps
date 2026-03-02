@@ -46,7 +46,7 @@ export function BuildingInfoModal({
   onDirections,
   onStart,
   onFavorite,
-}: BuildingInfoModalProps) {
+}: Readonly<BuildingInfoModalProps>) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const noop = () => {};
