@@ -140,17 +140,16 @@ export default function MapScreen() {
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
     useEffect(() => {
-        if (!directions || !routeValidation || !routeValidation.valid) return;
-        if (!cameraRef.current) return;
+        if (!directions || !routeValidation?.valid) return;
         const {route} = routeValidation;
         const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
         if (bounds.bounds) {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
                 animationDuration: bounds.animationDuration,
             });
         } else {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 centerCoordinate: bounds.centerCoordinate,
                 zoomLevel: bounds.zoomLevel,
                 animationDuration: bounds.animationDuration,
@@ -159,8 +158,7 @@ export default function MapScreen() {
     }, [directions, routeValidation]);
 
     useEffect(() => {
-        if (!cameraRef.current) return;
-        cameraRef.current.setCamera({
+        cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
             animationDuration: 800,
