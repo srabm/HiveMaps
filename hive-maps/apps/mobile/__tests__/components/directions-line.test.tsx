@@ -25,7 +25,7 @@ const mockLineLayer = jest.fn(({style}: any) => {
     const {View} = require('react-native');
     return <View testID="line-layer" style={style} />;
 });
-const mockCircleLayer = jest.fn(() => null);
+const mockCircleLayer = jest.fn((_props?: any) => null);
 
 //mock MapboxGL but the native map components can't render in tests
 jest.mock('@/services/mapbox', () => ({
