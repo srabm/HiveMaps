@@ -37,7 +37,8 @@ export function formatISOToTime(isoString: string): string {
  */
 export function formatTimeToISO(timeString: string): string {
     try {
-        const match = timeString.match(/(\d+):(\d+)\s(AM|PM)/);
+        const timePattern = /(\d+):(\d+)\s(AM|PM)/;
+        const match = timePattern.exec(timeString);
         if (!match) return toISOString(new Date());
 
         const [, hourStr, minuteStr, period] = match;
