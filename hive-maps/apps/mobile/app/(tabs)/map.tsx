@@ -31,6 +31,27 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
 
+type BuildingOpeningHours = {
+    weekdayDescription?: string[];
+    weekdayDescriptions?: string[];
+};
+
+type BuildingDetails = {
+    nationalPhoneNumber?: string;
+    websiteUri?: string;
+    regularOpeningHours?: BuildingOpeningHours;
+};
+
+type SelectedBuilding = {
+    name?: string;
+    addresses?: string[];
+    coordinates?: Coordinates;
+    phone?: string;
+    website?: string;
+    hours?: string;
+    allHours?: string[];
+} & Record<string, unknown>;
+
 export default function MapScreen() {
     const {
         campus,
@@ -51,7 +72,7 @@ export default function MapScreen() {
     const [timeFilter, setTimeFilter] = useState(() => new Date().toISOString());
     const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
+    const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
 
   const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
@@ -328,7 +349,7 @@ export default function MapScreen() {
               console.log('Pressed feature:', f);
 
               const point = points.find(p => p.id === f.properties?.id);
-              const details = point?.details as any;
+              const details = point?.details as BuildingDetails | undefined;
 
               setSelectedBuilding({
                 ...f.properties,
