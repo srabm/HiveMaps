@@ -238,7 +238,7 @@ export default function IndoorMapScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
+      {Stack?.Screen ? <Stack.Screen options={{ headerShown: false }} /> : null}
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
