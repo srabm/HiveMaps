@@ -121,7 +121,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 
 -- Vanier Library BUILDING (VL) FLOOR 2 --
 ('VL_Elevator_5', 'Elevator', true, '2', 'VL', -73.63865308463575, 45.45923469031796),
-('VL297-1_1', 'Room', true, '2', 'VL', -73.63863766193391, 45.459248797956874), TODO: fix duplicate
+('VL297-1_1', 'Room', true, '2', 'VL', -73.63863766193391, 45.459248797956874), 
 ('VL240', 'Room', true, '2', 'VL', -73.63860312849285, 45.459254195091404),
 ('VL296', 'Room', true, '2', 'VL', -73.638566583395, 45.45927958883013),
 ('VL201-1', 'Room', true, '2', 'VL', -73.6386524140835, 45.459218715474286),
@@ -141,7 +141,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VL294', 'Room', true, '2', 'VL', -73.63825142383577, 45.45893141856234),
 ('VL_Elevator_1', 'Elevator', true, '2', 'VL', -73.63829970359804, 45.45882608084696),
 ('VL_Elevator_2', 'Elevator', true, '2', 'VL', -73.63823834806682, 45.458952249954194),
-('VL_J1', 'Junction', true, '2', 'VL', -73.63873958587648, 45.45917030152818), TODO: fix duplicate
+('VL_J1', 'Junction', true, '2', 'VL', -73.63873958587648, 45.45917030152818),
 ('VL_J2', 'Junction', true, '2', 'VL', -73.63884150981904, 45.459032986834885),
 ('VL_J3', 'Junction', true, '2', 'VL', -73.6387623846531, 45.45898784220514),
 ('VL_J4', 'Junction', true, '2', 'VL', -73.63882809877397, 45.4589060174716),
