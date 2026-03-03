@@ -224,7 +224,7 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('VL1-E58', 'E58', true, 'VL1_J10', 'VL1.195', 'VL', 2.289885215493026),
 ('VL1-E59', 'E59', true, 'VL1.J9', 'VL1.195', 'VL', 1.5358393959389456),
 ('VL1-E60', 'E60', true, 'VL1.195', 'VL1.J9', 'VL', 1.5358393959389456),
--- ('VL1-E61', 'E61', true, 'VL1_J13', 'VL1_J1', 'VL', 5.391460025420685), TODO: fix unknown node VL_J1
+-- ('VL1-E61', 'E61', true, 'VL1_J13', 'VL1_J1', 'VL', 5.391460025420685), TODO: fix unknown node VL1_J1
 -- ('VL1-E62', 'E62', true, 'VL1_J1', 'VL1_J13', 'VL', 5.391460025420685),
 ('VL1-E63', 'E63', true, 'VL1_J11', 'VL1_J12', 'VL', 3.6032704479664814),
 ('VL1-E64', 'E64', true, 'VL1_J12', 'VL1_J11', 'VL', 3.6032704479664814),

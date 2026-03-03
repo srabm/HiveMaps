@@ -1,4 +1,5 @@
 INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat) VALUES
+
 -- Webster Library BUILDING (LB) FLOOR 2 --
 ('LB2_stairs_1', 'Stairs', true, '2', 'LB', -73.57829332351686, 45.496926531247134),
 ('LB2_stairs_2', 'Stairs', true, '2', 'LB', -73.5776871442795, 45.496637865618624),
@@ -99,7 +100,6 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('LB3_J70', 'LB3_J70', true, '3', 'LB', -73.57827052474023, 45.496597973436366),
 
 -- Webster Library BUILDING (LB) FLOOR 4 --
-
 ('LB4.424', 'Male Washroom', true, '4', 'LB', -73.57795402407648, 45.49658319365308),
 ('LB4.426', 'Female Washroom', true, '4', 'LB', -73.57792720198633, 45.496570969982585),
 ('LB4_stairs_2', 'Stairs', true, '4', 'LB', -73.57768513262272, 45.496630867710536),
@@ -208,6 +208,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 
 
 INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
+
 -- Webster Library BUILDING (LB) FLOOR 2 --
 ('LB2-E1', 'E1', true, 'LB2_J1', 'LB2_J17', 'LB', 15.194069973127315),
 ('LB2-E2', 'E2', true, 'LB2_J17', 'LB2_J1', 'LB', 15.194069973127315),
@@ -347,7 +348,6 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB2-E136', 'E136', true, 'LB2_stairs_1', 'LB2_J20', 'LB', 13.532089912240197),
 
 -- Webster Library BUILDING (LB) FLOOR 3 --
-
 ('LB3-E1', 'E1', true, 'LB3.316', 'LB3_J2', 'LB', 2.107919789941514),
 ('LB3-E2', 'E2', true, 'LB3_J2', 'LB3.316', 'LB', 2.107919789941514),
 ('LB3-E3', 'E3', true, 'LB3_J4', 'LB3_J2', 'LB', 5.9471728266935555),
@@ -558,7 +558,6 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB3-E208', 'E208', true, 'LB3.J1', 'LB3_J3', 'LB', 17.604967282808353),
 
 -- Webster Library BUILDING (LB) FLOOR 4 --
-
 ('LB4-E1', 'E1', true, 'LB4_J12', 'LB4_J11', 'LB', 3.921349168616476),
 ('LB4-E2', 'E2', true, 'LB4_J11', 'LB4_J12', 'LB', 3.921349168616476),
 ('LB4-E3', 'E3', true, 'LB4_J11', 'LB4_J10', 'LB', 2.4365301652865057),
@@ -713,7 +712,6 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB4-E152', 'E152', true, 'LB4_J26', 'LB4.461_2', 'LB', 4.754422314765754),
 
 -- Webster Library BUILDING (LB) FLOOR 5 --
-
 ('LB5-E1', 'E1', true, 'LB5_J1', 'LB5_J2', 'LB', 10.250834238829528),
 ('LB5-E2', 'E2', true, 'LB5_J2', 'LB5_J1', 'LB', 10.250834238829528),
 ('LB5-E3', 'E3', true, 'LB5_J2', 'LB5_J3', 'LB', 22.763160094215785),
