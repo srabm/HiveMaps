@@ -1,5 +1,11 @@
 INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat) VALUES
 
+-- VANIER EXTENSION (VE) FLOOR 1 --
+('VE-1.193', 'VE-1.193', true, '1', 'VE', -73.63848615190881, 45.45868534793224),
+('VE-1.127-3', 'VE-1.127-3', true, '1', 'VE', -73.63865846111999, 45.45873682516396),
+('VE-1.127-2', 'VE-1.127-2', true, '1', 'VE', -73.63864505184284, 45.45873165393733),
+('VE1_J1', 'VE1_J1', true, '1', 'VE', -73.63864773369828, 45.45874035100001),
+
 -- VANIER EXTENSION (VE) FLOOR 2 --
 ('VE228-4_1', 'VE228-4_1', true, '2', 'VE', -73.63838010454029, 45.4588045720822),
 ('VE228-7', 'VE228-7', true, '2', 'VE', -73.6383941936755, 45.45876338933619),
@@ -79,11 +85,19 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 
 INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
 
+-- VANIER EXTENSION (VE) FLOOR 1 --
+('VE2-E1', 'VE2-E1', true, 'VE-1.127-3', 'VE1_J1', 'VE', 0.9239821967973109),
+('VE2-E2', 'VE2-E2', true, 'VE1_J1', 'VE-1.127-3', 'VE', 0.9239821967973109),
+('VE2-E3', 'VE2-E3', true, 'VE1_J1', 'VE-1.127-2', 'VE', 0.9894317446565765),
+('VE2-E4', 'VE2-E4', true, 'VE-1.127-2', 'VE1_J1', 'VE', 0.9894317446565765),
+('VE2-E5', 'VE2-E5', true, 'VE-1.193', 'VE1_J1', 'VE', 14.008202695620803),
+('VE2-E6', 'VE2-E6', true, 'VE1_J1', 'VE-1.193', 'VE', 14.008202695620803),
+
 -- VANIER EXTENSION (VE) FLOOR 2 --
 ('VE2-E1', 'VE2-E1', true, 'VE228-3', 'VE2_J1', 'VE', 0.8377215514096766),
 ('VE2-E2', 'VE2-E2', true, 'VE2_J1', 'VE228-3', 'VE', 0.8377215514096766),
--- ('VE2-E3', 'VE2-E3', true, 'VE2_J1', 'VE228-4', 'VE', 2.8222956316183696), TODO: fix unknown node VE228-4
--- ('VE2-E4', 'VE2-E4', true, 'VE228-4', 'VE2_J1', 'VE', 2.8222956316183696),
+('VE2-E3', 'VE2-E3', true, 'VE2_J1', 'VE228-4_1', 'VE', 2.8222956316183696),
+('VE2-E4', 'VE2-E4', true, 'VE228-4_1', 'VE2_J1', 'VE', 2.8222956316183696),
 ('VE2-E5', 'VE2-E5', true, 'VE228-2', 'VE2_J2', 'VE', 0.7218081784209835),
 ('VE2-E6', 'VE2-E6', true, 'VE2_J2', 'VE228-2', 'VE', 0.7218081784209835),
 ('VE2-E7', 'VE2-E7', true, 'VE228-1', 'VE2_J2', 'VE', 0.8178017685684621),
