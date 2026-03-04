@@ -117,6 +117,42 @@ describe('Indoor building screen', () => {
     expect(getByText('RoomCount:1')).toBeTruthy();
   });
 
+  it('uses the first non-empty floor value from an array query param', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ building: 'H', floor: ['', '2'] });
+    mockFetchBuildingFloors.mockResolvedValue([
+      { id: '1', label: 'L1', sortOrder: 1 },
+      { id: '2', label: 'L2', sortOrder: 2 },
+    ]);
+    mockFetchFloorDetails.mockResolvedValue(makeFloorDetails('2', 'L2'));
+
+    const { getByTestId, getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
+    });
+
+    expect(getByTestId('floor-chip-2-active')).toBeTruthy();
+    expect(getByText('Current floor: L2')).toBeTruthy();
+  });
+
+  it('matches a requested floor by label when the floor id differs', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ building: 'H', floor: 'Mezzanine' });
+    mockFetchBuildingFloors.mockResolvedValue([
+      { id: 'M', label: 'Mezzanine', sortOrder: 2 },
+      { id: '1', label: 'L1', sortOrder: 1 },
+    ]);
+    mockFetchFloorDetails.mockResolvedValue(makeFloorDetails('M', 'Mezzanine'));
+
+    const { getByTestId, queryByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', 'M');
+    });
+
+    expect(getByTestId('floor-chip-M-active')).toBeTruthy();
+    expect(queryByText('Floor Mezzanine is unavailable.')).toBeNull();
+  });
+
   it('shows unsupported-building message when building code is invalid', async () => {
     mockUseLocalSearchParams.mockReturnValue({ building: 'UNKNOWN' });
     mockNormalizeIndoorBuildingCode.mockReturnValue(null);
@@ -143,6 +179,27 @@ describe('Indoor building screen', () => {
     expect(queryByText('This building does not currently support indoor maps.')).toBeNull();
     expect(mockFetchBuildingFloors).not.toHaveBeenCalled();
     expect(mockFetchFloorDetails).not.toHaveBeenCalled();
+  });
+
+  it('prefers the campus query param when a building exists on multiple campuses', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ building: 'CC', campus: ['loy', 'sgw'] });
+    mockNormalizeIndoorBuildingCode.mockImplementation((value: string | null | undefined) => {
+      if (!value) return null;
+      return String(value).trim().toUpperCase();
+    });
+    mockFetchSupportedIndoorBuildings.mockResolvedValue([
+      { campusId: 'SGW', buildingCode: 'CC' },
+      { campusId: 'LOY', buildingCode: 'CC' },
+    ]);
+    mockFetchBuildingFloors.mockResolvedValue([{ id: '1', label: 'L1', sortOrder: 1 }]);
+    mockFetchFloorDetails.mockResolvedValue(makeFloorDetails('1', 'L1'));
+
+    render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchBuildingFloors).toHaveBeenCalledWith('LOY', 'CC');
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('LOY', 'CC', '1');
+    });
   });
 
   it('falls back to default floor for an invalid floor query and shows notice', async () => {
@@ -264,6 +321,27 @@ describe('Indoor building screen', () => {
 
     await waitFor(() => {
       expect(mockFetchBuildingFloors).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('retry after metadata lookup failure re-fetches supported buildings', async () => {
+    mockFetchSupportedIndoorBuildings
+      .mockRejectedValueOnce(new Error('metadata down'))
+      .mockResolvedValueOnce([{ campusId: 'SGW', buildingCode: 'H' }]);
+    mockFetchBuildingFloors.mockResolvedValue([{ id: '1', label: 'L1', sortOrder: 1 }]);
+    mockFetchFloorDetails.mockResolvedValue(makeFloorDetails('1', 'L1'));
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Could not load indoor building metadata. Please try again.')).toBeTruthy();
+    });
+
+    fireEvent.press(getByText('Retry'));
+
+    await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalledTimes(2);
+      expect(mockFetchBuildingFloors).toHaveBeenCalledWith('SGW', 'H');
     });
   });
 

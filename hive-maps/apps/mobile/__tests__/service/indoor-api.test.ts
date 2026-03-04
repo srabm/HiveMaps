@@ -6,6 +6,7 @@ import {
 } from '@/services/http/indoor-api';
 
 jest.mock('@/services/http/campus-api', () => ({
+  ...jest.requireActual('@/services/http/campus-api'),
   getApiBaseUrl: () => 'http://api.test',
 }));
 
@@ -61,6 +62,20 @@ describe('indoor-api', () => {
     expect(result.map((floor) => floor.id)).toEqual(['1', '2']);
   });
 
+  it('fetchBuildingFloors URL-encodes campus and building values', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    await fetchBuildingFloors('SGW WEST', 'H/1');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/campuses/SGW%20WEST/buildings/H%2F1/floors',
+      expect.any(Object),
+    );
+  });
+
   it('fetchFloorDetails returns null for 404 and throws for other errors', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: false,
@@ -97,5 +112,143 @@ describe('indoor-api', () => {
       'http://api.test/api/campuses/SGW/buildings/H/floors/S2',
       expect.any(Object),
     );
+  });
+});
+
+describe('campus-api', () => {
+  function loadCampusApi(): typeof import('@/services/http/campus-api') {
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'http://api.test';
+    jest.resetModules();
+    let campusApi!: typeof import('@/services/http/campus-api');
+
+    jest.isolateModules(() => {
+      jest.unmock('@/services/http/campus-api');
+      campusApi = require('@/services/http/campus-api');
+    });
+
+    return campusApi;
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn() as jest.Mock;
+  });
+
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+  });
+
+  it('fetchCampuses maps backend center objects to tuple coordinates', async () => {
+    const { fetchCampuses } = loadCampusApi();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([
+        {
+          id: 'LOY',
+          label: 'Loyola',
+          name: 'Loyola Campus',
+          center: { lon: -73.6406, lat: 45.4583 },
+          zoom: 16,
+        },
+      ]),
+    });
+
+    await expect(fetchCampuses()).resolves.toEqual([
+      {
+        id: 'LOY',
+        label: 'Loyola',
+        name: 'Loyola Campus',
+        center: [-73.6406, 45.4583],
+        zoom: 16,
+      },
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/campuses',
+      expect.any(Object),
+    );
+  });
+
+  it('fetchBuildings maps backend buildings and defaults hasIndoorMap to false', async () => {
+    const { fetchBuildings } = loadCampusApi();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([
+        {
+          campus: 'SGW',
+          code: 'H',
+          name: 'Hall Building',
+          location: { type: 'Polygon', coordinates: [] },
+          addresses: ['1455 De Maisonneuve Blvd W'],
+          center: { lon: -73.5788, lat: 45.4972 },
+        },
+        {
+          campus: 'LOY',
+          code: 'CC',
+          name: 'CC Building',
+          addresses: ['7141 Sherbrooke St W'],
+          center: { lon: -73.6406, lat: 45.4583 },
+          hasIndoorMap: true,
+        },
+      ]),
+    });
+
+    await expect(fetchBuildings('SGW')).resolves.toEqual([
+      {
+        campus: 'SGW',
+        code: 'H',
+        name: 'Hall Building',
+        location: { type: 'Polygon', coordinates: [] },
+        addresses: ['1455 De Maisonneuve Blvd W'],
+        center: [-73.5788, 45.4972],
+        hasIndoorMap: false,
+      },
+      {
+        campus: 'LOY',
+        code: 'CC',
+        name: 'CC Building',
+        addresses: ['7141 Sherbrooke St W'],
+        center: [-73.6406, 45.4583],
+        hasIndoorMap: true,
+      },
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/campuses/SGW/buildings',
+      expect.any(Object),
+    );
+  });
+
+  it('searchPlaceByAddress posts the address payload and returns the place id', async () => {
+    const { searchPlaceByAddress } = loadCampusApi();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      json: jest.fn().mockResolvedValue({ placeId: 'place-123' }),
+    });
+
+    await expect(searchPlaceByAddress('1455 De Maisonneuve Blvd W')).resolves.toBe('place-123');
+
+    expect(global.fetch).toHaveBeenCalledWith('http://api.test/api/places/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: '1455 De Maisonneuve Blvd W' }),
+    });
+  });
+
+  it('fetchPlaceDetails returns the backend details payload', async () => {
+    const { fetchPlaceDetails } = loadCampusApi();
+    const details = {
+      nationalPhoneNumber: '+1 514-000-0000',
+      websiteUri: 'https://example.org',
+    };
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      json: jest.fn().mockResolvedValue(details),
+    });
+
+    await expect(fetchPlaceDetails('place-123')).resolves.toEqual(details);
+    expect(global.fetch).toHaveBeenCalledWith('http://api.test/api/places/place-123');
   });
 });
