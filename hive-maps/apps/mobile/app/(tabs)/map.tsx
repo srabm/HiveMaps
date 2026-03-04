@@ -31,14 +31,33 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
 
+type BuildingOpeningHours = {
+    weekdayDescription?: string[];
+    weekdayDescriptions?: string[];
+};
+
+type BuildingDetails = {
+    nationalPhoneNumber?: string;
+    websiteUri?: string;
+    regularOpeningHours?: BuildingOpeningHours;
+};
+
+type SelectedBuilding = {
+    name?: string;
+    addresses?: string[];
+    coordinates?: Coordinates;
+    phone?: string;
+    website?: string;
+    hours?: string;
+    allHours?: string[];
+} & Record<string, unknown>;
+
 export default function MapScreen() {
     const {
         campus,
         setCampus,
         hydrated,
         points,
-        loading,
-        progress,
         campusMeta,
         tokenAvailable,
         mapsAdapter,
@@ -53,7 +72,7 @@ export default function MapScreen() {
     const [timeFilter, setTimeFilter] = useState(() => new Date().toISOString());
     const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
+    const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
 
   const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
@@ -142,17 +161,16 @@ export default function MapScreen() {
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
     useEffect(() => {
-        if (!directions || !routeValidation || !routeValidation.valid) return;
-        if (!cameraRef.current) return;
+        if (!directions || !routeValidation?.valid) return;
         const {route} = routeValidation;
         const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
         if (bounds.bounds) {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
                 animationDuration: bounds.animationDuration,
             });
         } else {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 centerCoordinate: bounds.centerCoordinate,
                 zoomLevel: bounds.zoomLevel,
                 animationDuration: bounds.animationDuration,
@@ -161,8 +179,7 @@ export default function MapScreen() {
     }, [directions, routeValidation]);
 
     useEffect(() => {
-        if (!cameraRef.current) return;
-        cameraRef.current.setCamera({
+        cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
             animationDuration: 800,
@@ -206,10 +223,6 @@ export default function MapScreen() {
     }, []);
 
     const theme = Colors[colorScheme ?? 'light'];
-    const campusTitle = useMemo(
-        () => `${campusMeta.name} Campus (${campusMeta.label})`,
-        [campusMeta],
-    );
 
   // --- FEATURE BUILDER ---
   const { polygonFeatures } = useMemo(() => {
@@ -218,7 +231,7 @@ export default function MapScreen() {
 
     for (const point of points) {
         const loc = point.building.location as any;
-        if (loc && loc.type === 'Polygon' && loc.coordinates) {
+        if (loc?.type === 'Polygon' && loc?.coordinates) {
             let coords = loc.coordinates;
             let depth = 0;
             let current = coords;
@@ -304,11 +317,11 @@ export default function MapScreen() {
                     images={{
                         honeycomb: {
                             uri: Image.resolveAssetSource(HONEYCOMB_IMAGE).uri,
-                            scale: 10.0
+                            scale: 10
                         },
                         bee: {
                             uri: Image.resolveAssetSource(BEE_IMAGE).uri,
-                            scale: 1.0,
+                            scale: 1,
                         },
                     }}
                 />
@@ -336,7 +349,7 @@ export default function MapScreen() {
               console.log('Pressed feature:', f);
 
               const point = points.find(p => p.id === f.properties?.id);
-              const details = point?.details as any;
+              const details = point?.details as BuildingDetails | undefined;
 
               setSelectedBuilding({
                 ...f.properties,
@@ -365,7 +378,7 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-base"
                             style={{
                                 fillPattern: 'honeycomb',
-                                fillOpacity: 1.0,
+                                fillOpacity: 1,
                             }}
                         />
 
@@ -521,7 +534,6 @@ export default function MapScreen() {
                             setToCoordinates(tempFromCoordinates);
 
                             // Swap user location flag
-                            const tempIsUserLocation = fromCoordinatesIsUserLocation.current;
                             fromCoordinatesIsUserLocation.current = false; // If "to" becomes "from", it's no longer user location
                             // Note: We can't track if the original "to" was user location, so we reset this flag
                         }}

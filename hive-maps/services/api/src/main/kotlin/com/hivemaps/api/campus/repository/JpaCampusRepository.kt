@@ -19,8 +19,7 @@ class JpaCampusRepository(
     override fun findCampus(id: CampusId): Campus? = campusJpaRepository.findById(id).orElse(null)?.toDomain()
 
     override fun findBuildingsByCampus(id: CampusId): List<Building> =
-        buildingJpaRepository.findAllByCampus_Id(id).map { it.toDomain() }
-
+        buildingJpaRepository.findAllByCampusId(id).map { it.toDomain() }
 }
 
 private fun com.hivemaps.api.campus.persistence.CampusEntity.toDomain() = Campus(

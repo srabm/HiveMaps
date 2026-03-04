@@ -27,14 +27,15 @@ export function TimePickerModal({
                                     onCancel,
                                     initialTime = new Date().toISOString(),
                                     initialMode = 'depart',
-                                }: TimePickerModalProps) {
+                                }: Readonly<TimePickerModalProps>) {
     const hours = Array.from({length: 12}, (_, i) => String((i + 12) % 12 || 12).padStart(2, '0'));
     const minutes = Array.from({length: 60}, (_, i) => String(i).padStart(2, '0'));
     const periods = ['AM', 'PM'];
 
     const parseInitialTime = () => {
         const readableTime = formatISOToTime(initialTime);
-        const match = readableTime.match(/(\d+):(\d+)\s(AM|PM)/);
+        const timeRegex = /(\d+):(\d+)\s(AM|PM)/;
+        const match = timeRegex.exec(readableTime);
         if (match) {
             return {
                 hour: match[1].padStart(2, '0'),

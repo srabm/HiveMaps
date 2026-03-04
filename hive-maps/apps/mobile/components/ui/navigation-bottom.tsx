@@ -38,7 +38,7 @@ const MODE_META: Record<TransportModeLabel, {label: string; indicatorColor: stri
     Shuttle: {label: 'Shuttle', indicatorColor: '#f4b742'},
 };
 
-const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
+export const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
     switch (mode) {
         case 'Drive':
             return TransportMode.DRIVING;
@@ -57,12 +57,12 @@ const mapUiModeToProvider = (mode: TransportModeLabel) => {
     return mode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX;
 };
 
-const formatDistance = (meters?: number) => {
+export const formatDistance = (meters?: number) => {
     if (meters == null) return '—';
     return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
 };
 
-const formatDuration = (seconds?: number) => {
+export const formatDuration = (seconds?: number) => {
     if (seconds == null) return '— min';
     const totalMinutes = Math.round(seconds / 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -104,6 +104,71 @@ const pickDisplayMinutes = (
     item: {minutesUntil: number; minutesFromFilter: number},
     isCustomFilter: boolean,
 ): number => (isCustomFilter ? item.minutesFromFilter : item.minutesUntil);
+
+export function buildSimpleArrivalDepartureLabel(
+    durationSeconds: number,
+    timeFilter: string,
+    timeFilterMode: TimeFilterMode,
+): string {
+    const baseTime = new Date(timeFilter);
+    const durationMs = durationSeconds * 1000;
+    if (timeFilterMode === 'depart') {
+        const arrivalTime = new Date(baseTime.getTime() + durationMs);
+        return `Arrive by ${formatISOToTime(arrivalTime.toISOString())}`;
+    }
+    const departureTime = new Date(baseTime.getTime() - durationMs);
+    return `Depart at ${formatISOToTime(departureTime.toISOString())}`;
+}
+
+export function calculateTransitArrivalDepartureLabel(
+    directions: DirectionsResponse,
+    timeFilter: string,
+    timeFilterMode: TimeFilterMode,
+): string {
+    const steps = directions.steps;
+    if (!steps || steps.length === 0) return '';
+
+    const firstTransitIndex = steps.findIndex(step => step.transitDetails);
+    if (firstTransitIndex === -1) {
+        return buildSimpleArrivalDepartureLabel(directions.durationSeconds, timeFilter, timeFilterMode);
+    }
+
+    let lastTransitIndex = firstTransitIndex;
+    for (let i = steps.length - 1; i >= 0; i--) {
+        if (steps[i].transitDetails) {
+            lastTransitIndex = i;
+            break;
+        }
+    }
+
+    if (timeFilterMode === 'depart') {
+        const departureTimeStr = steps[firstTransitIndex].transitDetails?.departureTime;
+        if (!departureTimeStr) return '';
+
+        const firstTransitTime = new Date(departureTimeStr);
+        let initialWalkingDuration = 0;
+        for (let i = 0; i < firstTransitIndex; i++) {
+            initialWalkingDuration += steps[i].duration;
+        }
+
+        const durationWithoutInitialWalking = directions.durationSeconds - initialWalkingDuration;
+        const arrivalTime = new Date(firstTransitTime.getTime() + durationWithoutInitialWalking * 1000);
+        return `Arrive by ${formatISOToTime(arrivalTime.toISOString())}`;
+    }
+
+    const arrivalTimeStr = steps[lastTransitIndex].transitDetails?.arrivalTime;
+    if (!arrivalTimeStr) return '';
+
+    const lastTransitTime = new Date(arrivalTimeStr);
+    let finalWalkingDuration = 0;
+    for (let i = steps.length - 1; i > lastTransitIndex; i--) {
+        finalWalkingDuration += steps[i].duration;
+    }
+
+    const durationWithoutFinalWalking = directions.durationSeconds - finalWalkingDuration;
+    const departureTime = new Date(lastTransitTime.getTime() - durationWithoutFinalWalking * 1000);
+    return `Depart at ${formatISOToTime(departureTime.toISOString())}`;
+}
 
 type ShuttleLegMetrics = {
     totalDistanceMeters: number;
@@ -192,11 +257,10 @@ export function NavigationBottom({
     onModeChange,
     onTimeFilterChange,
     initialMode = 'Drive',
-}: NavigationBottomProps) {
+}: Readonly<NavigationBottomProps>) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [timeFilter, setTimeFilter] = useState(getCurrentTimeISO());
     const [timePickerVisible, setTimePickerVisible] = useState(false);
     const [timeFilterMode, setTimeFilterMode] = useState<TimeFilterMode>('depart');
@@ -223,12 +287,10 @@ export function NavigationBottom({
         let timeoutId: ReturnType<typeof setTimeout>;
 
         const fetchDirections = async () => {
-            setIsLoading(true);
             setDirections(null);
             setShowScheduleModal(false);
 
             if (selectedMode === 'Shuttle') {
-                setIsLoading(false);
                 return;
             }
 
@@ -249,8 +311,6 @@ export function NavigationBottom({
                 if (!active) return;
                 setDirections(null);
                 console.warn('Failed to load directions', err);
-            } finally {
-                if (active) setIsLoading(false);
             }
         };
 
@@ -281,89 +341,13 @@ export function NavigationBottom({
         }
 
         try {
+            let details = '';
             if (selectedMode === 'Transit') {
-                const steps = directions.steps;
-
-                if (!steps || steps.length === 0) {
-                    setArriveLeaveDetails('');
-                    return;
-                }
-
-                const firstTransitIndex = steps.findIndex(step => step.transitDetails);
-
-                if (firstTransitIndex === -1) {
-                    // No transit steps found — fall back to simple duration math.
-                    const baseTime = new Date(timeFilter);
-                    if (timeFilterMode === 'depart') {
-                        const arrivalTime = new Date(baseTime.getTime() + directions.durationSeconds * 1000);
-                        setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
-                    } else {
-                        const departureTime = new Date(baseTime.getTime() - directions.durationSeconds * 1000);
-                        setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`);
-                    }
-                    return;
-                }
-
-                // Find last transit step.
-                let lastTransitIndex = firstTransitIndex;
-                for (let i = steps.length - 1; i >= 0; i--) {
-                    if (steps[i].transitDetails) {
-                        lastTransitIndex = i;
-                        break;
-                    }
-                }
-
-                if (timeFilterMode === 'depart') {
-                    const firstTransitStep = steps[firstTransitIndex];
-                    const departureTimeStr = firstTransitStep.transitDetails?.departureTime;
-
-                    if (!departureTimeStr) {
-                        setArriveLeaveDetails('');
-                        return;
-                    }
-
-                    const firstTransitTime = new Date(departureTimeStr);
-                    let initialWalkingDuration = 0;
-                    for (let i = 0; i < firstTransitIndex; i++) {
-                        initialWalkingDuration += steps[i].duration;
-                    }
-
-                    const durationWithoutInitialWalking = directions.durationSeconds - initialWalkingDuration;
-                    const arrivalTime = new Date(firstTransitTime.getTime() + durationWithoutInitialWalking * 1000);
-                    setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
-                } else {
-                    const lastTransitStep = steps[lastTransitIndex];
-                    const arrivalTimeStr = lastTransitStep.transitDetails?.arrivalTime;
-
-                    if (!arrivalTimeStr) {
-                        setArriveLeaveDetails('');
-                        return;
-                    }
-
-                    const lastTransitTime = new Date(arrivalTimeStr);
-                    let finalWalkingDuration = 0;
-                    for (let i = steps.length - 1; i > lastTransitIndex; i--) {
-                        finalWalkingDuration += steps[i].duration;
-                    }
-
-                    const durationWithoutFinalWalking = directions.durationSeconds - finalWalkingDuration;
-                    const departureTime = new Date(lastTransitTime.getTime() - durationWithoutFinalWalking * 1000);
-                    setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`);
-                }
+                details = calculateTransitArrivalDepartureLabel(directions, timeFilter, timeFilterMode);
             } else if (selectedMode === 'Walk' || selectedMode === 'Drive') {
-                const baseTime = new Date(timeFilter);
-                const durationMs = directions.durationSeconds * 1000;
-
-                if (timeFilterMode === 'depart') {
-                    const arrivalTime = new Date(baseTime.getTime() + durationMs);
-                    setArriveLeaveDetails(`Arrive by ${formatISOToTime(arrivalTime.toISOString())}`);
-                } else {
-                    const departureTime = new Date(baseTime.getTime() - durationMs);
-                    setArriveLeaveDetails(`Depart at ${formatISOToTime(departureTime.toISOString())}`);
-                }
-            } else {
-                setArriveLeaveDetails('');
+                details = buildSimpleArrivalDepartureLabel(directions.durationSeconds, timeFilter, timeFilterMode);
             }
+            setArriveLeaveDetails(details);
         } catch (err) {
             console.warn('Failed to calculate arrival/departure time', err);
             setArriveLeaveDetails('');
