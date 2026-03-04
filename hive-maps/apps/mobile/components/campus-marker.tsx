@@ -7,7 +7,7 @@ type Props = {
   name: string;
 };
 
-export function CampusMarker({ code, name }: Props) {
+export function CampusMarker({ code, name }: Readonly<Props>) {
   return (
     <View style={styles.container} accessibilityRole="text" accessibilityLabel={name}>
       <View style={styles.pin} />

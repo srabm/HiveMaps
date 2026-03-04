@@ -19,8 +19,6 @@ export function getCameraBoundsForRoute(
     }
     const origin = campuses[originCampus];
     const destination = campuses[destinationCampus];
-    const centerLongitude = (origin.center[0] + destination.center[0]) / 2;
-    const centerLatitude = (origin.center[1] + destination.center[1]) / 2;
     const minLongitude = Math.min(origin.center[0], destination.center[0]) - INTER_CAMPUS_PADDING;
     const maxLongitude = Math.max(origin.center[0], destination.center[0]) + INTER_CAMPUS_PADDING;
     const minLatitude = Math.min(origin.center[1], destination.center[1]) - INTER_CAMPUS_PADDING;

@@ -6,8 +6,8 @@ import {
     TouchableOpacity,
     FlatList,
     Text,
+    Image,
 } from "react-native";
-import { Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Coordinates, MapLocation, MapsProviderPort } from "@/services/maps/maps-provider";
 

@@ -9,5 +9,5 @@ interface CampusJpaRepository : JpaRepository<CampusEntity, CampusId>
 
 @Repository
 interface BuildingJpaRepository : JpaRepository<BuildingEntity, String> {
-    fun findAllByCampus_Id(campusId: CampusId): List<BuildingEntity>
+    fun findAllByCampusId(campusId: CampusId): List<BuildingEntity>
 }

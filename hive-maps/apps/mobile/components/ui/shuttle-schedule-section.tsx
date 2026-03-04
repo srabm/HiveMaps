@@ -1,0 +1,226 @@
+import React from 'react';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
+
+type ShuttleScheduleSectionProps = {
+    directionLabel: string;
+    validPeriod?: string;
+    hasSchedule: boolean;
+    showNextServiceLabel: boolean;
+    nextServiceLabel?: string;
+    departures: Array<{timeLabel: string; etaLabel: string; key: string}>;
+    showSeeMoreButton: boolean;
+    onOpenModal: () => void;
+    onFallbackPress?: () => void;
+    /** When true, shows a banner redirecting same-campus users to Walk */
+    showSameCampusRedirect?: boolean;
+    /** Called when the user taps the same-campus Walk redirect banner */
+    onSameCampusRedirect?: () => void;
+    /** When true, removes the top margin/border separator (metrics row is hidden above) */
+    noTopSpacing?: boolean;
+    /** Inline metrics to show when the main metrics row is hidden (no departures / next service day) */
+    inlineMetrics?: {
+        durationText: string;
+        distanceText: string;
+        arrivalLabel: string;
+    } | null;
+};
+
+export function ShuttleScheduleSection({
+    directionLabel,
+    validPeriod,
+    hasSchedule,
+    showNextServiceLabel,
+    nextServiceLabel,
+    departures,
+    showSeeMoreButton,
+    onOpenModal,
+    onFallbackPress,
+    showSameCampusRedirect,
+    onSameCampusRedirect,
+    noTopSpacing,
+    inlineMetrics,
+}: Readonly<ShuttleScheduleSectionProps>) {
+    const hasFallbackPress = onFallbackPress != null;
+    const isServiceUnavailable = hasSchedule === false;
+    const showTransitSuggestion =
+        (isServiceUnavailable || showNextServiceLabel || departures.length === 0) && hasFallbackPress;
+    let suggestionText = 'No more departures today — need a ride now?';
+    if (hasSchedule) {
+        if (showNextServiceLabel) {
+            suggestionText = 'Not running today — need a ride now?';
+        }
+    } else {
+        suggestionText = 'Service currently unavailable.';
+    }
+
+    // When the route is same-campus, only show the redirect banner and the
+    // "See full schedule" button — no metrics, no route-specific departures.
+    if (showSameCampusRedirect) {
+        return (
+            <View style={[styles.shuttleSection, styles.shuttleSectionNoTopSpacing]}>
+                {!!onSameCampusRedirect && (
+                    <Pressable onPress={onSameCampusRedirect} style={styles.transitSuggestion}>
+                        <Text style={styles.transitSuggestionText}>Both locations are on the same campus.</Text>
+                        <Text style={styles.transitSuggestionLink}>Switch to Walk</Text>
+                    </Pressable>
+                )}
+                <View style={styles.shuttleHeaderRow}>
+                    <View>
+                        <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
+                        {validPeriod ? (
+                            <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
+                        ) : null}
+                    </View>
+                    <Pressable onPress={onOpenModal}>
+                        <Text style={styles.seeMoreLink}>See full schedule</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    }
+
+    return (
+        <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
+            {inlineMetrics && !showNextServiceLabel && (
+                <View style={styles.inlineMetricsRow}>
+                    <View style={styles.inlineMetricItem}>
+                        <Text style={styles.inlineMetricValue}>
+                            {inlineMetrics.durationText.split(' ')[0]}
+                        </Text>
+                        <Text style={styles.inlineMetricUnit}>
+                            {inlineMetrics.durationText.split(' ')[1] ?? 'min'}
+                        </Text>
+                    </View>
+                    <View style={styles.inlineMetricDivider} />
+                    <View style={styles.inlineMetricItem}>
+                        <Text style={styles.inlineMetricArrival}>{inlineMetrics.arrivalLabel}</Text>
+                        <Text style={styles.inlineMetricDistance}>{inlineMetrics.distanceText}</Text>
+                    </View>
+                </View>
+            )}
+
+            {showTransitSuggestion && (
+                <Pressable onPress={onFallbackPress} style={styles.transitSuggestion}>
+                    <Text style={styles.transitSuggestionText}>{suggestionText}</Text>
+                    <Text style={styles.transitSuggestionLink}>Check Transit</Text>
+                </Pressable>
+            )}
+
+            <View style={styles.shuttleHeaderRow}>
+                <View>
+                    <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
+                    {validPeriod ? (
+                        <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
+                    ) : null}
+                </View>
+                {showSeeMoreButton && (
+                    <Pressable onPress={onOpenModal}>
+                        <Text style={styles.seeMoreLink}>See full schedule</Text>
+                    </Pressable>
+                )}
+            </View>
+
+            {hasSchedule && (
+                <View>
+                    <View style={styles.directionHeader}>
+                        <Text style={styles.shuttleListTitle}>
+                            {directionLabel}
+                            {showNextServiceLabel && nextServiceLabel
+                                ? <Text style={styles.nextServiceInline}>{'  ·  '}Next: {nextServiceLabel}</Text>
+                                : null}
+                        </Text>
+                    </View>
+
+                    {departures.length === 0 && !showNextServiceLabel ? (
+                        <Text style={styles.shuttleEmptyText}>No more departures today.</Text>
+                    ) : (
+                        departures.map((item) => (
+                            <View key={item.key} style={styles.shuttleRow}>
+                                <Text style={styles.shuttleTime}>{item.timeLabel}</Text>
+                                <Text style={styles.shuttleEta}>{item.etaLabel}</Text>
+                            </View>
+                        ))
+                    )}
+                </View>
+            )}
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    shuttleSection: {
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+    },
+    shuttleSectionNoTopSpacing: {
+        marginTop: 0,
+        paddingTop: 0,
+        borderTopWidth: 0,
+    },
+    shuttleHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    shuttleTitle: {fontSize: 13, fontWeight: '700', color: '#111827'},
+    shuttleSubtle: {fontSize: 11, fontWeight: '400', color: '#9CA3AF', marginTop: 1},
+    directionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#F3F4F6',
+        paddingTop: 6,
+        marginBottom: 4,
+    },
+    shuttleListTitle: {fontSize: 12, fontWeight: '700', color: '#9d1e30'},
+    nextServiceInline: {fontSize: 11, fontWeight: '400', color: '#6B7280'},
+    shuttleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginBottom: 2,
+    },
+    // Departure time is the primary info — larger and bold
+    shuttleTime: {fontSize: 14, color: '#111827', fontWeight: '600'},
+    // ETA is secondary — smaller, muted
+    shuttleEta: {fontSize: 12, color: '#6B7280'},
+    shuttleEmptyText: {fontSize: 12, color: '#6B7280'},
+    transitSuggestion: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: 8,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    transitSuggestionText: {fontSize: 12, color: '#6B7280'},
+    transitSuggestionLink: {fontSize: 12, fontWeight: '700', color: '#9d1e30'},
+    seeMoreLink: {fontSize: 12, fontWeight: '600', color: '#9d1e30'},
+    inlineMetricsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        gap: 12,
+    },
+    inlineMetricItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    inlineMetricDivider: {
+        width: 1,
+        height: 32,
+        backgroundColor: '#E5E7EB',
+    },
+    inlineMetricValue: {fontSize: 20, fontWeight: '700', color: '#10B981'},
+    inlineMetricUnit: {fontSize: 12, fontWeight: '600', color: '#10B981'},
+    inlineMetricArrival: {fontSize: 13, fontWeight: '600', color: '#111827'},
+    inlineMetricDistance: {fontSize: 12, color: '#6B7280', marginTop: 2},
+});

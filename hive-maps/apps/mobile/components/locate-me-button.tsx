@@ -13,7 +13,7 @@ export function LocateMeButton({
   onPress,
   style,
   accessibilityLabel = 'Locate me',
-}: Props) {
+}: Readonly<Props>) {
   return (
     <Pressable
       accessibilityRole="button"

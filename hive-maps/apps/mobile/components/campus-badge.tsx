@@ -7,7 +7,7 @@ type Props = {
   campus: CampusId;
 };
 
-export function CampusBadge({ campus }: Props) {
+export function CampusBadge({ campus }: Readonly<Props>) {
   return (
     <View style={styles.badge} accessibilityRole="text" accessibilityLabel={`Campus ${campus}`}>
       <ThemedText type="defaultSemiBold" style={styles.text}>

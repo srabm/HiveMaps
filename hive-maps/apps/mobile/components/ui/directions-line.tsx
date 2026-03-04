@@ -12,6 +12,8 @@ interface DirectionsDisplayProps {
     lineColor?: string;
     lineWidth?: number;
     infoCardPosition?: 'top' | 'bottom';
+    showInfoCard?: boolean;
+    lineDasharray?: number[];
 }
 
 /**
@@ -30,7 +32,7 @@ const decodePolyline = (encoded: string): Position[] => {
         let byte: number;
 
         do {
-            byte = encoded.charCodeAt(index++) - 63;
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
             result |= (byte & 0x1f) << shift;
             shift += 5;
         } while (byte >= 0x20);
@@ -40,7 +42,7 @@ const decodePolyline = (encoded: string): Position[] => {
         result = 0;
         shift = 0;
         do {
-            byte = encoded.charCodeAt(index++) - 63;
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
             result |= (byte & 0x1f) << shift;
             shift += 5;
         } while (byte >= 0x20);
@@ -69,23 +71,33 @@ export function DirectionsLine({
                                    lineColor = '#e5a712',
                                    lineWidth = 10,
                                    infoCardPosition = 'bottom',
-                               }: DirectionsDisplayProps) {
+                                   showInfoCard = true,
+                                   lineDasharray,
+                               }: Readonly<DirectionsDisplayProps>) {
     const coordinates = useMemo(
         () => decodePolyline(directions.polyline),
         [directions.polyline],
     );
 
     const featureCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    geometry: {type: 'LineString' as const, coordinates},
-                    properties: {},
-                },
-            ],
-        }),
+        () => {
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        geometry: {type: 'LineString' as const, coordinates},
+                        properties: {},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
 
@@ -93,19 +105,25 @@ export function DirectionsLine({
         () => {
             const start = coordinates[0] ?? [0, 0];
             const end = coordinates[coordinates.length - 1] ?? [0, 0];
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
             return {
                 type: 'FeatureCollection' as const,
                 features: [
                     {
                         type: 'Feature' as const,
                         id: 'start-point',
-                        geometry: {type: 'Point' as const, coordinates: start},
+                        geometry: {type: 'Point' as const, coordinates: coordinates[0]},
                         properties: {type: 'start'},
                     },
                     {
                         type: 'Feature' as const,
                         id: 'end-point',
-                        geometry: {type: 'Point' as const, coordinates: end},
+                        geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
                         properties: {type: 'end'},
                     },
                 ],
@@ -126,6 +144,7 @@ export function DirectionsLine({
                         lineWidth,
                         lineCap: 'round',
                         lineJoin: 'round',
+                        ...(lineDasharray ? {lineDasharray} : {}),
                     }}
                 />
             </MapboxGL.ShapeSource>
@@ -142,26 +161,28 @@ export function DirectionsLine({
                 />
             </MapboxGL.ShapeSource>
 
-            <View
-                style={[
-                    styles.infoCard,
-                    infoCardPosition === 'top' ? styles.infoCardTop : styles.infoCardBottom,
-                ]}
-            >
-                <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Distance</Text>
-                    <Text style={styles.infoValue}>
-                        {formatDistance(directions.distanceMeters)}
-                    </Text>
+            {showInfoCard && (
+                <View
+                    style={[
+                        styles.infoCard,
+                        infoCardPosition === 'top' ? styles.infoCardTop : styles.infoCardBottom,
+                    ]}
+                >
+                    <View style={styles.infoItem}>
+                        <Text style={styles.infoLabel}>Distance</Text>
+                        <Text style={styles.infoValue}>
+                            {formatDistance(directions.distanceMeters)}
+                        </Text>
+                    </View>
+                    <View style={styles.divider}/>
+                    <View style={styles.infoItem}>
+                        <Text style={styles.infoLabel}>Duration</Text>
+                        <Text style={styles.infoValue}>
+                            {formatDuration(directions.durationSeconds)}
+                        </Text>
+                    </View>
                 </View>
-                <View style={styles.divider}/>
-                <View style={styles.infoItem}>
-                    <Text style={styles.infoLabel}>Duration</Text>
-                    <Text style={styles.infoValue}>
-                        {formatDuration(directions.durationSeconds)}
-                    </Text>
-                </View>
-            </View>
+            )}
         </>
     );
 }

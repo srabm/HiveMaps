@@ -87,5 +87,21 @@ describe('BuildingInfoModal', () => {
     );
 
     expect(queryByText('Indoor')).toBeNull();
+  it('renders allHours entries when provided', () => {
+    const buildingWithAllHours = {
+      ...baseBuilding,
+      allHours: [
+        'Monday: 8:00 AM - 6:00 PM',
+        'Tuesday: 8:00 AM - 6:00 PM',
+      ],
+    };
+
+    const { getByText, queryByText } = render(
+      <BuildingInfoModal visible building={buildingWithAllHours as any} onClose={jest.fn()} />
+    );
+
+    expect(getByText('Monday: 8:00 AM - 6:00 PM')).toBeTruthy();
+    expect(getByText('Tuesday: 8:00 AM - 6:00 PM')).toBeTruthy();
+    expect(queryByText('Mon-Fri 8:00-18:00')).toBeNull();
   });
 });

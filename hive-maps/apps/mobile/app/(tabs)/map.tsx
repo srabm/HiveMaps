@@ -23,12 +23,35 @@ import {
     initializeDirectionsCache,
     addDirectionsListener
 } from '@/services/maps/directions-api-adapter';
+import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
+import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
 import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
+
+type BuildingOpeningHours = {
+    weekdayDescription?: string[];
+    weekdayDescriptions?: string[];
+};
+
+type BuildingDetails = {
+    nationalPhoneNumber?: string;
+    websiteUri?: string;
+    regularOpeningHours?: BuildingOpeningHours;
+};
+
+type SelectedBuilding = {
+    name?: string;
+    addresses?: string[];
+    coordinates?: Coordinates;
+    phone?: string;
+    website?: string;
+    hours?: string;
+    allHours?: string[];
+} & Record<string, unknown>;
 
 export default function MapScreen() {
     const router = useRouter();
@@ -38,8 +61,6 @@ export default function MapScreen() {
         setCampus,
         hydrated,
         points,
-        loading,
-        progress,
         campusMeta,
         tokenAvailable,
         mapsAdapter,
@@ -50,8 +71,11 @@ export default function MapScreen() {
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
     const [directions, setDirections] = useState<DirectionsResponse | null>(null);
+    const [selectedMode, setSelectedMode] = useState<'Drive' | 'Walk' | 'Transit' | 'Shuttle'>('Drive');
+    const [timeFilter, setTimeFilter] = useState(() => new Date().toISOString());
+    const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
-    const [selectedBuilding, setSelectedBuilding] = useState<any | null>(null);
+    const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
 
   const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
@@ -102,6 +126,25 @@ export default function MapScreen() {
         return unsubscribe;
     }, []);
 
+    const isSameCampusRoute =
+        fromCoordinates && toCoordinates
+            ? (() => {
+                  const result = validateCampusRoute({
+                      origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+                      destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+                  });
+                  return !result.valid || !result.route.isInterCampus;
+              })()
+            : false;
+
+    const shuttleRouting = useShuttleRouting({
+        enabled: selectedMode === 'Shuttle' && !isSameCampusRoute,
+        origin: fromCoordinates ? {longitude: fromCoordinates[0], latitude: fromCoordinates[1]} : null,
+        destination: toCoordinates ? {longitude: toCoordinates[0], latitude: toCoordinates[1]} : null,
+        timeFilter,
+        timeFilterMode,
+    });
+
     // 2.4.2 — Validate campus-to-campus route when both endpoints are set
     useEffect(() => {
         if (!fromCoordinates || !toCoordinates) {
@@ -121,17 +164,16 @@ export default function MapScreen() {
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
     useEffect(() => {
-        if (!directions || !routeValidation || !routeValidation.valid) return;
-        if (!cameraRef.current) return;
+        if (!directions || !routeValidation?.valid) return;
         const {route} = routeValidation;
         const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
         if (bounds.bounds) {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
                 animationDuration: bounds.animationDuration,
             });
         } else {
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 centerCoordinate: bounds.centerCoordinate,
                 zoomLevel: bounds.zoomLevel,
                 animationDuration: bounds.animationDuration,
@@ -140,8 +182,7 @@ export default function MapScreen() {
     }, [directions, routeValidation]);
 
     useEffect(() => {
-        if (!cameraRef.current) return;
-        cameraRef.current.setCamera({
+        cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
             animationDuration: 800,
@@ -185,10 +226,6 @@ export default function MapScreen() {
     }, []);
 
     const theme = Colors[colorScheme ?? 'light'];
-    const campusTitle = useMemo(
-        () => `${campusMeta.name} Campus (${campusMeta.label})`,
-        [campusMeta],
-    );
 
   // --- FEATURE BUILDER ---
   const { polygonFeatures } = useMemo(() => {
@@ -197,7 +234,7 @@ export default function MapScreen() {
 
     for (const point of points) {
         const loc = point.building.location as any;
-        if (loc && loc.type === 'Polygon' && loc.coordinates) {
+        if (loc?.type === 'Polygon' && loc?.coordinates) {
             let coords = loc.coordinates;
             let depth = 0;
             let current = coords;
@@ -263,11 +300,17 @@ export default function MapScreen() {
                 />
                 <MapboxGL.UserLocation
                     visible={false}
-                    showsUserHeadingIndicator={false}
                     onUpdate={(loc: any) => {
                         const coords = loc?.coords;
                         if (!coords) return;
-                        setUserLocation([coords.longitude, coords.latitude]);
+                        const newLocation: [number, number] = [coords.longitude, coords.latitude];
+
+                        setUserLocation(newLocation);
+
+                        if (fromCoordinatesIsUserLocation.current) {
+                            setFromCoordinates(newLocation);
+                        }
+
                         setLocationPermissionStatus('granted');
                         setShowLocationPrompt(false);
                     }}
@@ -277,11 +320,11 @@ export default function MapScreen() {
                     images={{
                         honeycomb: {
                             uri: Image.resolveAssetSource(HONEYCOMB_IMAGE).uri,
-                            scale: 10.0
+                            scale: 10
                         },
                         bee: {
                             uri: Image.resolveAssetSource(BEE_IMAGE).uri,
-                            scale: 1.0,
+                            scale: 1,
                         },
                     }}
                 />
@@ -307,9 +350,9 @@ export default function MapScreen() {
             onPress={(e) => {
               const f = e.features[0];
               console.log('Pressed feature:', f);
-              
+
               const point = points.find(p => p.id === f.properties?.id);
-              const details = point?.details as any;
+              const details = point?.details as BuildingDetails | undefined;
 
               setSelectedBuilding({
                 ...f.properties,
@@ -325,10 +368,10 @@ export default function MapScreen() {
             {/* LAYER A: Burgundy Background */}
             <MapboxGL.FillLayer
               id="campus-buildings-base"
-              aboveLayerID="road-label" 
+              aboveLayerID="road-label"
               style={{
-                fillColor: '#9d1e30', 
-                fillOpacity: 0.6, 
+                fillColor: '#9d1e30',
+                fillOpacity: 0.6,
               }}
             />
 
@@ -338,7 +381,7 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-base"
                             style={{
                                 fillPattern: 'honeycomb',
-                                fillOpacity: 1.0,
+                                fillOpacity: 1,
                             }}
                         />
 
@@ -385,10 +428,19 @@ export default function MapScreen() {
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
-                {directions && (
+                {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                    />
+                )}
+                {selectedMode === 'Shuttle' && (
+                    <ShuttleRouteOverlay
+                        walkToStop={shuttleRouting.walkToStop}
+                        shuttleLeg={shuttleRouting.shuttleLeg}
+                        walkFromStop={shuttleRouting.walkFromStop}
+                        stopsForTrip={shuttleRouting.stopsForTrip}
+                        stopMarkers={shuttleRouting.stopMarkers}
                     />
                 )}
             </MapboxGL.MapView>
@@ -485,7 +537,6 @@ export default function MapScreen() {
                             setToCoordinates(tempFromCoordinates);
 
                             // Swap user location flag
-                            const tempIsUserLocation = fromCoordinatesIsUserLocation.current;
                             fromCoordinatesIsUserLocation.current = false; // If "to" becomes "from", it's no longer user location
                             // Note: We can't track if the original "to" was user location, so we reset this flag
                         }}
@@ -520,6 +571,8 @@ export default function MapScreen() {
                             latitude: toCoordinates[1]
                         }}
                         onDirectionsChange={setDirections}
+                        onModeChange={setSelectedMode}
+                        onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
                         onStartPress={() => console.log('Start navigation')}
                     />
                 </View>

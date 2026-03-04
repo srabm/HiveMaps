@@ -8,8 +8,7 @@ export type Coordinate = {
 export enum TransportMode {
     DRIVING,
     WALKING,
-    TRANSIT,
-    BIKING
+    TRANSIT
 }
 
 export enum Provider {
@@ -173,6 +172,18 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
     return null;
 }
 
+/**
+ * Parse a Google Routes API duration string to whole seconds.
+ * The v2 API returns durations as strings like "1543s" or "0s".
+ * Number.parseInt handles the trailing "s" suffix, but we strip it explicitly
+ * and fall back to 0 so downstream arithmetic never receives NaN.
+ */
+function parseGoogleDuration(raw: string | number | undefined): number {
+    if (raw == null) return 0;
+    const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw).replace(/s$/, ''), 10);
+    return Number.isFinite(n) ? n : 0;
+}
+
 // Google Maps Converter
 export function convertGoogleMapsResponse(data: any): DirectionsResponse {
     const route = data.routes[0];
@@ -195,8 +206,8 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
         }
 
         return {
-            distance: step.distanceMeters,
-            duration: parseInt(step.staticDuration),
+            distance: step.distanceMeters ?? 0,
+            duration: parseGoogleDuration(step.staticDuration),
             instruction: step.navigationInstruction?.instructions || '',
             maneuver: step.navigationInstruction?.maneuver || '',
             startLocation: {
@@ -213,8 +224,8 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
     });
 
     return {
-        distanceMeters: route.distanceMeters,
-        durationSeconds: parseInt(route.duration),
+        distanceMeters: route.distanceMeters ?? 0,
+        durationSeconds: parseGoogleDuration(route.duration),
         polyline: route.polyline?.encodedPolyline || '',
         steps
     };
@@ -257,8 +268,6 @@ function getMapboxProfile(mode: TransportMode): string {
             return 'walking';
         case TransportMode.DRIVING:
             return 'driving';
-        case TransportMode.BIKING:
-            return 'cycling';
         case TransportMode.TRANSIT:
             return 'walking'; // Mapbox doesn't support transit, fallback to walking
         default:
@@ -273,8 +282,6 @@ function getGoogleTravelMode(mode: TransportMode): string {
             return 'WALK';
         case TransportMode.DRIVING:
             return 'DRIVE';
-        case TransportMode.BIKING:
-            return 'BICYCLE';
         case TransportMode.TRANSIT:
             return 'TRANSIT';
         default:
@@ -384,19 +391,25 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
     });
 
     // Add departure or arrival time only for TRANSIT and DRIVING modes
+    // Mapbox does not accept milliseconds in the timestamp, so strip them
+    const mapboxTimeFilter = request.timeFilter.replace(/\.\d{3}Z$/, 'Z');
     if (request.transportMode === TransportMode.TRANSIT || request.transportMode === TransportMode.DRIVING) {
         if (request.timeFilterMode === 'depart') {
-            params.append('depart_at', request.timeFilter);
+            params.append('depart_at', mapboxTimeFilter);
         } else if (request.timeFilterMode === 'arrive') {
-            params.append('arrive_by', request.timeFilter);
+            params.append('arrive_by', mapboxTimeFilter);
         }
     }
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
+    console.log('[Mapbox API] Request URL', url);
+
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
+        const errorBody = typeof response.json === 'function' ? await response.json().catch(() => null) : null;
+        console.error('[Mapbox API] Error response', response.status, JSON.stringify(errorBody));
         throw new Error(`Mapbox API error: ${response.status}`);
     }
 
