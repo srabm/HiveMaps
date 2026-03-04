@@ -78,7 +78,7 @@ class IndoorDirectionsService(
     
     // using Dijkstra's algorithm to find the shortest path
     private fun getPath(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<IndoorEdge> {
-        // the start and end nodes must be accessible if wheechairAcessible is true
+        // the start and end nodes must be accessible if accessibleOnly is true
         if (accessibleOnly && !startNode.wheelchairAccessible) return emptyList()
         if (accessibleOnly && !endNode.wheelchairAccessible) return emptyList()
 
@@ -99,6 +99,22 @@ class IndoorDirectionsService(
         return Math.toDegrees(atan2(dy, dx))
     }
 
+    private fun getDirectionType(edge: IndoorEdge, previousEdgeAngle: Double?, currentAngle: Double): DirectionType {
+        return when {
+            edge.startNode.floor != edge.endNode.floor -> DirectionType.UP_OR_DOWN
+            previousEdgeAngle == null -> DirectionType.STRAIGHT
+            else -> {
+                val angleDiff = ((currentAngle - previousEdgeAngle) + 540) % 360 - 180
+                when {
+                    -45 < angleDiff && angleDiff <= 45 -> DirectionType.STRAIGHT
+                    45 <= angleDiff && angleDiff <= 135 -> DirectionType.LEFT
+                    -135 <= angleDiff && angleDiff <= -45 -> DirectionType.RIGHT
+                    else -> DirectionType.BACK
+                }
+            }
+        }
+    }
+
     // assume first and last directions are "move straight"
     private fun getDirections(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<Direction> {
         val path = getPath(startNode, endNode, accessibleOnly)
@@ -113,21 +129,8 @@ class IndoorDirectionsService(
         path.forEach { edge ->
             nodes.add(edge.startNode)
             val currentAngle = getAngle(edge)
+            val directionType = getDirectionType(edge, previousEdgeAngle, currentAngle)
 
-            val directionType = when {
-                edge.startNode.floor != edge.endNode.floor -> DirectionType.UP_OR_DOWN
-                previousEdgeAngle == null -> DirectionType.STRAIGHT
-                else -> {
-                    val angleDiff = ((currentAngle - previousEdgeAngle) + 540) % 360 - 180
-                    when {
-                        -45 < angleDiff && angleDiff <= 45 -> DirectionType.STRAIGHT
-                        45 <= angleDiff && angleDiff <= 135 -> DirectionType.LEFT
-                        -135 <= angleDiff && angleDiff <= -45 -> DirectionType.RIGHT
-                        else -> DirectionType.BACK
-                    }
-                }
-            }
-            
             if (directionType == DirectionType.STRAIGHT) {
                 previousEdgeAngle = currentAngle
                 distance += edge.distance
