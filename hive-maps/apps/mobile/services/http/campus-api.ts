@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 
-import { CampusId, type Building } from '@/constants/campus';
+import { CampusId } from '@/constants/campus';
 
 export type CampusResponse = {
   id: CampusId;
@@ -31,7 +31,8 @@ export function getApiBaseUrl() {
 
 async function getJson<T>(path: string): Promise<T> {
   const url = `${baseUrl}${path}`;
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const hasAbortController = typeof AbortController === 'function';
+  const controller = hasAbortController ? new AbortController() : null;
   const timeoutMs = 8000;
   const timeout =
     controller && typeof setTimeout !== 'undefined' ? setTimeout(() => controller.abort(), timeoutMs) : null;

@@ -11,7 +11,7 @@ type Props = {
 
 const options: CampusId[] = ['SGW', 'LOY'];
 
-export function CampusSwitch({ value, onChange }: Props) {
+export function CampusSwitch({ value, onChange }: Readonly<Props>) {
   return (
       // Shadow wrapper
       <View style={styles.shadowWrap}>

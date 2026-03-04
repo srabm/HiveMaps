@@ -1,6 +1,13 @@
 import React from 'react';
 import {fireEvent, render, waitFor, act, screen} from '@testing-library/react-native';
-import {NavigationBottom} from '../../components/ui/navigation-bottom';
+import {
+    NavigationBottom,
+    buildSimpleArrivalDepartureLabel,
+    calculateTransitArrivalDepartureLabel,
+    formatDistance,
+    formatDuration,
+    mapUiModeToTransportMode,
+} from '../../components/ui/navigation-bottom';
 import {TransportMode, Provider} from '@/services/maps/directions-api-adapter';
 
 // directions adapter mock so no real fetch calls are made
@@ -307,6 +314,223 @@ describe('NavigationBottom transit timing details', () => {
         await waitFor(() => {
             expect(getByText('Depart at 12:35')).toBeTruthy();
         });
+    });
+    it('clears arrival/departure details when transit steps are empty', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 1200,
+            durationSeconds: 600,
+            polyline: 'mockPoly',
+            steps: [],
+        });
+
+        const {queryByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Transit" />
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+        });
+
+        await waitFor(() => {
+            expect(queryByText(/Arrive by \d{2}:\d{2}/)).toBeNull();
+            expect(queryByText(/Depart at \d{2}:\d{2}/)).toBeNull();
+        });
+    });
+
+    it('clears details when first transit step has no departure time in depart mode', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 2100,
+            durationSeconds: 1800,
+            polyline: 'mockPoly',
+            steps: [
+                {duration: 300},
+                {duration: 1200, transitDetails: {}},
+                {duration: 300},
+            ],
+        });
+
+        const {queryByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Transit" />
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+        });
+
+        await waitFor(() => {
+            expect(queryByText(/Arrive by \d{2}:\d{2}/)).toBeNull();
+        });
+    });
+
+    it('clears details when last transit step has no arrival time in arrive mode', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 2100,
+            durationSeconds: 1800,
+            polyline: 'mockPoly',
+            steps: [
+                {duration: 300},
+                {duration: 1200, transitDetails: {}},
+                {duration: 300},
+            ],
+        });
+
+        const {getByText, getByTestId, queryByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Transit" />
+        );
+
+        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('confirm-arrive-time'));
+
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+        });
+
+        await waitFor(() => {
+            expect(queryByText(/Depart at \d{2}:\d{2}/)).toBeNull();
+        });
+    });
+});
+
+describe('NavigationBottom helper-path coverage', () => {
+    it('uses DRIVING transport mode for Drive', async () => {
+        render(<NavigationBottom origin={origin} destination={destination} initialMode="Drive" />);
+
+        await waitFor(() => {
+            const lastCall = getDirections.mock.calls[getDirections.mock.calls.length - 1][0];
+            expect(lastCall.transportMode).toBe(TransportMode.DRIVING);
+        });
+    });
+
+    it('shows meter distance formatting for sub-kilometer distance', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 850,
+            durationSeconds: 420,
+            polyline: 'mockPoly',
+            steps: [],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Drive" />
+        );
+
+        await waitFor(() => {
+            expect(getByText('850 m')).toBeTruthy();
+        });
+    });
+
+    it('shows hour-format duration when trip exceeds 60 minutes', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 4200,
+            durationSeconds: 3900, // 1h05
+            polyline: 'mockPoly',
+            steps: [],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Drive" />
+        );
+
+        await waitFor(() => {
+            expect(getByText('1:05')).toBeTruthy();
+            expect(getByText('hr')).toBeTruthy();
+        });
+    });
+
+    it('computes simple depart-at label in arrive mode for Walk', async () => {
+        getDirections.mockResolvedValue({
+            distanceMeters: 1200,
+            durationSeconds: 1800,
+            polyline: 'mockPoly',
+            steps: [],
+        });
+
+        const {getByText, getByTestId} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Walk" />
+        );
+
+        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('confirm-arrive-time'));
+
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+        });
+
+        await waitFor(() => {
+            expect(getByText('Depart at 12:30')).toBeTruthy();
+        });
+    });
+
+    it('maps UI modes to transport modes including Shuttle -> TRANSIT', () => {
+        expect(mapUiModeToTransportMode('Drive')).toBe(TransportMode.DRIVING);
+        expect(mapUiModeToTransportMode('Walk')).toBe(TransportMode.WALKING);
+        expect(mapUiModeToTransportMode('Transit')).toBe(TransportMode.TRANSIT);
+        expect(mapUiModeToTransportMode('Shuttle')).toBe(TransportMode.TRANSIT);
+    });
+
+    it('formats distance and duration helper outputs', () => {
+        expect(formatDistance()).toBe('—');
+        expect(formatDistance(850)).toBe('850 m');
+        expect(formatDistance(1500)).toBe('1.5 km');
+        expect(formatDuration()).toBe('— min');
+        expect(formatDuration(720)).toBe('12 min');
+        expect(formatDuration(3900)).toBe('1:05 hr');
+    });
+
+    it('builds simple arrival/departure labels for depart and arrive filters', () => {
+        const departLabel = buildSimpleArrivalDepartureLabel(
+            1800,
+            '2026-02-23T12:00:00.000Z',
+            'depart',
+        );
+        const arriveLabel = buildSimpleArrivalDepartureLabel(
+            1800,
+            '2026-02-23T13:00:00.000Z',
+            'arrive',
+        );
+
+        expect(departLabel).toBe('Arrive by 12:30');
+        expect(arriveLabel).toBe('Depart at 12:30');
+    });
+
+    it('calculates transit labels using fallback/no-step and transit-step paths', () => {
+        const noStepsLabel = calculateTransitArrivalDepartureLabel(
+            {
+                distanceMeters: 1000,
+                durationSeconds: 600,
+                polyline: 'mock',
+                steps: [],
+            } as any,
+            '2026-02-23T12:00:00.000Z',
+            'depart',
+        );
+        const fallbackLabel = calculateTransitArrivalDepartureLabel(
+            {
+                distanceMeters: 1000,
+                durationSeconds: 600,
+                polyline: 'mock',
+                steps: [{duration: 120}, {duration: 480}],
+            } as any,
+            '2026-02-23T12:00:00.000Z',
+            'depart',
+        );
+        const transitLabel = calculateTransitArrivalDepartureLabel(
+            {
+                distanceMeters: 1000,
+                durationSeconds: 1800,
+                polyline: 'mock',
+                steps: [
+                    {duration: 300},
+                    {duration: 1200, transitDetails: {departureTime: '2026-02-23T12:20:00.000Z'}},
+                    {duration: 300},
+                ],
+            } as any,
+            '2026-02-23T12:00:00.000Z',
+            'depart',
+        );
+
+        expect(noStepsLabel).toBe('');
+        expect(fallbackLabel).toBe('Arrive by 12:10');
+        expect(transitLabel).toBe('Arrive by 12:45');
     });
 });
 

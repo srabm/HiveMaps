@@ -32,7 +32,7 @@ const decodePolyline = (encoded: string): Position[] => {
         let byte: number;
 
         do {
-            byte = encoded.charCodeAt(index++) - 63;
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
             result |= (byte & 0x1f) << shift;
             shift += 5;
         } while (byte >= 0x20);
@@ -42,7 +42,7 @@ const decodePolyline = (encoded: string): Position[] => {
         result = 0;
         shift = 0;
         do {
-            byte = encoded.charCodeAt(index++) - 63;
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
             result |= (byte & 0x1f) << shift;
             shift += 5;
         } while (byte >= 0x20);
@@ -73,48 +73,64 @@ export function DirectionsLine({
                                    infoCardPosition = 'bottom',
                                    showInfoCard = true,
                                    lineDasharray,
-                               }: DirectionsDisplayProps) {
+                               }: Readonly<DirectionsDisplayProps>) {
     const coordinates = useMemo(
         () => decodePolyline(directions.polyline),
         [directions.polyline],
     );
 
-    if (!coordinates.length) return null;
-
     const featureCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    geometry: {type: 'LineString' as const, coordinates},
-                    properties: {},
-                },
-            ],
-        }),
+        () => {
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        geometry: {type: 'LineString' as const, coordinates},
+                        properties: {},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
 
     const endpointsCollection = useMemo(
-        () => ({
-            type: 'FeatureCollection' as const,
-            features: [
-                {
-                    type: 'Feature' as const,
-                    id: 'start-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[0]},
-                    properties: {type: 'start'},
-                },
-                {
-                    type: 'Feature' as const,
-                    id: 'end-point',
-                    geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
-                    properties: {type: 'end'},
-                },
-            ],
-        }),
+        () => {
+            if (!coordinates.length) {
+                return {
+                    type: 'FeatureCollection' as const,
+                    features: [],
+                };
+            }
+            return {
+                type: 'FeatureCollection' as const,
+                features: [
+                    {
+                        type: 'Feature' as const,
+                        id: 'start-point',
+                        geometry: {type: 'Point' as const, coordinates: coordinates[0]},
+                        properties: {type: 'start'},
+                    },
+                    {
+                        type: 'Feature' as const,
+                        id: 'end-point',
+                        geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
+                        properties: {type: 'end'},
+                    },
+                ],
+            };
+        },
         [coordinates],
     );
+
+    if (!coordinates.length) return null;
 
     return (
         <>

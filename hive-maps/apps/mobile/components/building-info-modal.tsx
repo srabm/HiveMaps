@@ -1,4 +1,4 @@
-import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -46,7 +46,7 @@ export function BuildingInfoModal({
   onDirections,
   onStart,
   onFavorite,
-}: BuildingInfoModalProps) {
+}: Readonly<BuildingInfoModalProps>) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const noop = () => {};
@@ -119,8 +119,8 @@ export function BuildingInfoModal({
             <View style={styles.detailTextWrap}>
               <ThemedText style={styles.detailLabel}>Hours</ThemedText>
                 {Array.isArray((building as any)?.allHours) ? (
-                  (building as any).allHours.map((day: string, i: number) => (
-                    <ThemedText key={i} style={[styles.detailValue, { fontSize: 11}]}>
+                  (building as any).allHours.map((day: string) => (
+                    <ThemedText key={day} style={[styles.detailValue, { fontSize: 11}]}>
                       {day}
                     </ThemedText>
                   ))

@@ -57,42 +57,97 @@ export function getNearestCampus(
     return best?.id ?? null;
 }
 
+type ResolvedEndpoint = {
+    campus: CampusId;
+    code: string;
+};
+
+type EndpointResolution =
+    | {valid: true; endpoint: ResolvedEndpoint}
+    | {valid: false; error: ValidationError; message: string};
+
+function resolveOriginEndpoint(origin: RouteEndpoint): EndpointResolution {
+    if (origin.type === 'building') {
+        const originCode = origin.code.toUpperCase();
+        const originCampus = getCampusForBuilding(originCode);
+        if (!originCampus) {
+            return {valid: false, error: 'UNKNOWN_ORIGIN', message: `Building "${originCode}" not found.`};
+        }
+        return {
+            valid: true,
+            endpoint: {
+                campus: originCampus,
+                code: originCode,
+            },
+        };
+    }
+
+    const originCampus = getNearestCampus(origin.longitude, origin.latitude);
+    if (!originCampus) {
+        return {
+            valid: false,
+            error: 'COORDINATE_OUT_OF_BOUNDS',
+            message: `Origin coordinates are not within ${CAMPUS_RADIUS_KM}km of any campus.`,
+        };
+    }
+
+    return {
+        valid: true,
+        endpoint: {
+            campus: originCampus,
+            code: 'USER_LOCATION',
+        },
+    };
+}
+
+function resolveDestinationEndpoint(destination: RouteEndpoint): EndpointResolution {
+    if (destination.type === 'building') {
+        const destinationCode = destination.code.toUpperCase();
+        const destinationCampus = getCampusForBuilding(destinationCode);
+        if (!destinationCampus) {
+            return {valid: false, error: 'UNKNOWN_DESTINATION', message: `Building "${destinationCode}" not found.`};
+        }
+        return {
+            valid: true,
+            endpoint: {
+                campus: destinationCampus,
+                code: destinationCode,
+            },
+        };
+    }
+
+    const destinationCampus = getNearestCampus(destination.longitude, destination.latitude);
+    if (!destinationCampus) {
+        return {
+            valid: false,
+            error: 'COORDINATE_OUT_OF_BOUNDS',
+            message: `Destination coordinates are not within ${CAMPUS_RADIUS_KM}km of any campus.`,
+        };
+    }
+
+    return {
+        valid: true,
+        endpoint: {
+            campus: destinationCampus,
+            code: 'USER_LOCATION',
+        },
+    };
+}
+
 export function validateCampusRoute(
     request: CampusRouteRequest,
 ): ValidationResult {
     const {origin, destination} = request;
 
-    let originCampus: CampusId | null;
-    let originCode: string;
-    if (origin.type ==='building') {
-        originCode = origin.code.toUpperCase();
-        originCampus = getCampusForBuilding(originCode);
-        if (!originCampus) {
-            return {valid: false, error: 'UNKNOWN_ORIGIN', message: `Building "${originCode}" not found.`};
-        }
-    } else {
-        originCampus = getNearestCampus(origin.longitude, origin.latitude);
-        originCode = 'USER_LOCATION';
-        if (!originCampus) {
-            return {valid: false, error: 'COORDINATE_OUT_OF_BOUNDS', message: `Origin coordinates are not within ${CAMPUS_RADIUS_KM}km of any campus.`};
-        }
-    }
+    const originResolution = resolveOriginEndpoint(origin);
+    if (!originResolution.valid) return originResolution;
+    const destinationResolution = resolveDestinationEndpoint(destination);
+    if (!destinationResolution.valid) return destinationResolution;
 
-    let destinationCampus: CampusId | null;
-    let destinationCode: string;
-    if (destination.type === 'building') {
-        destinationCode = destination.code.toUpperCase();
-        destinationCampus = getCampusForBuilding(destinationCode);
-        if (!destinationCampus) {
-            return {valid: false, error: 'UNKNOWN_DESTINATION', message: `Building "${destinationCode}" not found.`};
-        }
-    } else {
-        destinationCampus = getNearestCampus(destination.longitude, destination.latitude);
-        destinationCode = 'USER_LOCATION';
-        if (!destinationCampus) {
-            return {valid: false, error: 'COORDINATE_OUT_OF_BOUNDS', message: `Destination coordinates are not within ${CAMPUS_RADIUS_KM}km of any campus.`};
-        }
-    }
+    const originCampus = originResolution.endpoint.campus;
+    const destinationCampus = destinationResolution.endpoint.campus;
+    const originCode = originResolution.endpoint.code;
+    const destinationCode = destinationResolution.endpoint.code;
 
     if (origin.type === 'building' && destination.type === 'building' && originCode === destinationCode) {
         return {valid: false, error: 'SAME_ORIGIN_AND_DESTINATION', message: 'Origin and destination buildings cannot be the same.'};
