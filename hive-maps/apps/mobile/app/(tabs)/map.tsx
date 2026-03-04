@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
@@ -19,13 +19,21 @@ import {DirectionsLine} from "@/components/ui/directions-line";
 import {NavigationBottom} from "@/components/ui/navigation-bottom";
 import {
     DirectionsResponse,
+    DirectionsRequest,
+    Step,
+    TransportMode,
+    Provider,
     initializeDirectionsCache,
-    addDirectionsListener
+    addDirectionsListener,
+    getDirections,
 } from '@/services/maps/directions-api-adapter';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
-import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
+import {validateCampusRoute, getNearestCampus, type ValidationResult} from '@/services/maps/route-validator';
 import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
+import {useLiveLocation} from '@/hooks/use-live-location';
+import {useStepNavigator} from '@/hooks/use-step-navigator';
+import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -51,6 +59,124 @@ type SelectedBuilding = {
     hours?: string;
     allHours?: string[];
 } & Record<string, unknown>;
+
+
+// ─── NavigationOverlay ────────────────────────────────────────────────────────
+// Extracted as its own component so hooks (useLiveLocation, useStepNavigator)
+// are called unconditionally and can be safely mounted/unmounted.
+type NavigationOverlayProps = {
+    steps: Step[];
+    totalDurationSeconds: number;
+    cameraRef: React.RefObject<MapboxGL.Camera>;
+    destination: { longitude: number; latitude: number };
+    transportMode: TransportMode;
+    provider: Provider;
+    isShuttle: boolean;
+    onRecalculated: (newDirections: DirectionsResponse) => void;
+    onExit: () => void;
+};
+
+function NavigationOverlay({
+    steps,
+    totalDurationSeconds,
+    cameraRef,
+    destination,
+    transportMode,
+    provider,
+    isShuttle,
+    onRecalculated,
+    onExit,
+}: Readonly<NavigationOverlayProps>) {
+    const { location } = useLiveLocation(true);
+    const stepNav = useStepNavigator(steps, location, isShuttle);
+    const [isRecalculating, setIsRecalculating] = useState(false);
+    const recalcInFlightRef = useRef(false);
+    const initialLockDone = useRef(false);
+
+    // Stable refs so the recalc effect doesn't re-fire when callbacks change identity
+    const onRecalculatedRef = useRef(onRecalculated);
+    onRecalculatedRef.current = onRecalculated;
+    const clearOffRouteRef = useRef(stepNav.clearOffRoute);
+    clearOffRouteRef.current = stepNav.clearOffRoute;
+    const destinationRef = useRef(destination);
+    destinationRef.current = destination;
+
+    // Camera follow
+    useEffect(() => {
+        if (!location) return;
+        if (!initialLockDone.current) {
+            initialLockDone.current = true;
+            cameraRef.current?.setCamera({
+                centerCoordinate: [location.longitude, location.latitude],
+                zoomLevel: 19,
+                animationDuration: 800,
+            });
+            return;
+        }
+        cameraRef.current?.setCamera({
+            centerCoordinate: [location.longitude, location.latitude],
+            animationDuration: 1000,
+            animationMode: 'easeTo',
+        });
+    }, [location, cameraRef]);
+
+    // Off-route recalculation — only fires when isOffRoute flips to true
+    useEffect(() => {
+        if (!stepNav.isOffRoute) return;
+        if (recalcInFlightRef.current) return;
+        if (!location) {
+            clearOffRouteRef.current();
+            return;
+        }
+
+        recalcInFlightRef.current = true;
+        setIsRecalculating(true);
+
+        // Capture current location snapshot for the request
+        const origin = { longitude: location.longitude, latitude: location.latitude };
+
+        const request: DirectionsRequest = {
+            origin,
+            destination: destinationRef.current,
+            transportMode,
+            provider,
+            timeFilter: new Date().toISOString(),
+            timeFilterMode: 'depart',
+        };
+
+        getDirections(request)
+            .then((newDirections) => {
+                onRecalculatedRef.current(newDirections);
+                clearOffRouteRef.current();
+            })
+            .catch((err) => {
+                console.warn('[NavigationOverlay] Recalculation failed', err);
+                clearOffRouteRef.current();
+            })
+            .finally(() => {
+                setIsRecalculating(false);
+                recalcInFlightRef.current = false;
+            });
+    // Only re-run when isOffRoute changes — everything else is accessed via refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stepNav.isOffRoute]);
+
+    return (
+        <StepByStepPanel
+            steps={steps}
+            currentStep={stepNav.currentStep}
+            nextStep={stepNav.nextStep}
+            afterNextStep={stepNav.afterNextStep}
+            currentStepIndex={stepNav.currentStepIndex}
+            distanceToNextTurn={stepNav.distanceToNextTurn}
+            totalDistanceRemaining={stepNav.totalDistanceRemaining}
+            totalDurationSeconds={totalDurationSeconds}
+            arrived={stepNav.arrived}
+            isRecalculating={isRecalculating}
+            onExit={() => { onExit(); stepNav.reset(); }}
+        />
+    );
+}
 
 export default function MapScreen() {
     const {
@@ -82,6 +208,9 @@ export default function MapScreen() {
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
+    const [isNavigating, setIsNavigating] = useState(false);
+    // Collect the active steps for step-by-step (shuttle combines three legs)
+    const [activeSteps, setActiveSteps] = useState<Step[]>([]);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -153,7 +282,9 @@ export default function MapScreen() {
             destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
         });
         setRouteValidation(result);
-        if (!result.valid) {
+        // Never show the validation error modal while actively navigating —
+        // recalculation uses the live GPS position which may be off-campus.
+        if (!result.valid && !isNavigating) {
             setShowValidationError(true);
             setDirections(null);
         }
@@ -161,7 +292,7 @@ export default function MapScreen() {
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
     useEffect(() => {
-        if (!directions || !routeValidation?.valid) return;
+        if (!directions || !routeValidation?.valid || isNavigating) return;
         const {route} = routeValidation;
         const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
         if (bounds.bounds) {
@@ -345,6 +476,7 @@ export default function MapScreen() {
             id="campus-buildings-source"
             shape={shapeCollection}
             onPress={(e) => {
+              if (isNavigating) return;
               const f = e.features[0];
               console.log('Pressed feature:', f);
 
@@ -442,15 +574,21 @@ export default function MapScreen() {
                 )}
             </MapboxGL.MapView>
 
-            <View style={styles.topBar}>
-                <CampusBadge campus={campus}/>
-            </View>
+            {!isNavigating && (
+                <View style={styles.topBar}>
+                    <CampusBadge campus={campus}/>
+                </View>
+            )}
 
-            <View style={styles.switchContainer}>
-                <CampusSwitch value={campus} onChange={setCampus}/>
-            </View>
+            {!isNavigating && (
+                <View style={styles.switchContainer}>
+                    <CampusSwitch value={campus} onChange={setCampus}/>
+                </View>
+            )}
 
             <View style={styles.searchContainer} pointerEvents="box-none">
+                {!isNavigating && (
+                <>
                 {!seeDirectionBar &&
                     <MapSearchBar
                         mapsAdapter={mapsAdapter}
@@ -554,9 +692,11 @@ export default function MapScreen() {
                         }}
                     />
                 }
+                </>
+                )}
             </View>
 
-            {fromCoordinates && toCoordinates && routeValidation?.valid && (
+            {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
                 <View style={styles.navigationBottomContainer}>
                     <NavigationBottom
                         origin={{
@@ -570,9 +710,68 @@ export default function MapScreen() {
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
-                        onStartPress={() => console.log('Start navigation')}
+                        onStartPress={() => {
+                            if (!directions) return;
+                            const steps =
+                                selectedMode === 'Shuttle'
+                                    ? [
+                                          ...(shuttleRouting.walkToStop?.steps ?? []),
+                                          ...(shuttleRouting.shuttleLeg?.steps ?? []),
+                                          ...(shuttleRouting.walkFromStop?.steps ?? []),
+                                      ]
+                                    : (directions.steps ?? []);
+                            setActiveSteps(steps);
+                            setIsNavigating(true);
+                        }}
                     />
                 </View>
+            )}
+
+            {/* ── Step-by-step navigation panel (US-2.7) ── */}
+            {isNavigating && (
+                <NavigationOverlay
+                    steps={activeSteps}
+                    totalDurationSeconds={
+                        selectedMode === 'Shuttle'
+                            ? (shuttleRouting.walkToStop?.durationSeconds ?? 0) +
+                              (shuttleRouting.shuttleLeg?.durationSeconds ?? 0) +
+                              (shuttleRouting.walkFromStop?.durationSeconds ?? 0)
+                            : (directions?.durationSeconds ?? 0)
+                    }
+                    cameraRef={cameraRef}
+                    destination={toCoordinates
+                        ? { longitude: toCoordinates[0], latitude: toCoordinates[1] }
+                        : { longitude: 0, latitude: 0 }
+                    }
+                    transportMode={
+                        selectedMode === 'Drive' ? TransportMode.DRIVING :
+                        selectedMode === 'Transit' ? TransportMode.TRANSIT :
+                        TransportMode.WALKING
+                    }
+                    provider={selectedMode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX}
+                    isShuttle={selectedMode === 'Shuttle'}
+                    onRecalculated={(newDirections) => {
+                        setDirections(newDirections);
+                        setActiveSteps(newDirections.steps ?? []);
+                    }}
+                    onExit={() => {
+                        setIsNavigating(false);
+                        // Snap campus to destination before clearing coords
+                        if (toCoordinates) {
+                            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1]);
+                            if (nearest) setCampus(nearest);
+                        }
+                        // Return to home screen — clear all route state
+                        setSeeDirectionBar(false);
+                        setFrom('');
+                        setFromCoordinates(null);
+                        fromCoordinatesIsUserLocation.current = false;
+                        setTo('');
+                        setToCoordinates(null);
+                        setDirections(null);
+                        setActiveSteps([]);
+                    }}
+                />
             )}
 
             <LocateMeButton
