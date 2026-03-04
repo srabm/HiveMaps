@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.server.ResponseStatusException
 
 @ControllerAdvice
 class ExceptionHandler {
@@ -23,5 +24,15 @@ class ExceptionHandler {
     @ExceptionHandler(NodeNotFoundException::class)
     fun handleNoNodeFound(e: NodeNotFoundException): ResponseEntity<Any> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to e.message))
+    }
+
+    @ExceptionHandler(ResponseStatusException::class)
+    fun handleResponseStatusException(e: ResponseStatusException): ResponseEntity<Any> {
+        return ResponseEntity.status(e.statusCode).body(mapOf("error" to e.message))
+    }
+
+    @ExceptionHandler(Exception::class)
+    fun handleGeneral(e: Exception): ResponseEntity<Any> {
+        return ResponseEntity.internalServerError().body(mapOf("error" to "Something went wrong"))
     }
 }
