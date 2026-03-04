@@ -343,26 +343,26 @@ class IndoorDirectionsServiceTest {
 
     @Test
     fun `getNearestNode returns the closest node on the correct floor`() {
-        val near = node("near", lat = 1.0, lon = 1.0, floor = "1")
-        val far  = node("far",  lat = 9.0, lon = 9.0, floor = "1")
+        val near = node("near", lat = 45.4215, lon = -75.6972, floor = "1")
+        val far  = node("far",  lat = 45.4215, lon = -75.6969, floor = "1")
 
         `when`(repository.findIndoorNodesByBuilding("B1"))
             .thenReturn(mapOf("near" to near, "far" to far))
 
-        val result = service.getNearestNode("B1", "1", longitude = 1.0, latitude = 1.0)
+        val result = service.getNearestNode("B1", "1", -75.6973, 45.4215)
 
         assertEquals("near", result.id)
     }
 
     @Test
     fun `getNearestNode ignores nodes on a different floor`() {
-        val wrongFloor = node("wrong", lat = 1.0, lon = 1.0, floor = "2")
-        val sameFloor  = node("right", lat = 5.0, lon = 5.0, floor = "1")
+        val wrongFloor = node("wrong", lat = 45.4215, lon = -75.6972, floor = "2")
+        val sameFloor  = node("right", lat = 45.4215, lon = -75.6971, floor = "1")
 
         `when`(repository.findIndoorNodesByBuilding("B1"))
             .thenReturn(mapOf("wrong" to wrongFloor, "right" to sameFloor))
 
-        val result = service.getNearestNode("B1", "1", longitude = 1.0, latitude = 1.0)
+        val result = service.getNearestNode("B1", "1", -75.6972, 45.4215)
 
         assertEquals("right", result.id)
     }

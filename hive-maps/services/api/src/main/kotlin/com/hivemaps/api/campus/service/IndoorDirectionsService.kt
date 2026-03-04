@@ -1,5 +1,8 @@
 package com.hivemaps.api.campus.service
 
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.math.atan2
 import java.util.PriorityQueue
@@ -203,9 +206,18 @@ class IndoorDirectionsService(
     }
 
     private fun getDistance(startLongitude: Double, startLatitude: Double, endLongitude: Double, endLatitude: Double): Double {
-        val dx = endLongitude - startLongitude
-        val dy = endLatitude - startLatitude
-        return sqrt(dx * dx + dy * dy)
+        val earthRadius = 6371000.0 //meter
+
+        val dLat = Math.toRadians(endLatitude - startLatitude)
+        val dLon = Math.toRadians(endLongitude - startLongitude)
+
+        val a = sin(dLat / 2).pow(2) +
+                cos(Math.toRadians(startLatitude)) * cos(Math.toRadians(endLatitude)) *
+                sin(dLon / 2).pow(2)
+
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return earthRadius * c
     }
 
     fun getNearestNode(building: String, floor: String, longitude: Double, latitude: Double): IndoorNode {
@@ -225,9 +237,9 @@ class IndoorDirectionsService(
                 }
             }
 
-        // the closest node must be within 10 meters to be valid
-        if (closestNode == null || closestDistance > 10) {
-            throw NodeNotFoundException("There are no nodes on $building $floor within 10m")
+        // the closest node must be within 20 meters to be valid
+        if (closestNode == null || closestDistance > 20) {
+            throw NodeNotFoundException("There are no nodes on $building $floor within 20m")
         }
 
         return closestNode!!
