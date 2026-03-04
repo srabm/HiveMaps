@@ -1,4 +1,4 @@
-import type { Building } from '@/constants/campus';
+import type { Building } from '@/types/campus';
 
 export type Coordinates = [number, number]; // [lon, lat]
 export type MapLocation = {

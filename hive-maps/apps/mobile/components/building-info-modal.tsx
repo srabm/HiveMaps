@@ -7,9 +7,11 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type BuildingInfo = {
+  campus?: string;
+  code?: string;
   name?: string;
   addresses?: string[];
-  campus?: string;
+  hasIndoorMap?: boolean;
   imageUrl?: string;
   accessibility?: Array<{ label: string; description?: string; iconName?: string }>;
   hours?: string;
@@ -24,6 +26,7 @@ type BuildingInfoModalProps = {
   onDirections?: () => void;
   onStart?: () => void;
   onFavorite?: () => void;
+  onIndoorMap?: () => void;
 };
 
 const FALLBACK_ACCESSIBILITY: BuildingInfo['accessibility'] = [
@@ -46,6 +49,7 @@ export function BuildingInfoModal({
   onDirections,
   onStart,
   onFavorite,
+  onIndoorMap,
 }: Readonly<BuildingInfoModalProps>) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -53,6 +57,8 @@ export function BuildingInfoModal({
   const accessibilityItems = building?.accessibility?.length
     ? building.accessibility
     : FALLBACK_ACCESSIBILITY;
+
+  const hasIndoorMap = !!building?.hasIndoorMap;
 
   return (
     <Modal
@@ -102,6 +108,19 @@ export function BuildingInfoModal({
                 <ThemedText style={styles.actionText}>Start</ThemedText>
               </View>
             </Pressable>
+
+            {hasIndoorMap && (
+              <Pressable
+                style={[styles.actionButton, styles.actionSecondary]}
+                onPress={onIndoorMap ?? noop}
+              >
+                <View style={styles.actionButtonContent}>
+                  <MaterialIcons name="map" size={14} color="#ffffff" />
+                  <ThemedText style={styles.actionText}>Indoor</ThemedText>
+                </View>
+              </Pressable>
+            )}
+
             <Pressable
               style={[styles.actionButton, styles.actionSecondary]}
               onPress={onFavorite ?? noop}
@@ -245,6 +264,7 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
   },

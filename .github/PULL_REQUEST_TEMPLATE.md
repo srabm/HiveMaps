@@ -6,7 +6,7 @@
 
 ## Testing
 - [ ] Mobile unit: `cd hive-maps/apps/mobile && npm run test:ci`
-- [ ] API unit: `cd hive-maps/services/api && ./gradlew test`
+- [ ] API unit: `cd hive-maps/services/api && docker compose down -v && docker compose up -d --wait db && ./gradlew test`
 - [ ] API smoke: `cd hive-maps/services/api && docker compose up -d --build` then `curl http://localhost:8080/api/hello`
 - [ ] If any item is not applicable, explain why:
 

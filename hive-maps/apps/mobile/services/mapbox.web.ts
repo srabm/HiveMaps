@@ -9,6 +9,12 @@ export const MapboxGL = {
   Camera: View,
   UserLocation: View,
   PointAnnotation: View,
+  ShapeSource: View,
+  FillLayer: View,
+  LineLayer: View,
+  SymbolLayer: View,
+  CircleLayer: View,
+  Images: View,
   StyleURL: { Street: '' },
   setAccessToken: () => undefined,
   setTelemetryEnabled: () => undefined,
@@ -37,4 +43,3 @@ class WebMapsAdapter implements MapsProviderPort {
 }
 
 export const mapboxMapsAdapter = new WebMapsAdapter();
-

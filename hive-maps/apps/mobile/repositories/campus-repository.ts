@@ -1,7 +1,7 @@
-import { buildingsByCampus, type CampusMeta, type Building, type CampusId } from '@/constants/campus';
 import type { MapsProviderPort } from '@/services/maps/maps-provider';
 import { fetchBuildings, fetchCampuses, searchPlaceByAddress, fetchPlaceDetails } from '@/services/http/campus-api';
 import { mergeBuildingCache, loadBuildingCache, loadDetailsCache, mergeDetailsCache } from '@/storage/campus-storage';
+import type { Building, CampusId, CampusMeta } from '@/types/campus';
 
 export type BuildingPoint = {
   id: string;
@@ -16,25 +16,13 @@ export type BuildingPointsProgress = {
   found: number;
 };
 
-export type CampusMetaPatch = Pick<CampusMeta, 'center' | 'zoom' | 'label' | 'name'>;
-
 function cacheKey(building: Building) {
   const rawKey = `${building.code}:${building.addresses[0]}`;
   return rawKey.trim().toLowerCase();
 }
 
-export async function loadCampusesFromApi(): Promise<Partial<Record<CampusId, CampusMetaPatch>>> {
-  const remote = await fetchCampuses();
-  const patches: Partial<Record<CampusId, CampusMetaPatch>> = {};
-  remote.forEach((c) => {
-    patches[c.id] = {
-      center: [c.center.lon, c.center.lat],
-      zoom: c.zoom,
-      label: c.label,
-      name: c.name,
-    };
-  });
-  return patches;
+export async function loadCampusesFromApi(): Promise<CampusMeta[]> {
+  return fetchCampuses();
 }
 
 export async function getBuildingPointsByCampus(
@@ -45,25 +33,8 @@ export async function getBuildingPointsByCampus(
   const buildingCache = await loadBuildingCache();
   const detailsCache = await loadDetailsCache();
 
-  let campusBuildings: Building[] = [];
-  try {
-    const remote = await fetchBuildings(campus);
-    remote.forEach((b) => {
-      campusBuildings.push({
-        campus: b.campus,
-        code: b.code,
-        name: b.name,
-        location: b.location,
-        addresses: b.addresses,
-        center: [b.center.lon, b.center.lat],
-      })
-    });
-    console.log(`Using API buildings for ${campus}: ${campusBuildings.length} buildings`);
-  } catch {
-    // fallback to bundled constants if backend unreachable
-    console.log('Using fallback campus.ts buildings');
-    campusBuildings = buildingsByCampus[campus];
-  }
+  const campusBuildings = await fetchBuildings(campus);
+  console.log(`Using API buildings for ${campus}: ${campusBuildings.length} buildings`);
 
   const total = campusBuildings.length;
   const updates: Record<string, [number, number]> = {};
