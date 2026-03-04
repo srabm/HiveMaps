@@ -109,7 +109,7 @@ class IndoorDirectionsService(
                 edge.startNode.floor != edge.endNode.floor -> DirectionType.UP_OR_DOWN
                 previousEdgeAngle == null -> DirectionType.STRAIGHT
                 else -> {
-                    val angleDiff = ((currentAngle - previousEdgeAngle!!) + 540) % 360 - 180
+                    val angleDiff = ((currentAngle - previousEdgeAngle) + 540) % 360 - 180
                     when {
                         -45 < angleDiff && angleDiff <= 45 -> DirectionType.STRAIGHT
                         45 <= angleDiff && angleDiff <= 135 -> DirectionType.LEFT
@@ -133,7 +133,6 @@ class IndoorDirectionsService(
                         nodes = nodes
                     )
                 )
-                nodes = mutableListOf()
                 distance = 0.0
             }
 
@@ -242,7 +241,7 @@ class IndoorDirectionsService(
             throw NodeNotFoundException("There are no nodes on $building $floor within 20m")
         }
 
-        return closestNode!!
+        return closestNode
     }
 }
   
