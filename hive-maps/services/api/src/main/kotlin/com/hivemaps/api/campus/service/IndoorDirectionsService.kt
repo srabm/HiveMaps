@@ -19,12 +19,7 @@ import org.springframework.stereotype.Service
 class IndoorDirectionsService(
     private val indoorDirectionsRepository: IndoorDirectionsRepository
 ) {
-    // using Dijkstra's algorithm to find the shortest path
-    private fun getPath(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<IndoorEdge> {
-        // the start and end nodes must be accessible if wheechairAcessible is true
-        if (accessibleOnly && !startNode.wheelchairAccessible) return emptyList()
-        if (accessibleOnly && !endNode.wheelchairAccessible) return emptyList()
-
+    private fun runDijkstra(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean): Pair<Map<String, IndoorEdge?>, Boolean> {
         val distances = mutableMapOf<String, Double>().withDefault { Double.MAX_VALUE } // the shortest distance to the node (node_id, distance)
         val connectingEdge = mutableMapOf<String, IndoorEdge?>().withDefault { null } // the edge connecting the node to the shortest path to the node (node_id, IndoorEdge)
         val visited = mutableMapOf<String, Boolean>().withDefault { false } // whether the node has already been visited or not (node_id, true/false)
@@ -64,11 +59,10 @@ class IndoorDirectionsService(
             visited[node.id] = true
         }
 
-        if (!pathFound) {
-            return emptyList()
-        }
+        return connectingEdge to pathFound
+    }
 
-        // reconstruct path
+    private fun reconstructPath(connectingEdge: Map<String, IndoorEdge?>, endNode: IndoorNode): List<IndoorEdge> {
         val path = mutableListOf<IndoorEdge>()
         var current: IndoorEdge? = connectingEdge.getValue(endNode.id)
         while (current != null) {
@@ -80,6 +74,21 @@ class IndoorDirectionsService(
         }
 
         return path.reversed()
+    }
+    
+    // using Dijkstra's algorithm to find the shortest path
+    private fun getPath(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<IndoorEdge> {
+        // the start and end nodes must be accessible if wheechairAcessible is true
+        if (accessibleOnly && !startNode.wheelchairAccessible) return emptyList()
+        if (accessibleOnly && !endNode.wheelchairAccessible) return emptyList()
+
+        val (connectingEdge, pathFound) = runDijkstra(startNode, endNode, accessibleOnly)
+
+        if (!pathFound) {
+            return emptyList()
+        }
+
+        return reconstructPath(connectingEdge, endNode)
     }
 
     // Returns the angle of an edge in degrees ( from -180 to 180 )

@@ -17,7 +17,7 @@ class ExceptionHandler {
 
     @ExceptionHandler(NoRouteFoundException::class)
     fun handleNoRouteFound(e: NoRouteFoundException): ResponseEntity<Any> {
-        return ResponseEntity.unprocessableEntity().body(mapOf("error" to e.message))
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(mapOf("error" to e.message))
     }
 
     @ExceptionHandler(NodeNotFoundException::class)
