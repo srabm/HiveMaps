@@ -84,9 +84,11 @@ describe('BuildingInfoModal', () => {
         building={{ ...baseBuilding, code: 'XYZ' }}
         onClose={jest.fn()}
       />
-    );
+      );
 
     expect(queryByText('Indoor')).toBeNull();
+  });
+  
   it('renders allHours entries when provided', () => {
     const buildingWithAllHours = {
       ...baseBuilding,
