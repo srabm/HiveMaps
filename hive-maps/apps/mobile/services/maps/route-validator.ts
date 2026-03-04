@@ -1,4 +1,4 @@
-import {buildings, campuses, type CampusId} from '@/constants/campus';
+import type { CampusId, CampusMetaById } from '@/types/campus';
 
 export type RouteEndpoint = 
     | {type: 'building'; code: string}
@@ -26,11 +26,11 @@ export type ValidationResult =
 
 const CAMPUS_RADIUS_KM = 0.8;
 
-export function getCampusForBuilding(code: string): CampusId | null {
-    const building = buildings.find(
-        (b) => b.code.toUpperCase() === code.toUpperCase(),
-    );
-    return building?.campus ?? null;
+export function getCampusForBuilding(
+    code: string,
+    buildingCampusByCode: Record<string, CampusId>,
+): CampusId | null {
+    return buildingCampusByCode[code.toUpperCase()] ?? null;
 }
 
 export function haversineKM (
@@ -46,6 +46,7 @@ export function haversineKM (
 export function getNearestCampus(
     longitude: number,
     latitude: number,
+    campuses: CampusMetaById,
 ): CampusId | null {
     let best: {id: CampusId; dist: number} | null = null;
     for (const campus of Object.values(campuses)) {
@@ -66,10 +67,14 @@ type EndpointResolution =
     | {valid: true; endpoint: ResolvedEndpoint}
     | {valid: false; error: ValidationError; message: string};
 
-function resolveOriginEndpoint(origin: RouteEndpoint): EndpointResolution {
+function resolveOriginEndpoint(
+    origin: RouteEndpoint,
+    campuses: CampusMetaById,
+    buildingCampusByCode: Record<string, CampusId>,
+): EndpointResolution {
     if (origin.type === 'building') {
         const originCode = origin.code.toUpperCase();
-        const originCampus = getCampusForBuilding(originCode);
+        const originCampus = getCampusForBuilding(originCode, buildingCampusByCode);
         if (!originCampus) {
             return {valid: false, error: 'UNKNOWN_ORIGIN', message: `Building "${originCode}" not found.`};
         }
@@ -82,7 +87,7 @@ function resolveOriginEndpoint(origin: RouteEndpoint): EndpointResolution {
         };
     }
 
-    const originCampus = getNearestCampus(origin.longitude, origin.latitude);
+    const originCampus = getNearestCampus(origin.longitude, origin.latitude, campuses);
     if (!originCampus) {
         return {
             valid: false,
@@ -100,10 +105,14 @@ function resolveOriginEndpoint(origin: RouteEndpoint): EndpointResolution {
     };
 }
 
-function resolveDestinationEndpoint(destination: RouteEndpoint): EndpointResolution {
+function resolveDestinationEndpoint(
+    destination: RouteEndpoint,
+    campuses: CampusMetaById,
+    buildingCampusByCode: Record<string, CampusId>,
+): EndpointResolution {
     if (destination.type === 'building') {
         const destinationCode = destination.code.toUpperCase();
-        const destinationCampus = getCampusForBuilding(destinationCode);
+        const destinationCampus = getCampusForBuilding(destinationCode, buildingCampusByCode);
         if (!destinationCampus) {
             return {valid: false, error: 'UNKNOWN_DESTINATION', message: `Building "${destinationCode}" not found.`};
         }
@@ -116,7 +125,7 @@ function resolveDestinationEndpoint(destination: RouteEndpoint): EndpointResolut
         };
     }
 
-    const destinationCampus = getNearestCampus(destination.longitude, destination.latitude);
+    const destinationCampus = getNearestCampus(destination.longitude, destination.latitude, campuses);
     if (!destinationCampus) {
         return {
             valid: false,
@@ -136,12 +145,14 @@ function resolveDestinationEndpoint(destination: RouteEndpoint): EndpointResolut
 
 export function validateCampusRoute(
     request: CampusRouteRequest,
+    campuses: CampusMetaById,
+    buildingCampusByCode: Record<string, CampusId> = {},
 ): ValidationResult {
     const {origin, destination} = request;
 
-    const originResolution = resolveOriginEndpoint(origin);
+    const originResolution = resolveOriginEndpoint(origin, campuses, buildingCampusByCode);
     if (!originResolution.valid) return originResolution;
-    const destinationResolution = resolveDestinationEndpoint(destination);
+    const destinationResolution = resolveDestinationEndpoint(destination, campuses, buildingCampusByCode);
     if (!destinationResolution.valid) return destinationResolution;
 
     const originCampus = originResolution.endpoint.campus;

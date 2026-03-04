@@ -1,8 +1,8 @@
 import {
   fetchBuildingFloors,
   fetchFloorDetails,
-  getCampusIdForIndoorBuilding,
-  parseIndoorBuildingCode,
+  fetchSupportedIndoorBuildings,
+  normalizeIndoorBuildingCode,
 } from '@/services/http/indoor-api';
 
 jest.mock('@/services/http/campus-api', () => ({
@@ -15,18 +15,32 @@ describe('indoor-api', () => {
     global.fetch = jest.fn() as jest.Mock;
   });
 
-  it('parses supported building code and rejects unsupported values', () => {
-    expect(parseIndoorBuildingCode('h')).toBe('H');
-    expect(parseIndoorBuildingCode('CC')).toBe('CC');
-    expect(parseIndoorBuildingCode('unknown')).toBeNull();
-    expect(parseIndoorBuildingCode(null)).toBeNull();
+  it('normalizes indoor building code values', () => {
+    expect(normalizeIndoorBuildingCode('h')).toBe('H');
+    expect(normalizeIndoorBuildingCode('CC')).toBe('CC');
+    expect(normalizeIndoorBuildingCode(' h ')).toBe('H');
+    expect(normalizeIndoorBuildingCode('unknown')).toBe('UNKNOWN');
+    expect(normalizeIndoorBuildingCode(null)).toBeNull();
   });
 
-  it('maps indoor buildings to the correct campus', () => {
-    expect(getCampusIdForIndoorBuilding('CC')).toBe('LOY');
-    expect(getCampusIdForIndoorBuilding('VL')).toBe('LOY');
-    expect(getCampusIdForIndoorBuilding('H')).toBe('SGW');
-    expect(getCampusIdForIndoorBuilding('LB')).toBe('SGW');
+  it('fetchSupportedIndoorBuildings returns backend indoor source of truth payload', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([
+        { campusId: 'loy', buildingCode: 'cc' },
+        { campusId: 'sgw', buildingCode: 'h' },
+      ]),
+    });
+
+    await expect(fetchSupportedIndoorBuildings()).resolves.toEqual([
+      { campusId: 'LOY', buildingCode: 'CC' },
+      { campusId: 'SGW', buildingCode: 'H' },
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/indoor/buildings',
+      expect.any(Object),
+    );
   });
 
   it('fetchBuildingFloors requests the right endpoint and sorts by sortOrder', async () => {

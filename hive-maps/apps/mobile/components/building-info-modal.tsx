@@ -5,13 +5,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SUPPORTED_INDOOR_BUILDINGS, type BuildingCode } from '@/services/http/indoor-api';
 
 type BuildingInfo = {
+  campus?: string;
   code?: string;
   name?: string;
   addresses?: string[];
-  campus?: string;
+  hasIndoorMap?: boolean;
   imageUrl?: string;
   accessibility?: Array<{ label: string; description?: string; iconName?: string }>;
   hours?: string;
@@ -58,7 +58,7 @@ export function BuildingInfoModal({
     ? building.accessibility
     : FALLBACK_ACCESSIBILITY;
 
-  const hasIndoorMap = building?.code && SUPPORTED_INDOOR_BUILDINGS.has(building.code as BuildingCode);
+  const hasIndoorMap = !!building?.hasIndoorMap;
 
   return (
     <Modal

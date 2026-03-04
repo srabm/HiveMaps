@@ -10,10 +10,12 @@ import { FloorIndicator } from '@/components/indoor/floor-indicator';
 import {
   fetchBuildingFloors,
   fetchFloorDetails,
+  fetchSupportedIndoorBuildings,
   FloorSummary,
   FloorDetailsResponse,
-  parseIndoorBuildingCode,
-  getCampusIdForIndoorBuilding,
+  normalizeIndoorBuildingCode,
+  type IndoorCampusId,
+  type SupportedIndoorBuilding,
 } from '@/services/http/indoor-api';
 
 const FALLBACK_NOTICE_DURATION_MS = 3500;
@@ -67,21 +69,29 @@ function getFallbackFloorId(
 }
 
 export default function IndoorMapScreen() {
-  const { building, floor } = useLocalSearchParams<{ building: string; floor?: string | string[] }>();
+  const { building, floor, campus } = useLocalSearchParams<{
+    building: string;
+    floor?: string | string[];
+    campus?: string | string[];
+  }>();
   const router = useRouter();
 
   const buildingCode = useMemo(
-    () => parseIndoorBuildingCode(typeof building === 'string' ? building : null),
+    () => normalizeIndoorBuildingCode(typeof building === 'string' ? building : null),
     [building],
   );
+  const campusParam = useMemo(() => normalizeFloorParam(campus), [campus]);
   const requestedFloor = useMemo(() => normalizeFloorParam(floor), [floor]);
 
   const [floors, setFloors] = useState<FloorSummary[]>([]);
+  const [resolvedBuilding, setResolvedBuilding] = useState<SupportedIndoorBuilding | null>(null);
   const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
   const [floorDetails, setFloorDetails] = useState<FloorDetailsResponse | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [isResolvingBuilding, setIsResolvingBuilding] = useState(true);
   const [isLoadingFloors, setIsLoadingFloors] = useState(true);
   const [isLoadingFloorDetails, setIsLoadingFloorDetails] = useState(false);
+  const [didFailBuildingSupportLookup, setDidFailBuildingSupportLookup] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -100,17 +110,82 @@ export default function IndoorMapScreen() {
   useEffect(() => {
     let isCancelled = false;
 
-    async function loadIndoorData() {
+    async function resolveBuildingSupport() {
       if (!buildingCode) {
+        if (isCancelled) return;
+        setDidFailBuildingSupportLookup(false);
+        setResolvedBuilding(null);
+        setIsResolvingBuilding(false);
+        return;
+      }
+
+      setIsResolvingBuilding(true);
+      setDidFailBuildingSupportLookup(false);
+      try {
+        const supportedBuildings = await fetchSupportedIndoorBuildings();
+        if (isCancelled) return;
+
+        const matches = supportedBuildings.filter(
+          (candidate) => candidate.buildingCode.toUpperCase() === buildingCode,
+        );
+        const preferredCampus = campusParam?.toUpperCase();
+        const resolved =
+          matches.find((candidate) => candidate.campusId.toUpperCase() === preferredCampus) ?? matches[0] ?? null;
+
+        setResolvedBuilding(resolved);
+        setIsResolvingBuilding(false);
+        setDidFailBuildingSupportLookup(false);
+      } catch (error) {
+        if (isCancelled) return;
+        console.error('Failed to resolve supported indoor buildings:', error);
+        unavailableFloorIdsRef.current = new Set();
+        setFloors([]);
+        setActiveFloorId(null);
+        setFloorDetails(null);
+        setSelectedRoomId(null);
+        setNoticeMessage(null);
+        setResolvedBuilding(null);
+        setIsResolvingBuilding(false);
+        setDidFailBuildingSupportLookup(true);
+        setErrorMessage('Could not load indoor building metadata. Please try again.');
+      }
+    }
+
+    setErrorMessage(null);
+    resolveBuildingSupport();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [buildingCode, campusParam, reloadToken]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadIndoorData() {
+      if (isResolvingBuilding) {
+        if (isCancelled) return;
+        setIsLoadingFloors(true);
+        return;
+      }
+
+      if (!buildingCode || !resolvedBuilding) {
         if (isCancelled) return;
         unavailableFloorIdsRef.current = new Set();
         setFloors([]);
         setActiveFloorId(null);
         setFloorDetails(null);
         setSelectedRoomId(null);
-        setErrorMessage('This building does not currently support indoor maps.');
         setNoticeMessage(null);
         setIsLoadingFloors(false);
+        if (!buildingCode) {
+          setErrorMessage('This building does not currently support indoor maps.');
+          return;
+        }
+        if (didFailBuildingSupportLookup) {
+          return;
+        }
+        setErrorMessage('This building does not currently support indoor maps.');
         return;
       }
 
@@ -123,7 +198,7 @@ export default function IndoorMapScreen() {
       setFloorDetails(null);
       setSelectedRoomId(null);
       try {
-        const campusId = getCampusIdForIndoorBuilding(buildingCode);
+        const campusId = resolvedBuilding.campusId as IndoorCampusId;
         const availableFloors = await fetchBuildingFloors(campusId, buildingCode);
         if (isCancelled) return;
         setFloors(availableFloors);
@@ -155,13 +230,13 @@ export default function IndoorMapScreen() {
     return () => {
       isCancelled = true;
     };
-  }, [buildingCode, reloadToken, requestedFloor]);
+  }, [buildingCode, didFailBuildingSupportLookup, isResolvingBuilding, reloadToken, requestedFloor, resolvedBuilding]);
 
   useEffect(() => {
     let isCancelled = false;
 
     async function loadFloorDetails() {
-      if (!buildingCode || !activeFloorId) {
+      if (!buildingCode || !resolvedBuilding || !activeFloorId) {
         setFloorDetails(null);
         return;
       }
@@ -171,7 +246,7 @@ export default function IndoorMapScreen() {
       setFloorDetails(null);
       setSelectedRoomId(null);
       try {
-        const campusId = getCampusIdForIndoorBuilding(buildingCode);
+        const campusId = resolvedBuilding.campusId as IndoorCampusId;
         const details = await fetchFloorDetails(campusId, buildingCode, activeFloorId);
         if (isCancelled) return;
         if (!details) {
@@ -208,7 +283,7 @@ export default function IndoorMapScreen() {
     return () => {
       isCancelled = true;
     };
-  }, [buildingCode, activeFloorId, reloadToken, floors]);
+  }, [activeFloorId, buildingCode, floors, reloadToken, resolvedBuilding]);
 
   const buildingTitle = buildingCode ? `${buildingCode} Building - Indoor Map` : 'Indoor Map';
   const isInitialLoading = isLoadingFloors && floors.length === 0;

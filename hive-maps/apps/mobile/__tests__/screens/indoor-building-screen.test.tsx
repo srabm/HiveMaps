@@ -6,8 +6,8 @@ const mockUseLocalSearchParams = jest.fn();
 const mockBack = jest.fn();
 const mockFetchBuildingFloors = jest.fn();
 const mockFetchFloorDetails = jest.fn();
-const mockParseIndoorBuildingCode = jest.fn();
-const mockGetCampusIdForIndoorBuilding = jest.fn();
+const mockFetchSupportedIndoorBuildings = jest.fn();
+const mockNormalizeIndoorBuildingCode = jest.fn();
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockUseLocalSearchParams(),
@@ -21,8 +21,8 @@ jest.mock('@expo/vector-icons', () => ({
 jest.mock('@/services/http/indoor-api', () => ({
   fetchBuildingFloors: (...args: unknown[]) => mockFetchBuildingFloors(...args),
   fetchFloorDetails: (...args: unknown[]) => mockFetchFloorDetails(...args),
-  parseIndoorBuildingCode: (...args: unknown[]) => mockParseIndoorBuildingCode(...args),
-  getCampusIdForIndoorBuilding: (...args: unknown[]) => mockGetCampusIdForIndoorBuilding(...args),
+  fetchSupportedIndoorBuildings: (...args: unknown[]) => mockFetchSupportedIndoorBuildings(...args),
+  normalizeIndoorBuildingCode: (...args: unknown[]) => mockNormalizeIndoorBuildingCode(...args),
 }));
 
 jest.mock('@/components/indoor/floor-plan-viewer', () => {
@@ -87,11 +87,12 @@ describe('Indoor building screen', () => {
     jest.clearAllMocks();
 
     mockUseLocalSearchParams.mockReturnValue({ building: 'H' });
-    mockParseIndoorBuildingCode.mockImplementation((value: string | null | undefined) => {
+    mockNormalizeIndoorBuildingCode.mockImplementation((value: string | null | undefined) => {
       if (!value) return null;
-      return String(value).toUpperCase();
+      const normalized = String(value).trim().toUpperCase();
+      return normalized.length > 0 ? normalized : null;
     });
-    mockGetCampusIdForIndoorBuilding.mockReturnValue('SGW');
+    mockFetchSupportedIndoorBuildings.mockResolvedValue([{ campusId: 'SGW', buildingCode: 'H' }]);
   });
 
   it('uses valid floor query param and wires floor details into the viewer', async () => {
@@ -105,6 +106,7 @@ describe('Indoor building screen', () => {
     const { getByText, getByTestId } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchBuildingFloors).toHaveBeenCalledWith('SGW', 'H');
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
     });
@@ -117,7 +119,7 @@ describe('Indoor building screen', () => {
 
   it('shows unsupported-building message when building code is invalid', async () => {
     mockUseLocalSearchParams.mockReturnValue({ building: 'UNKNOWN' });
-    mockParseIndoorBuildingCode.mockReturnValue(null);
+    mockNormalizeIndoorBuildingCode.mockReturnValue(null);
 
     const { getByText } = render(<IndoorMapScreen />);
 
@@ -125,6 +127,20 @@ describe('Indoor building screen', () => {
       expect(getByText('This building does not currently support indoor maps.')).toBeTruthy();
     });
 
+    expect(mockFetchBuildingFloors).not.toHaveBeenCalled();
+    expect(mockFetchFloorDetails).not.toHaveBeenCalled();
+  });
+
+  it('preserves metadata fetch failures instead of reporting the building as unsupported', async () => {
+    mockFetchSupportedIndoorBuildings.mockRejectedValue(new Error('metadata down'));
+
+    const { getByText, queryByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(getByText('Could not load indoor building metadata. Please try again.')).toBeTruthy();
+    });
+
+    expect(queryByText('This building does not currently support indoor maps.')).toBeNull();
     expect(mockFetchBuildingFloors).not.toHaveBeenCalled();
     expect(mockFetchFloorDetails).not.toHaveBeenCalled();
   });
@@ -142,6 +158,7 @@ describe('Indoor building screen', () => {
     const { getByText, getByTestId } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
     });
 
@@ -161,6 +178,7 @@ describe('Indoor building screen', () => {
     const { getByText, getByTestId } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
     });
     expect(getByText('Selected:none')).toBeTruthy();
@@ -190,6 +208,7 @@ describe('Indoor building screen', () => {
     const { getByText, getByTestId } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
     });
@@ -209,6 +228,7 @@ describe('Indoor building screen', () => {
     const { getByText } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
     });
@@ -223,6 +243,7 @@ describe('Indoor building screen', () => {
     const { getByText } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(mockFetchBuildingFloors).toHaveBeenCalledWith('SGW', 'H');
     });
 
@@ -253,6 +274,7 @@ describe('Indoor building screen', () => {
     const { getByText } = render(<IndoorMapScreen />);
 
     await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
     });
   });

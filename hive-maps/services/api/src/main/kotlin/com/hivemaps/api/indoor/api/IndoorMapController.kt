@@ -9,12 +9,22 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
 @RestController
-@RequestMapping("/api/campuses/{campusId}/buildings/{buildingCode}/floors")
+@RequestMapping
 class IndoorMapController(
     private val indoorMapService: IndoorMapService
 ) {
 
-    @GetMapping
+    @GetMapping("/api/indoor/buildings")
+    fun getSupportedBuildings(): List<Map<String, String>> {
+        return indoorMapService.getSupportedBuildings().map { building ->
+            mapOf(
+                "campusId" to building.campusId,
+                "buildingCode" to building.buildingCode,
+            )
+        }
+    }
+
+    @GetMapping("/api/campuses/{campusId}/buildings/{buildingCode}/floors")
     fun getFloors(
         @PathVariable campusId: String,
         @PathVariable buildingCode: String
@@ -34,7 +44,7 @@ class IndoorMapController(
         }
     }
 
-    @GetMapping("/{floorId}")
+    @GetMapping("/api/campuses/{campusId}/buildings/{buildingCode}/floors/{floorId}")
     fun getFloorDetails(
         @PathVariable campusId: String,
         @PathVariable buildingCode: String,

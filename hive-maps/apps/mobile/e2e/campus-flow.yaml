@@ -4,8 +4,8 @@ name: "Campus Navigation & Location Flow"
 - launchApp
 - assertVisible: "SGW • Sir George Williams"
 
-- tapOn: "LOYOLA"
-- assertVisible: "LOYOLA • Loyola"
+- tapOn: "Loyola"
+- assertVisible: "Loyola • Loyola"
 - tapOn: "SGW"
 - assertVisible: "SGW • Sir George Williams"
 

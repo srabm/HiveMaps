@@ -41,6 +41,16 @@ class IndoorMapControllerTest(
     }
 
     @Test
+    fun `supported buildings endpoint returns backend indoor source of truth`() {
+        mockMvc.perform(get("/api/indoor/buildings"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(6))
+            .andExpect(jsonPath("$[*].buildingCode", hasItems("CC", "H", "LB", "MB", "VE", "VL")))
+            .andExpect(jsonPath("$[?(@.buildingCode == 'CC')].campusId", hasItems("LOY")))
+            .andExpect(jsonPath("$[?(@.buildingCode == 'H')].campusId", hasItems("SGW")))
+    }
+
+    @Test
     fun `floors endpoint returns 404 for invalid campus-building pair`() {
         mockMvc.perform(get("/api/campuses/SGW/buildings/CC/floors"))
             .andExpect(status().isNotFound)

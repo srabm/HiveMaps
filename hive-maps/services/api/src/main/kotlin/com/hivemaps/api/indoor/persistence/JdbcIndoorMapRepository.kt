@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hivemaps.api.indoor.domain.FloorDetails
 import com.hivemaps.api.indoor.domain.FloorSummary
 import com.hivemaps.api.indoor.domain.RoomFeature
+import com.hivemaps.api.indoor.domain.SupportedIndoorBuilding
 import com.hivemaps.api.indoor.repository.IndoorMapRepository
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
@@ -15,6 +16,22 @@ class JdbcIndoorMapRepository(
 ) : IndoorMapRepository {
 
     private val objectMapper = ObjectMapper()
+
+    override fun findSupportedBuildings(): List<SupportedIndoorBuilding> {
+        val sql = """
+            SELECT DISTINCT b.campus_id, bf.building_code
+            FROM building_floor bf
+            JOIN building b ON b.code = bf.building_code
+            ORDER BY b.campus_id ASC, bf.building_code ASC
+        """.trimIndent()
+
+        return jdbcTemplate.query(sql, { rs, _ ->
+            SupportedIndoorBuilding(
+                campusId = rs.getString("campus_id"),
+                buildingCode = rs.getString("building_code"),
+            )
+        })
+    }
 
     override fun findFloorsByCampusAndBuilding(campusId: String, buildingCode: String): List<FloorSummary> {
         val sql = """

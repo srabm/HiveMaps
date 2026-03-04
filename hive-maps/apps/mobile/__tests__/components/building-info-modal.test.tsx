@@ -67,7 +67,7 @@ describe('BuildingInfoModal', () => {
     const { getByText } = render(
       <BuildingInfoModal
         visible
-        building={{ ...baseBuilding, code: 'H' }}
+        building={{ ...baseBuilding, code: 'H', hasIndoorMap: true }}
         onClose={jest.fn()}
         onIndoorMap={onIndoorMap}
       />
@@ -81,7 +81,7 @@ describe('BuildingInfoModal', () => {
     const { queryByText } = render(
       <BuildingInfoModal
         visible
-        building={{ ...baseBuilding, code: 'XYZ' }}
+        building={{ ...baseBuilding, code: 'XYZ', hasIndoorMap: false }}
         onClose={jest.fn()}
       />
       );

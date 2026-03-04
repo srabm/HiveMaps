@@ -6,6 +6,11 @@ data class FloorSummary(
     val sortOrder: Int
 )
 
+data class SupportedIndoorBuilding(
+    val campusId: String,
+    val buildingCode: String,
+)
+
 data class RoomFeature(
     val id: String,
     val label: String?,

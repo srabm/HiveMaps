@@ -5,8 +5,8 @@ appId: com.anonymous.mobile
 
 - assertVisible: "SGW • Sir George Williams"
 
-- tapOn: "LOYOLA"
-- assertVisible: "LOYOLA • Loyola"
+- tapOn: "Loyola"
+- assertVisible: "Loyola • Loyola"
 
 - tapOn: "Search building or address"
 - inputText: "V Lib"

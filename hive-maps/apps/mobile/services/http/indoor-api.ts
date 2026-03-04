@@ -1,8 +1,8 @@
 import { getApiBaseUrl } from './campus-api';
 
-export type BuildingCode = 'LB' | 'MB' | 'H' | 'VL' | 'VE' | 'CC';
+export type BuildingCode = string;
 export type FloorId = string;
-export type IndoorCampusId = 'SGW' | 'LOY';
+export type IndoorCampusId = string;
 
 export interface FloorSummary {
   id: FloorId;
@@ -17,22 +17,20 @@ export interface FloorDetailsResponse {
   rooms: GeoJSON.FeatureCollection;
 }
 
-const LOY_BUILDINGS: Set<BuildingCode> = new Set(['VL', 'VE', 'CC']);
+export interface SupportedIndoorBuilding {
+  campusId: IndoorCampusId;
+  buildingCode: BuildingCode;
+}
+
 const REQUEST_TIMEOUT_MS = 10000;
 const baseUrl = getApiBaseUrl();
 
 type HttpStatusError = Error & { status?: number };
 
-export const SUPPORTED_INDOOR_BUILDINGS: Set<BuildingCode> = new Set(['LB', 'MB', 'H', 'VL', 'VE', 'CC']);
-
-export function parseIndoorBuildingCode(value: string | undefined | null): BuildingCode | null {
+export function normalizeIndoorBuildingCode(value: string | undefined | null): BuildingCode | null {
   if (!value) return null;
-  const upper = value.toUpperCase();
-  return SUPPORTED_INDOOR_BUILDINGS.has(upper as BuildingCode) ? (upper as BuildingCode) : null;
-}
-
-export function getCampusIdForIndoorBuilding(buildingCode: BuildingCode): IndoorCampusId {
-  return LOY_BUILDINGS.has(buildingCode) ? 'LOY' : 'SGW';
+  const normalized = value.trim().toUpperCase();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function getHttpStatus(error: unknown): number | null {
@@ -57,6 +55,14 @@ async function getIndoorJson<T>(path: string): Promise<T> {
   } finally {
     if (timeout) clearTimeout(timeout);
   }
+}
+
+export async function fetchSupportedIndoorBuildings(): Promise<SupportedIndoorBuilding[]> {
+  const buildings = await getIndoorJson<SupportedIndoorBuilding[]>('/api/indoor/buildings');
+  return buildings.map((building) => ({
+    campusId: building.campusId.toUpperCase(),
+    buildingCode: building.buildingCode.toUpperCase(),
+  }));
 }
 
 export async function fetchBuildingFloors(campusId: IndoorCampusId, buildingCode: BuildingCode): Promise<FloorSummary[]> {

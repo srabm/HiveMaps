@@ -27,6 +27,7 @@ import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, type ValidationResult} from '@/services/maps/route-validator';
 import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
+import type { CampusId } from '@/types/campus';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -44,6 +45,8 @@ type BuildingDetails = {
 };
 
 type SelectedBuilding = {
+    code?: string;
+    campus?: CampusId;
     name?: string;
     addresses?: string[];
     coordinates?: Coordinates;
@@ -51,6 +54,7 @@ type SelectedBuilding = {
     website?: string;
     hours?: string;
     allHours?: string[];
+    hasIndoorMap?: boolean;
 } & Record<string, unknown>;
 
 export default function MapScreen() {
@@ -58,12 +62,15 @@ export default function MapScreen() {
     
     const {
         campus,
+        campuses,
         setCampus,
         hydrated,
         points,
+        campusMetaById,
         campusMeta,
         tokenAvailable,
         mapsAdapter,
+        error,
     } = useNavigationController();
     const colorScheme = useColorScheme();
     const cameraRef = useRef<MapboxGL.Camera>(null);
@@ -132,7 +139,7 @@ export default function MapScreen() {
                   const result = validateCampusRoute({
                       origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
                       destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
-                  });
+                  }, campusMetaById);
                   return !result.valid || !result.route.isInterCampus;
               })()
             : false;
@@ -154,19 +161,19 @@ export default function MapScreen() {
         const result = validateCampusRoute({
             origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
             destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
-        });
+        }, campusMetaById);
         setRouteValidation(result);
         if (!result.valid) {
             setShowValidationError(true);
             setDirections(null);
         }
-    }, [fromCoordinates, toCoordinates]);
+    }, [campusMetaById, fromCoordinates, toCoordinates]);
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
     useEffect(() => {
         if (!directions || !routeValidation?.valid) return;
         const {route} = routeValidation;
-        const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus);
+        const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus, campusMetaById);
         if (bounds.bounds) {
             cameraRef.current?.setCamera({
                 bounds: {ne: bounds.bounds.ne, sw: bounds.bounds.sw, paddingLeft: 40, paddingRight: 40, paddingTop: 120, paddingBottom: 120},
@@ -179,9 +186,10 @@ export default function MapScreen() {
                 animationDuration: bounds.animationDuration,
             });
         }
-    }, [directions, routeValidation]);
+    }, [campusMetaById, directions, routeValidation]);
 
     useEffect(() => {
+        if (!campusMeta) return;
         cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
@@ -255,7 +263,16 @@ export default function MapScreen() {
             type: 'Feature' as const,
             id: point.id,
             geometry: { type: 'Polygon' as const, coordinates: coords },
-            properties: { id: point.id, name: point.building.name, code: point.building.code, addresses: point.building.addresses, isUserBuilding: inUserBuilding, center: point.building.center},
+            properties: {
+                id: point.id,
+                name: point.building.name,
+                code: point.building.code,
+                campus: point.building.campus,
+                addresses: point.building.addresses,
+                isUserBuilding: inUserBuilding,
+                center: point.building.center,
+                hasIndoorMap: point.building.hasIndoorMap,
+            },
             });
         }
     }
@@ -283,7 +300,8 @@ export default function MapScreen() {
     }, [userLocation]);
 
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
-    if (!hydrated) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
+    if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
+    if (!hydrated || !campusMeta) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
 
     return (
         <ThemedView style={styles.container}>
@@ -446,11 +464,11 @@ export default function MapScreen() {
             </MapboxGL.MapView>
 
             <View style={styles.topBar}>
-                <CampusBadge campus={campus}/>
+                <CampusBadge campus={campusMeta}/>
             </View>
 
             <View style={styles.switchContainer}>
-                <CampusSwitch value={campus} onChange={setCampus}/>
+                <CampusSwitch options={campuses} value={campus} onChange={setCampus}/>
             </View>
 
             <View style={styles.searchContainer} pointerEvents="box-none">
@@ -562,6 +580,7 @@ export default function MapScreen() {
             {fromCoordinates && toCoordinates && routeValidation?.valid && (
                 <View style={styles.navigationBottomContainer}>
                     <NavigationBottom
+                        campuses={campusMetaById}
                         origin={{
                             longitude: fromCoordinates[0],
                             latitude: fromCoordinates[1]
@@ -647,7 +666,10 @@ export default function MapScreen() {
         onIndoorMap={() => {
         if (selectedBuilding?.code) {
             setSelectedBuilding(null);
-            router.push(`/indoor/${selectedBuilding.code}` as Href);
+            const campusQuery = selectedBuilding.campus
+                ? `?campus=${encodeURIComponent(selectedBuilding.campus)}`
+                : '';
+            router.push(`/indoor/${encodeURIComponent(selectedBuilding.code)}${campusQuery}` as Href);
         }
     }}
         onDirections={navigateToSelectedBuilding}
