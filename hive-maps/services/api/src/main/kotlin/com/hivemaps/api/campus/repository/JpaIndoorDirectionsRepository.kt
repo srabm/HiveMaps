@@ -28,8 +28,10 @@ class JpaIndoorDirectionsRepository(
                 id = it.id,
                 label = it.label,
                 wheelchairAccessible = it.wheelchairAccessible,
-                startNode = nodes[it.startNode.id]!!,
-                endNode = nodes[it.endNode.id]!!,
+                startNode = nodes[it.startNode.id]
+                    ?: throw IllegalStateException("Start node ${it.startNode.id} not found for edge ${it.id}"),
+                endNode = nodes[it.endNode.id]
+                    ?: throw IllegalStateException("End node ${it.endNode.id} not found for edge ${it.id}"),
                 building = it.building,
                 distance = it.distance
             )
