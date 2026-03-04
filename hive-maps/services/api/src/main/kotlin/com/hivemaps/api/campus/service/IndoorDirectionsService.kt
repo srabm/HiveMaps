@@ -1,14 +1,21 @@
 package com.hivemaps.api.campus.service
 
+import kotlin.math.sqrt
+import kotlin.math.atan2
 import java.util.PriorityQueue
 import com.hivemaps.api.campus.domain.IndoorNode
 import com.hivemaps.api.campus.domain.IndoorEdge
 import com.hivemaps.api.campus.domain.Direction
 import com.hivemaps.api.campus.domain.DirectionType
-import org.springframework.stereotype.Component
+import com.hivemaps.api.campus.domain.NoRouteFoundException
+import com.hivemaps.api.campus.domain.NodeNotFoundException
+import com.hivemaps.api.campus.repository.IndoorDirectionsRepository
+import org.springframework.stereotype.Service
 
-@Component
-class IndoorDirections {
+@Service
+class IndoorDirectionsService(
+    private val indoorDirectionsRepository: IndoorDirectionsRepository
+) {
     // using Dijkstra's algorithm to find the shortest path
     private fun getPath(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<IndoorEdge> {
         // the start and end nodes must be accessible if wheechairAcessible is true
@@ -77,11 +84,11 @@ class IndoorDirections {
         val dx = edge.endNode.longitude - edge.startNode.longitude 
         val dy = edge.endNode.latitude - edge.startNode.latitude
 
-        return Math.toDegrees(Math.atan2(dy, dx))
+        return Math.toDegrees(atan2(dy, dx))
     }
 
     // assume first and last directions are "move straight"
-    fun getDirections(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<Direction> {
+    private fun getDirections(startNode: IndoorNode, endNode: IndoorNode, accessibleOnly: Boolean = false): List<Direction> {
         val path = getPath(startNode, endNode, accessibleOnly)
 
         if (path.isEmpty()) return emptyList()
@@ -174,6 +181,56 @@ class IndoorDirections {
         )
 
         return directions
+    }
+
+    fun getDirections(building: String, startNodeId: String, endNodeId: String, accessibleOnly: Boolean = false): List<Direction> {
+        val nodes = indoorDirectionsRepository.findIndoorNodesByBuilding(building)
+        val startNode = nodes[startNodeId] ?: throw NodeNotFoundException("Start node not found")
+        val endNode = nodes[endNodeId] ?: throw NodeNotFoundException("End Node not found")
+        val path = getDirections(startNode, endNode, accessibleOnly)
+
+        if (path.isEmpty()) {
+            throw NoRouteFoundException(startNodeId, endNodeId)
+        }
+
+        return path
+    }
+
+    fun getRooms(building: String, floor: String?): List<IndoorNode> {
+        return indoorDirectionsRepository.findIndoorNodesByBuilding(building)
+            .values
+            .filter { it.label == "Room" && (floor == null || it.floor == floor)}
+    }
+
+    private fun getDistance(startLongitude: Double, startLatitude: Double, endLongitude: Double, endLatitude: Double): Double {
+        val dx = endLongitude - startLongitude
+        val dy = endLatitude - startLatitude
+        return sqrt(dx * dx + dy * dy)
+    }
+
+    fun getNearestNode(building: String, floor: String, longitude: Double, latitude: Double): IndoorNode {
+        var closestDistance = Double.MAX_VALUE
+        var closestNode: IndoorNode? = null
+
+        indoorDirectionsRepository.findIndoorNodesByBuilding(building)
+            .values
+            .forEach {
+                if (it.floor != floor) return@forEach
+
+                val distance = getDistance(longitude, latitude, it.longitude, it.latitude)
+
+                if (distance < closestDistance) {
+                    closestDistance = distance
+                    closestNode = it
+                }
+            }
+
+        // the closest node must be within 10 meters to be valid
+        if (closestNode == null || closestDistance > 10) {
+            throw NodeNotFoundException("There are no nodes on $building $floor within 10m")
+        }
+
+        return closestNode!!
     }
 }
   

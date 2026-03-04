@@ -11,13 +11,3 @@ interface CampusJpaRepository : JpaRepository<CampusEntity, CampusId>
 interface BuildingJpaRepository : JpaRepository<BuildingEntity, String> {
     fun findAllByCampus_Id(campusId: CampusId): List<BuildingEntity>
 }
-
-@Repository
-interface IndoorNodeJpaRepository : JpaRepository<IndoorNodeEntity, String> {
-    fun findAllByBuilding(building: String): List<IndoorNodeEntity>
-}
-
-@Repository
-interface IndoorEdgeJpaRepository : JpaRepository<IndoorEdgeEntity, String> {
-    fun findAllByBuilding(building: String): List<IndoorEdgeEntity>
-}
