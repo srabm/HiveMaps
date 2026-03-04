@@ -24,9 +24,4 @@ class ExceptionHandler {
     fun handleNoNodeFound(e: NodeNotFoundException): ResponseEntity<Any> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to e.message))
     }
-
-    @ExceptionHandler(Exception::class)
-    fun handleGeneral(e: Exception): ResponseEntity<Any> {
-        return ResponseEntity.internalServerError().body(mapOf("error" to "Something went wrong"))
-    }
 }
