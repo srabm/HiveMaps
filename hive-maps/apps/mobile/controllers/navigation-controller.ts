@@ -37,22 +37,38 @@ export function useNavigationController() {
     if (!tokenAvailable) return;
     setLoading(true);
     setProgress({ total: 0, processed: 0, found: 0 });
-    getBuildingPointsByCampus(state.campus, mapboxMapsAdapter, (p, prog) => {
-      if (mounted) {
-        setPoints(p);
+
+    const allCampusIds = Object.keys(campuses) as CampusId[];
+
+    // Accumulated points keyed by campus so progress callbacks don't clobber each other
+    const pointsMap: Partial<Record<CampusId, BuildingPoint[]>> = {};
+
+    const mergePoints = () =>
+      (Object.values(pointsMap) as BuildingPoint[][]).flat();
+
+    const promises = allCampusIds.map((campusId) =>
+      getBuildingPointsByCampus(campusId, mapboxMapsAdapter, (p, prog) => {
+        if (!mounted) return;
+        pointsMap[campusId] = p;
+        setPoints(mergePoints());
         setProgress(prog);
         setLoading(prog.processed < prog.total);
-      }
-    }).then((p) => {
-      if (mounted) {
-        setPoints(p);
-        setLoading(false);
-      }
+      }).then((p) => {
+        if (!mounted) return;
+        pointsMap[campusId] = p;
+      })
+    );
+
+    Promise.all(promises).then(() => {
+      if (!mounted) return;
+      setPoints(mergePoints());
+      setLoading(false);
     });
+
     return () => {
       mounted = false;
     };
-  }, [state.campus, tokenAvailable]);
+  }, [tokenAvailable]);
 
   const campusMeta = useMemo(() => {
     const base = campuses[state.campus];

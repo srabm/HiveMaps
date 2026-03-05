@@ -501,6 +501,9 @@ export function StepByStepPanel({
                 )}
 
                 {/* Transit boarding card — renders for real transit steps AND injected shuttle steps */}
+                {showTransitCard && shuttlePhase === 'shuttle' && (
+                    <Text style={styles.shuttleRideLabel}>Ride the Concordia Shuttle</Text>
+                )}
                 {showTransitCard && <TransitCard step={currentStep} />}
 
                 {/* Divider */}
@@ -648,6 +651,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#9d1e30',
     },
     instructionBlock: { flex: 1 },
+    shuttleRideLabel: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        paddingHorizontal: 16,
+        paddingTop: 14,
+    },
     instructionText: {
         fontSize: 18,
         fontWeight: '700',
