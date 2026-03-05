@@ -55,9 +55,25 @@ export type DirectionsResponse = {
 
 // Cache for directions responses
 const directionsCache = new Map<string, DirectionsResponse>();
-const CACHE_STORAGE_KEY = 'directions_cache_v1';
+// v2: bumped from v1 because maneuver strings now encode type+modifier
+// (e.g. "turn-left" instead of bare "turn"). Old cached entries lack the
+// modifier and would show wrong icons, so we intentionally ignore them.
+const CACHE_STORAGE_KEY = 'directions_cache_v2';
 let cacheInitialized = false;
 const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+
+/**
+ * Wipe the in-memory and persisted directions cache.
+ * Call this after a data-format change that invalidates existing entries.
+ */
+export async function clearDirectionsCache(): Promise<void> {
+    directionsCache.clear();
+    try {
+        await AsyncStorage.removeItem(CACHE_STORAGE_KEY);
+    } catch (err) {
+        console.warn('[Cache] Failed to clear persisted cache', err);
+    }
+}
 
 /**
  * Initialize cache from AsyncStorage on app startup
@@ -240,7 +256,10 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
         distance: step.distance,
         duration: Math.round(step.duration),
         instruction: step.maneuver.instruction,
-        maneuver: step.maneuver.type,
+        // Combine type + modifier so icons are direction-aware.
+        // e.g. type="turn" modifier="left" → "turn-left"
+        // See buildMapboxManeuver below for full rules.
+        maneuver: buildMapboxManeuver(step.maneuver.type, step.maneuver.modifier),
         startLocation: {
             latitude: step.intersections[0].location[1],
             longitude: step.intersections[0].location[0]
@@ -259,6 +278,61 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
         polyline: route.geometry,
         steps
     };
+}
+
+/**
+ * Combine a Mapbox maneuver type and optional modifier into the canonical
+ * hyphenated string used by the MANEUVER_ICON map in step-by-step-panel.
+ *
+ * Mapbox modifier values: "left" | "right" | "slight left" | "slight right" |
+ *                         "sharp left" | "sharp right" | "uturn" | "straight"
+ */
+function buildMapboxManeuver(type: string, modifier?: string): string {
+    if (!type) return 'continue';
+
+    // Normalise modifier: "slight left" -> "slight-left"
+    const mod = modifier ? modifier.trim().replace(/\s+/g, '-') : '';
+
+    // Types that never need a modifier suffix
+    const standalone = new Set(['depart', 'arrive', 'merge', 'notification', 'use lane']);
+    if (standalone.has(type)) return type;
+
+    // "turn" always needs the modifier for correct icon
+    if (type === 'turn') {
+        return mod ? `turn-${mod}` : 'turn-right';
+    }
+
+    // Ramp types already carry direction in the type string
+    if (type === 'on ramp' || type === 'off ramp') return type;
+
+    // Roundabout family
+    if (type === 'roundabout' || type === 'rotary' ||
+        type === 'roundabout turn' || type === 'exit roundabout' || type === 'exit rotary') {
+        if (mod === 'left') return 'roundabout-left';
+        if (mod === 'right') return 'roundabout-right';
+        return 'roundabout-left';
+    }
+
+    // Fork encodes left/right
+    if (type === 'fork') {
+        if (mod === 'left' || mod === 'slight-left') return 'fork-left';
+        return 'fork-right';
+    }
+
+    // End of road
+    if (type === 'end of road') {
+        if (mod === 'left') return 'u-turn-left';
+        return 'u-turn-right';
+    }
+
+    // continue / new name — add modifier only when it's a directional word
+    const directional = new Set(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn']);
+    if (directional.has(mod)) {
+        return `${type.replace(/\s+/g, '-')}-${mod}`;
+    }
+
+    // Catch-all: just the type, spaces to hyphens
+    return type.replace(/\s+/g, '-');
 }
 
 // Helper to convert TransportMode to Mapbox profile

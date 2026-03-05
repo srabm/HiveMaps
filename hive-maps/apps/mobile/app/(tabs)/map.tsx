@@ -32,7 +32,7 @@ import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, getNearestCampus, type ValidationResult} from '@/services/maps/route-validator';
 import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
-import {useStepNavigator} from '@/hooks/use-step-navigator';
+import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 
 
@@ -71,7 +71,12 @@ type NavigationOverlayProps = {
     destination: { longitude: number; latitude: number };
     transportMode: TransportMode;
     provider: Provider;
-    isShuttle: boolean;
+    /**
+     * When provided, the overlay is in shuttle mode.
+     * Off-route detection is suppressed only during the shuttle-ride segment;
+     * the walk legs retain full detection.
+     */
+    shuttlePhaseBoundaries?: ShuttlePhaseBoundaries;
     onRecalculated: (newDirections: DirectionsResponse) => void;
     onExit: () => void;
 };
@@ -83,12 +88,12 @@ function NavigationOverlay({
     destination,
     transportMode,
     provider,
-    isShuttle,
+    shuttlePhaseBoundaries,
     onRecalculated,
     onExit,
 }: Readonly<NavigationOverlayProps>) {
     const { location } = useLiveLocation(true);
-    const stepNav = useStepNavigator(steps, location, isShuttle);
+    const stepNav = useStepNavigator(steps, location, shuttlePhaseBoundaries);
     const [isRecalculating, setIsRecalculating] = useState(false);
     const recalcInFlightRef = useRef(false);
     const initialLockDone = useRef(false);
@@ -170,9 +175,10 @@ function NavigationOverlay({
             currentStepIndex={stepNav.currentStepIndex}
             distanceToNextTurn={stepNav.distanceToNextTurn}
             totalDistanceRemaining={stepNav.totalDistanceRemaining}
-            totalDurationSeconds={totalDurationSeconds}
+            totalDurationSecondsRemaining={stepNav.totalDurationSecondsRemaining}
             arrived={stepNav.arrived}
             isRecalculating={isRecalculating}
+            shuttlePhase={stepNav.shuttlePhase}
             onExit={() => { onExit(); stepNav.reset(); }}
         />
     );
@@ -209,8 +215,18 @@ export default function MapScreen() {
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
-    // Collect the active steps for step-by-step (shuttle combines three legs)
+    // Snapshotted at onStartPress — never mutated by live hook re-fetches during navigation.
     const [activeSteps, setActiveSteps] = useState<Step[]>([]);
+    const [activeShuttlePhaseBoundaries, setActiveShuttlePhaseBoundaries] = useState<ShuttlePhaseBoundaries | undefined>(undefined);
+    // Frozen shuttle route polylines and stop info for the overlay and shuttle card.
+    const [activeShuttleLegs, setActiveShuttleLegs] = useState<{
+        walkToStop: DirectionsResponse | null;
+        shuttleLeg: DirectionsResponse | null;
+        walkFromStop: DirectionsResponse | null;
+        originStopName: string;
+        destinationStopName: string;
+        shuttleDurationSeconds: number;
+    } | null>(null);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -264,7 +280,7 @@ export default function MapScreen() {
             : false;
 
     const shuttleRouting = useShuttleRouting({
-        enabled: selectedMode === 'Shuttle' && !isSameCampusRoute,
+        enabled: selectedMode === 'Shuttle' && !isSameCampusRoute && !isNavigating,
         origin: fromCoordinates ? {longitude: fromCoordinates[0], latitude: fromCoordinates[1]} : null,
         destination: toCoordinates ? {longitude: toCoordinates[0], latitude: toCoordinates[1]} : null,
         timeFilter,
@@ -476,22 +492,23 @@ export default function MapScreen() {
             id="campus-buildings-source"
             shape={shapeCollection}
             onPress={(e) => {
-              if (isNavigating) return;
               const f = e.features[0];
               console.log('Pressed feature:', f);
 
               const point = points.find(p => p.id === f.properties?.id);
               const details = point?.details as BuildingDetails | undefined;
 
-              setSelectedBuilding({
-                ...f.properties,
-                phone: details?.nationalPhoneNumber,
-                website: details?.websiteUri,
-                hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
-                        ?? 'Hours not listed',
-                allHours: details?.regularOpeningHours?.weekdayDescriptions,
-                coordinates: f.properties?.center,
-            });
+              if (!isNavigating) {
+                setSelectedBuilding({
+                  ...f.properties,
+                  phone: details?.nationalPhoneNumber,
+                  website: details?.websiteUri,
+                  hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
+                          ?? 'Hours not listed',
+                  allHours: details?.regularOpeningHours?.weekdayDescriptions,
+                  coordinates: f.properties?.center,
+                });
+              }
             }}
           >
             {/* LAYER A: Burgundy Background */}
@@ -565,9 +582,9 @@ export default function MapScreen() {
                 )}
                 {selectedMode === 'Shuttle' && (
                     <ShuttleRouteOverlay
-                        walkToStop={shuttleRouting.walkToStop}
-                        shuttleLeg={shuttleRouting.shuttleLeg}
-                        walkFromStop={shuttleRouting.walkFromStop}
+                        walkToStop={isNavigating ? activeShuttleLegs?.walkToStop ?? null : shuttleRouting.walkToStop}
+                        shuttleLeg={isNavigating ? activeShuttleLegs?.shuttleLeg ?? null : shuttleRouting.shuttleLeg}
+                        walkFromStop={isNavigating ? activeShuttleLegs?.walkFromStop ?? null : shuttleRouting.walkFromStop}
                         stopsForTrip={shuttleRouting.stopsForTrip}
                         stopMarkers={shuttleRouting.stopMarkers}
                     />
@@ -613,6 +630,9 @@ export default function MapScreen() {
                             if (coordinates) {
                                 setToCoordinates(coordinates);
                                 focusCamera(coordinates);
+                                // Switch campus so the correct building polygons load
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                if (nearest) setCampus(nearest);
                             }
                         }}
                         onClear={() => {
@@ -635,6 +655,9 @@ export default function MapScreen() {
                                 setFromCoordinates(coordinates);
                                 fromCoordinatesIsUserLocation.current = false;
                                 focusCamera(coordinates);
+                                // Switch campus so the correct building polygons load
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                if (nearest) setCampus(nearest);
                             }
                         }}
                         onSelectTo={(mapLocation, coordinates) => {
@@ -647,6 +670,9 @@ export default function MapScreen() {
                                     zoomLevel: 18,
                                     animationDuration: 800,
                                 });
+                                // Switch campus so the correct building polygons load
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                if (nearest) setCampus(nearest);
                             }
                         }}
                         onClearFrom={() => {
@@ -711,16 +737,75 @@ export default function MapScreen() {
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
                         onStartPress={() => {
-                            if (!directions) return;
-                            const steps =
-                                selectedMode === 'Shuttle'
-                                    ? [
-                                          ...(shuttleRouting.walkToStop?.steps ?? []),
-                                          ...(shuttleRouting.shuttleLeg?.steps ?? []),
-                                          ...(shuttleRouting.walkFromStop?.steps ?? []),
-                                      ]
-                                    : (directions.steps ?? []);
+                            const isShuttleMode = selectedMode === 'Shuttle';
+                            // Shuttle mode uses shuttleRouting legs directly — no directions needed.
+                            // Other modes require directions to be loaded first.
+                            if (!isShuttleMode && !directions) return;
+                            const walkToSteps = shuttleRouting.walkToStop?.steps ?? [];
+                            const rawShuttleSteps = shuttleRouting.shuttleLeg?.steps ?? [];
+                            const walkFromSteps = shuttleRouting.walkFromStop?.steps ?? [];
+
+                            // Collapse all Mapbox driving steps for the shuttle leg into a
+                            // single synthetic transit-style step. This means:
+                            //  - Only one "Ride the Concordia Shuttle" row in the list
+                            //  - endLocation = destination stop coordinate, so auto-advance
+                            //    fires correctly as the user approaches the drop-off point
+                            //  - distance / duration = totals across all driving steps
+                            const originName = shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop';
+                            const destName   = shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop';
+                            const destStopCoord = shuttleRouting.stopsForTrip?.destinationStop?.coordinate;
+                            const originStopCoord = shuttleRouting.stopsForTrip?.originStop?.coordinate;
+
+                            const totalShuttleDist = rawShuttleSteps.reduce((s, st) => s + st.distance, 0);
+                            const totalShuttleDur  = rawShuttleSteps.reduce((s, st) => s + st.duration, 0);
+
+                            // startLocation = origin stop; endLocation = destination stop
+                            const shuttleSteps = rawShuttleSteps.length > 0 ? [{
+                                distance: totalShuttleDist,
+                                duration: totalShuttleDur,
+                                instruction: 'Ride the Concordia Shuttle',
+                                maneuver: 'depart',
+                                startLocation: originStopCoord ?? rawShuttleSteps[0].startLocation,
+                                endLocation: destStopCoord ?? rawShuttleSteps[rawShuttleSteps.length - 1].endLocation,
+                                // No polyline — the ShuttleRouteOverlay draws the yellow line independently
+                                polyline: undefined,
+                                transitDetails: {
+                                    transitLine: {
+                                        name: 'Concordia Shuttle',
+                                        nameShort: 'Shuttle',
+                                        color: '#e5a712',
+                                    },
+                                    stopDetails: {
+                                        departureStop: { name: originName },
+                                        arrivalStop:   { name: destName },
+                                    },
+                                },
+                            }] : [];
+
+                            const steps = isShuttleMode
+                                ? [...walkToSteps, ...shuttleSteps, ...walkFromSteps]
+                                : (directions?.steps ?? []);
                             setActiveSteps(steps);
+                            // Snapshot boundaries — must stay in sync with the frozen steps array
+                            setActiveShuttlePhaseBoundaries(
+                                isShuttleMode
+                                    ? { walkToStopCount: walkToSteps.length, shuttleLegCount: shuttleSteps.length }
+                                    : undefined
+                            );
+                            // Freeze shuttle polylines + stop names so the map overlay
+                            // and shuttle card keep rendering after the hook goes dormant
+                            setActiveShuttleLegs(
+                                isShuttleMode
+                                    ? {
+                                        walkToStop: shuttleRouting.walkToStop,
+                                        shuttleLeg: shuttleRouting.shuttleLeg,
+                                        walkFromStop: shuttleRouting.walkFromStop,
+                                        originStopName: shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop',
+                                        destinationStopName: shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop',
+                                        shuttleDurationSeconds: shuttleRouting.shuttleLeg?.durationSeconds ?? 0,
+                                      }
+                                    : null
+                            );
                             setIsNavigating(true);
                         }}
                     />
@@ -749,7 +834,7 @@ export default function MapScreen() {
                         TransportMode.WALKING
                     }
                     provider={selectedMode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX}
-                    isShuttle={selectedMode === 'Shuttle'}
+                    shuttlePhaseBoundaries={activeShuttlePhaseBoundaries}
                     onRecalculated={(newDirections) => {
                         setDirections(newDirections);
                         setActiveSteps(newDirections.steps ?? []);
@@ -770,6 +855,8 @@ export default function MapScreen() {
                         setToCoordinates(null);
                         setDirections(null);
                         setActiveSteps([]);
+                        setActiveShuttlePhaseBoundaries(undefined);
+                        setActiveShuttleLegs(null);
                     }}
                 />
             )}

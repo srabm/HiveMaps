@@ -2,8 +2,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from './use-live-location';
 
-/** Radius in metres within which we consider a step's endpoint "reached". */
-const STEP_ARRIVAL_THRESHOLD_M = 40;
+/**
+ * Radius in metres within which we consider a step's endpoint "reached"
+ * and advance to the next step.
+ *
+ * Why 15 m and not ~10 m (typical GPS horizontal accuracy)?
+ *
+ * The threshold is checked against the straight-line distance from the
+ * user's current GPS fix to the step's endLocation (the intersection
+ * point after the turn). Two factors pull the safe minimum up:
+ *
+ *   1. GPS accuracy degrades near tall buildings (urban canyons) — the
+ *      exact places where turn points are. 15 m gives a comfortable
+ *      margin over the ~10 m CEP in open sky.
+ *
+ *   2. Step endpoints are intersections, not the start of the next road.
+ *      When the user is 10 m from the endpoint they have already begun
+ *      executing the turn; 15 m is the point where the maneuver starts,
+ *      which is when the instruction should flip.
+ *
+ * Previously 40 m → direction changed well before the turn.
+ * Going below ~12 m risks the step never advancing in degraded GPS.
+ */
+const STEP_ARRIVAL_THRESHOLD_M = 15;
 
 /**
  * How far off the route (metres) before counting as an off-route reading.
@@ -134,6 +155,25 @@ function distanceToRemainingRoute(
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * Step index boundaries for the three shuttle legs.
+ * Provided by the caller when mode is Shuttle so off-route detection
+ * can be selectively disabled only during the fixed shuttle-ride segment.
+ *
+ * walkToStopCount  — number of steps in the "walk to stop" leg
+ * shuttleLegCount  — number of steps in the shuttle ride leg
+ *
+ * Indices: [0 … walkToStopCount-1]           = walk to stop
+ *          [walkToStopCount … walkToStopCount+shuttleLegCount-1] = shuttle ride
+ *          [walkToStopCount+shuttleLegCount … end]               = walk from stop
+ */
+export type ShuttlePhaseBoundaries = {
+    walkToStopCount: number;
+    shuttleLegCount: number;
+};
+
+export type ShuttlePhase = 'walk-to-stop' | 'shuttle' | 'walk-from-stop';
+
 export type StepNavigatorState = {
     currentStepIndex: number;
     currentStep: Step | null;
@@ -141,8 +181,12 @@ export type StepNavigatorState = {
     afterNextStep: Step | null;
     distanceToNextTurn: number | null;
     totalDistanceRemaining: number | null;
+    /** Estimated seconds remaining, computed from remaining distance + step durations. */
+    totalDurationSecondsRemaining: number | null;
     arrived: boolean;
     isOffRoute: boolean;
+    /** Current shuttle phase — null when not in shuttle mode. */
+    shuttlePhase: ShuttlePhase | null;
     clearOffRoute: () => void;
     advanceStep: () => void;
     retreatStep: () => void;
@@ -158,12 +202,14 @@ export type StepNavigatorState = {
  * - Sets `isOffRoute` after OFF_ROUTE_CONSECUTIVE_REQUIRED consecutive GPS
  *   readings that are all > OFF_ROUTE_THRESHOLD_M from the remaining polyline.
  *   Using the per-step polyline avoids false positives on curved roads.
- * - Pass `disableOffRouteDetection=true` for shuttle mode.
+ * - When `shuttlePhaseBoundaries` is provided, off-route detection is disabled
+ *   only during the shuttle ride segment (not during the walk legs).
+ * - Pass nothing / undefined for non-shuttle modes.
  */
 export function useStepNavigator(
     steps: Step[],
     liveLocation: LiveLocation | null,
-    disableOffRouteDetection = false,
+    shuttlePhaseBoundaries?: ShuttlePhaseBoundaries,
 ): StepNavigatorState {
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [isOffRoute, setIsOffRoute] = useState(false);
@@ -181,6 +227,19 @@ export function useStepNavigator(
             offRouteCountRef.current = 0;
         }
     }, [steps]);
+
+    // ── Derive shuttle phase from current index ───────────────────────────
+    const shuttlePhase = useMemo((): ShuttlePhase | null => {
+        if (!shuttlePhaseBoundaries) return null;
+        const { walkToStopCount, shuttleLegCount } = shuttlePhaseBoundaries;
+        if (currentStepIndex < walkToStopCount) return 'walk-to-stop';
+        if (currentStepIndex < walkToStopCount + shuttleLegCount) return 'shuttle';
+        return 'walk-from-stop';
+    }, [currentStepIndex, shuttlePhaseBoundaries]);
+
+    // ── Decide whether off-route detection is suppressed right now ────────
+    // Suppressed only when actively aboard the shuttle, not during walk legs.
+    const offRouteDisabled = shuttlePhase === 'shuttle';
 
     // Auto-advance + off-route detection on every GPS update.
     useEffect(() => {
@@ -203,7 +262,7 @@ export function useStepNavigator(
         }
 
         // ── Off-route detection ───────────────────────────────────────────
-        if (disableOffRouteDetection || isOffRoute) return;
+        if (offRouteDisabled || isOffRoute) return;
 
         const distToRoute = distanceToRemainingRoute(
             liveLocation.latitude, liveLocation.longitude,
@@ -229,7 +288,7 @@ export function useStepNavigator(
                 offRouteCountRef.current = 0;
             }
         }
-    }, [liveLocation, currentStepIndex, steps, disableOffRouteDetection, isOffRoute]);
+    }, [liveLocation, currentStepIndex, steps, offRouteDisabled, isOffRoute]);
 
     const distanceToNextTurn = useMemo(() => {
         if (!liveLocation || !steps.length) return null;
@@ -246,6 +305,28 @@ export function useStepNavigator(
         let total = distanceToNextTurn ?? 0;
         for (let i = currentStepIndex + 1; i < steps.length; i++) {
             total += steps[i].distance;
+        }
+        return total;
+    }, [steps, currentStepIndex, distanceToNextTurn]);
+
+    /**
+     * Estimated seconds remaining: sum the remaining steps' durations,
+     * substituting the current step's duration proportionally based on
+     * how far through it the user is (distanceToNextTurn / step.distance).
+     */
+    const totalDurationSecondsRemaining = useMemo(() => {
+        if (!steps.length) return null;
+        const step = steps[currentStepIndex];
+        if (!step) return null;
+
+        // Fraction of current step remaining, clamped 0–1
+        const fraction = step.distance > 0
+            ? Math.min(1, Math.max(0, (distanceToNextTurn ?? 0) / step.distance))
+            : 0;
+        let total = step.duration * fraction;
+
+        for (let i = currentStepIndex + 1; i < steps.length; i++) {
+            total += steps[i].duration;
         }
         return total;
     }, [steps, currentStepIndex, distanceToNextTurn]);
@@ -283,8 +364,10 @@ export function useStepNavigator(
         afterNextStep: steps[currentStepIndex + 2] ?? null,
         distanceToNextTurn,
         totalDistanceRemaining,
+        totalDurationSecondsRemaining,
         arrived,
         isOffRoute,
+        shuttlePhase,
         clearOffRoute,
         advanceStep,
         retreatStep,
