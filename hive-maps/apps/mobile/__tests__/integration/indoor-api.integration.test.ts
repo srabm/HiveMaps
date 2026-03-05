@@ -2,16 +2,21 @@ import {fetchNearestNode} from '@/services/http/indoor-api';
 
 /**
  * Integration tests for indoor-api that call the real backend.
- * These tests require a running backend server.
+ * These tests require a running backend server and are SKIPPED in CI.
  *
- * TO RUN THIS TEST: npm run test:integration
+ * TO RUN LOCALLY:
+ *   npm run test:integration
+ *
+ * These tests will be skipped in GitHub Actions and other CI environments
+ * because there is no backend server running in CI.
  */
 
-describe('indoor-api integration tests (real backend)', () => {
-    // Skip these tests if backend is not available
-    const backendUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:8080';
+const isCI = process.env.CI === 'true';
+const describeIntegration = isCI ? describe.skip : describe;
 
+describeIntegration('indoor-api integration tests (real backend)', () => {
     beforeAll(() => {
+        const backendUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
         console.log(`\n🔌 Running integration tests against backend: ${backendUrl}\n`);
     });
 
