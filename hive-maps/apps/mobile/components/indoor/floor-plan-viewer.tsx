@@ -1,14 +1,19 @@
 import type * as GeoJSON from 'geojson'
-import { useMemo } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { MapboxGL } from '@/services/mapbox'
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer'
+import DirectionBar from '@/components/directions-bars'
+import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter'
+import { fetchIndoorDirections, type DirectionResponse } from '@/services/http/indoor-api'
 
 export type FloorPlanViewerProps = {
   planGeometry?: GeoJSON.Geometry | null
   rooms?: GeoJSON.FeatureCollection | null
   selectedRoomId?: string | null
   onPressRoom?: (roomId: string) => void
+  buildingCode: string
+  floorId: string
 }
 
 type RoomFeatureProperties = {
@@ -106,9 +111,24 @@ const getCenterCoordinate = (
   return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
 }
 
-export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRoom }: FloorPlanViewerProps) {
+export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRoom, buildingCode, floorId }: FloorPlanViewerProps) {
   const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
+  const cameraRef = useRef<MapboxGL.Camera>(null);
+  const [fromQuery, setFromQuery] = useState('');
+  const [toQuery, setToQuery] = useState('');
+  const [fromNodeId, setFromNodeId] = useState<string | null>(null);
+  const [toNodeId, setToNodeId] = useState<string | null>(null);
+  const [directions, setDirections] = useState<DirectionResponse[]>([]);
+  const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
 
+  async function fetchAndDrawPath(originId: string, destId: string) {
+    try {
+      const result = await fetchIndoorDirections(buildingCode, originId, destId);
+      setDirections(result);
+    } catch {
+      setDirections([]);
+    }
+  }
   const planShape = useMemo(() => {
     if (!planGeometry) return null
     return {
@@ -140,6 +160,23 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
     })
   }, [selectedRoomFeature])
 
+  const pathShape = useMemo(() => {
+    if (directions.length === 0) return null;
+    const coordinates = directions.flatMap((d) =>
+      d.nodes.map((n) => [n.longitude, n.latitude])
+    );
+    if (coordinates.length < 2) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: [{
+        type: 'Feature' as const,
+        id: 'indoor-path',
+        geometry: { type: 'LineString' as const, coordinates },
+        properties: {},
+      }],
+    };
+  }, [directions]);
+
   const handleRoomPress = (event: any) => {
     const feature = event?.features?.[0] as MapPressFeature | undefined
     if (!feature) return
@@ -152,7 +189,7 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
     <View testID="indoor-floor-plan" style={styles.container}>
       {planShape && rooms ? (
         <MapboxGL.MapView style={StyleSheet.absoluteFill} logoEnabled={false} scaleBarEnabled={false}>
-          <MapboxGL.Camera centerCoordinate={centerCoordinate} zoomLevel={19} />
+          <MapboxGL.Camera ref={cameraRef} centerCoordinate={centerCoordinate} zoomLevel={19} />
 
           <MapboxGL.ShapeSource id="indoor-plan-source" shape={planShape}>
             <MapboxGL.FillLayer
@@ -213,10 +250,64 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
           )}
 
           <RoomLabelLayer rooms={rooms} selectedRoomId={selectedRoomId} />
+            {pathShape && (
+              <MapboxGL.ShapeSource id="indoor-path-source" shape={pathShape}>
+                <MapboxGL.LineLayer
+                  id="indoor-path-line"
+                  style={{
+                    lineColor: '#e5a712',
+                    lineWidth: 4,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
+                />
+              </MapboxGL.ShapeSource>
+            )}
         </MapboxGL.MapView>
       ) : (
         <Text style={styles.placeholderText}>Floor plan viewer wired</Text>
       )}
+
+       <View style={styles.directionBarContainer} pointerEvents="box-none">
+          <DirectionBar
+            mapsAdapter={nodeAdapter}
+            fromValue={fromQuery}
+            toValue={toQuery}
+            onChangeFrom={setFromQuery}
+            onChangeTo={setToQuery}
+            onSelectFrom={(mapLocation, coordinates) => {
+              setFromQuery(mapLocation.name);
+              setFromNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({ centerCoordinate: coordinates, zoomLevel: 21, animationDuration: 500 });
+              if (toNodeId) fetchAndDrawPath(mapLocation.id, toNodeId);
+            }}
+            onSelectTo={(mapLocation, coordinates) => {
+              setToQuery(mapLocation.name);
+              setToNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({ centerCoordinate: coordinates, zoomLevel: 21, animationDuration: 500 });
+              if (fromNodeId) fetchAndDrawPath(fromNodeId, mapLocation.id);
+            }}
+            onClearFrom={() => { setFromQuery(''); setFromNodeId(null); setDirections([]); }}
+            onClearTo={() => { setToQuery(''); setToNodeId(null); setDirections([]); }}
+            onResetFrom={() => { setFromQuery(''); setFromNodeId(null); setDirections([]); }}
+            onSwap={() => {
+              const tempQuery = fromQuery;
+              const tempNodeId = fromNodeId;
+              setFromQuery(toQuery);
+              setFromNodeId(toNodeId);
+              setToQuery(tempQuery);
+              setToNodeId(tempNodeId);
+              if (toNodeId && fromNodeId) fetchAndDrawPath(toNodeId, fromNodeId);
+            }}
+            onClose={() => {
+              setFromQuery(''); setFromNodeId(null);
+              setToQuery(''); setToNodeId(null);
+              setDirections([]);
+            }}
+            fromPlaceholder="From room (e.g. H8.835)"
+            toPlaceholder="To room (e.g. H8.841)"
+          />
+      </View>
 
       {selectedRoomId && (
         <View testID="indoor-room-info-card" style={styles.infoCard}>
@@ -256,4 +347,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '600',
   },
+  directionBarContainer: {
+  position: 'absolute',
+  top: 10,
+  left: 0,
+  right: 0,
+  zIndex: 1000,
+}
 })
