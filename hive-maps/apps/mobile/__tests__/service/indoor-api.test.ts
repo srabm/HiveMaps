@@ -4,6 +4,8 @@ import {
     fetchSupportedIndoorBuildings,
     fetchNearestNode,
     normalizeIndoorBuildingCode,
+    fetchIndoorRooms,
+    fetchIndoorDirections
 } from '@/services/http/indoor-api';
 
 jest.mock('@/services/http/campus-api', () => ({
@@ -290,4 +292,74 @@ describe('campus-api', () => {
         await expect(fetchPlaceDetails('place-123')).resolves.toEqual(details);
         expect(global.fetch).toHaveBeenCalledWith('http://api.test/api/places/place-123');
     });
+});
+
+describe('fetchIndoorRooms', () => {
+  it('calls correct endpoint with building and floor', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+    await fetchIndoorRooms('H', '8');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/indoor-directions/building/H/rooms?floor=8',
+      expect.any(Object),
+    );
+  });
+
+  it('returns parsed node array', async () => {
+    const mockNodes = [{ id: 'H8.835', label: 'Room', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.579, latitude: 45.497 }];
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockNodes),
+    });
+    const result = await fetchIndoorRooms('H', '8');
+    expect(result).toEqual(mockNodes);
+  });
+
+  it('throws on non-ok response', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
+    await expect(fetchIndoorRooms('H', '8')).rejects.toThrow('Indoor API request failed (500)');
+  });
+});
+
+describe('fetchIndoorDirections', () => {
+  it('calls correct endpoint with building and node ids', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+    await fetchIndoorDirections('H', 'H8.835', 'H8.863');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/indoor-directions/building/H/from/H8.835/to/H8.863?accessible=false',
+      expect.any(Object),
+    );
+  });
+
+  it('includes accessible=true when passed', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+    await fetchIndoorDirections('H', 'H8.835', 'H8.863', true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('accessible=true'),
+      expect.any(Object),
+    );
+  });
+
+  it('returns parsed directions array', async () => {
+    const mockDirections = [{ direction: 'STRAIGHT', distance: 10, description: 'Go straight 10m', nodes: [] }];
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockDirections),
+    });
+    const result = await fetchIndoorDirections('H', 'H8.835', 'H8.863');
+    expect(result).toEqual(mockDirections);
+  });
+
+  it('throws on non-ok response', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
+    await expect(fetchIndoorDirections('H', 'H8.835', 'H8.863')).rejects.toThrow('Indoor API request failed (500)');
+ });
 });

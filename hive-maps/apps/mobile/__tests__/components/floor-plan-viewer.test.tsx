@@ -20,11 +20,47 @@ jest.mock('@/services/mapbox', () => {
     MapboxGL: {
       MapView: ({ children }: any) => React.createElement(View, null, children),
       Camera: () => null,
+      UserLocation: () => null,
       ShapeSource,
       FillLayer: () => null,
       LineLayer: () => null,
       SymbolLayer: () => null,
     },
+  }
+})
+
+jest.mock('@/components/directions-bars', () => {
+  const React = require('react')
+  const { View } = require('react-native')
+  return {
+    __esModule: true,
+    default: () => React.createElement(View, null),
+  }
+})
+
+jest.mock('@/services/maps/indoor-node-search-adapter', () => ({
+  createIndoorNodeSearchAdapter: jest.fn(() => ({
+    ensureConfigured: jest.fn(),
+    geocode: jest.fn(),
+    search: jest.fn().mockResolvedValue([]),
+    retrieve: jest.fn().mockResolvedValue(null),
+    reverse: jest.fn(),
+    forward: jest.fn(),
+    defaultStyleURL: '',
+  })),
+}))
+
+jest.mock('@/components/indoor/room-label-layer', () => ({
+  RoomLabelLayer: () => null,
+}))
+
+jest.mock('@/components/search-bar', () => {
+  const React = require('react')
+  const { View } = require('react-native')
+
+  return {
+    __esModule: true,
+    default: () => React.createElement(View, null),
   }
 })
 
@@ -70,7 +106,7 @@ describe('FloorPlanViewer', () => {
   })
 
   it('renders Day 1 placeholder when geometry/rooms are missing', () => {
-    const { getByText } = render(<FloorPlanViewer />)
+    const { getByText } = render(<FloorPlanViewer buildingCode="H" floorId="8" />)
     expect(getByText('Floor plan viewer wired')).toBeTruthy()
   })
 
@@ -81,6 +117,8 @@ describe('FloorPlanViewer', () => {
         planGeometry={makePlanGeometry()}
         rooms={makeRooms()}
         onPressRoom={onPressRoom}
+        buildingCode="H"
+        floorId="8"
       />,
     )
 
@@ -106,6 +144,8 @@ describe('FloorPlanViewer', () => {
         planGeometry={makePlanGeometry()}
         rooms={makeRooms()}
         selectedRoomId="H-101"
+        buildingCode="H"
+        floorId="8"
       />,
     )
 

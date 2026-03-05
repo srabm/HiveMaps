@@ -20,7 +20,7 @@ export function createIndoorNodeSearchAdapter(
     reverse: async () => null,
     forward: async () => null,
 
-    async search(query: string): Promise<MapLocation[]> {
+    async search(query: string, _coordinates: Coordinates | null, _sessionToken: string): Promise<MapLocation[] | null> {
       if (!query.trim()) return [];
       const q = query.toLowerCase();
       const nodes = await getNodes();
@@ -34,7 +34,7 @@ export function createIndoorNodeSearchAdapter(
         }));
     },
 
-    async retrieve(id: string): Promise<Coordinates | null> {
+    async retrieve(id: string, _sessionToken: string): Promise<Coordinates | null> {
       const nodes = await getNodes();
       const node = nodes.find((n) => n.id === id);
       if (!node) return null;

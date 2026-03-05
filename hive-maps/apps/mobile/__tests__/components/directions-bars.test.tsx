@@ -357,3 +357,51 @@ describe("DirectionBar tests", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+it("renders custom fromPlaceholder when provided", () => {
+  const { getByPlaceholderText } = render(
+    <DirectionBar
+      fromValue=""
+      toValue=""
+      onChangeFrom={jest.fn()}
+      onChangeTo={jest.fn()}
+      onSelectFrom={jest.fn()}
+      onSelectTo={jest.fn()}
+      onResetFrom={jest.fn()}
+      fromPlaceholder="From room (e.g. H8.835)"
+    />
+  );
+  expect(getByPlaceholderText("From room (e.g. H8.835)")).toBeTruthy();
+});
+
+it("renders custom toPlaceholder when provided", () => {
+  const { getByPlaceholderText } = render(
+    <DirectionBar
+      fromValue=""
+      toValue=""
+      onChangeFrom={jest.fn()}
+      onChangeTo={jest.fn()}
+      onSelectFrom={jest.fn()}
+      onSelectTo={jest.fn()}
+      onResetFrom={jest.fn()}
+      toPlaceholder="To room (e.g. H8.841)"
+    />
+  );
+  expect(getByPlaceholderText("To room (e.g. H8.841)")).toBeTruthy();
+});
+
+it("falls back to default placeholders when none provided", () => {
+  const { getByPlaceholderText } = render(
+    <DirectionBar
+      fromValue=""
+      toValue=""
+      onChangeFrom={jest.fn()}
+      onChangeTo={jest.fn()}
+      onSelectFrom={jest.fn()}
+      onSelectTo={jest.fn()}
+      onResetFrom={jest.fn()}
+    />
+  );
+  expect(getByPlaceholderText("Choose starting point")).toBeTruthy();
+  expect(getByPlaceholderText("Choose destination")).toBeTruthy();
+});
