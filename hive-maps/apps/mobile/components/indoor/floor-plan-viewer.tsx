@@ -5,7 +5,6 @@ import { MapboxGL } from '@/services/mapbox'
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer'
 import DirectionBar from '@/components/directions-bars'
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter'
-import { fetchIndoorDirections, type DirectionResponse } from '@/services/http/indoor-api'
 
 export type FloorPlanViewerProps = {
   planGeometry?: GeoJSON.Geometry | null
@@ -118,17 +117,8 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
   const [toQuery, setToQuery] = useState('');
   const [fromNodeId, setFromNodeId] = useState<string | null>(null);
   const [toNodeId, setToNodeId] = useState<string | null>(null);
-  const [directions, setDirections] = useState<DirectionResponse[]>([]);
   const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
 
-  async function fetchAndDrawPath(originId: string, destId: string) {
-    try {
-      const result = await fetchIndoorDirections(buildingCode, originId, destId);
-      setDirections(result);
-    } catch {
-      setDirections([]);
-    }
-  }
   const planShape = useMemo(() => {
     if (!planGeometry) return null
     return {
@@ -159,23 +149,6 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
       properties: selectedRoomFeature.features[0].properties as RoomFeatureProperties,
     })
   }, [selectedRoomFeature])
-
-  const pathShape = useMemo(() => {
-    if (directions.length === 0) return null;
-    const coordinates = directions.flatMap((d) =>
-      d.nodes.map((n) => [n.longitude, n.latitude])
-    );
-    if (coordinates.length < 2) return null;
-    return {
-      type: 'FeatureCollection' as const,
-      features: [{
-        type: 'Feature' as const,
-        id: 'indoor-path',
-        geometry: { type: 'LineString' as const, coordinates },
-        properties: {},
-      }],
-    };
-  }, [directions]);
 
   const handleRoomPress = (event: any) => {
     const feature = event?.features?.[0] as MapPressFeature | undefined
@@ -250,19 +223,6 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
           )}
 
           <RoomLabelLayer rooms={rooms} selectedRoomId={selectedRoomId} />
-            {pathShape && (
-              <MapboxGL.ShapeSource id="indoor-path-source" shape={pathShape}>
-                <MapboxGL.LineLayer
-                  id="indoor-path-line"
-                  style={{
-                    lineColor: '#e5a712',
-                    lineWidth: 4,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                  }}
-                />
-              </MapboxGL.ShapeSource>
-            )}
         </MapboxGL.MapView>
       ) : (
         <Text style={styles.placeholderText}>Floor plan viewer wired</Text>
@@ -279,17 +239,24 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
               setFromQuery(mapLocation.name);
               setFromNodeId(mapLocation.id);
               if (coordinates) cameraRef.current?.setCamera({ centerCoordinate: coordinates, zoomLevel: 21, animationDuration: 500 });
-              if (toNodeId) fetchAndDrawPath(mapLocation.id, toNodeId);
             }}
             onSelectTo={(mapLocation, coordinates) => {
               setToQuery(mapLocation.name);
               setToNodeId(mapLocation.id);
               if (coordinates) cameraRef.current?.setCamera({ centerCoordinate: coordinates, zoomLevel: 21, animationDuration: 500 });
-              if (fromNodeId) fetchAndDrawPath(fromNodeId, mapLocation.id);
             }}
-            onClearFrom={() => { setFromQuery(''); setFromNodeId(null); setDirections([]); }}
-            onClearTo={() => { setToQuery(''); setToNodeId(null); setDirections([]); }}
-            onResetFrom={() => { setFromQuery(''); setFromNodeId(null); setDirections([]); }}
+            onClearFrom={() => { 
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
+            onClearTo={() => { 
+              setToQuery('');
+              setToNodeId(null);
+            }}
+            onResetFrom={() => { 
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
             onSwap={() => {
               const tempQuery = fromQuery;
               const tempNodeId = fromNodeId;
@@ -297,12 +264,10 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
               setFromNodeId(toNodeId);
               setToQuery(tempQuery);
               setToNodeId(tempNodeId);
-              if (toNodeId && fromNodeId) fetchAndDrawPath(toNodeId, fromNodeId);
             }}
             onClose={() => {
               setFromQuery(''); setFromNodeId(null);
               setToQuery(''); setToNodeId(null);
-              setDirections([]);
             }}
             fromPlaceholder="From room (e.g. H8.835)"
             toPlaceholder="To room (e.g. H8.841)"
