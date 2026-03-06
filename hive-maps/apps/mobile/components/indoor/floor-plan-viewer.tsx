@@ -6,7 +6,9 @@ import {RoomLabelLayer} from '@/components/indoor/room-label-layer'
 import DirectionBar from '@/components/directions-bars'
 import {createIndoorNodeSearchAdapter} from '@/services/maps/indoor-node-search-adapter'
 import {fetchNearestNode} from '@/services/http/indoor-api'
-
+import {DirectionsLine} from "@/components/ui/directions-line";
+import {fetchIndoorDirections} from "@/services/http/indoor-api";
+import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 export type FloorPlanViewerProps = {
     planGeometry?: GeoJSON.Geometry | null
     rooms?: GeoJSON.FeatureCollection | null
@@ -30,6 +32,129 @@ type MapPressFeature = {
     id?: string | number
     properties?: RoomFeatureProperties
 }
+
+const indoorSteps:any = [
+    {
+        "direction": "STRAIGHT",
+        "distance": 56.729001359200595,
+        "description": "Go straight 56.73m",
+        "nodes": [
+            {
+                "id": "LB2.207",
+                "label": "Room",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57848778367043,
+                "latitude": 45.49666889489397
+            },
+            {
+                "id": "LB2_J1",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57846498489381,
+                "latitude": 45.4966434940465
+            },
+            {
+                "id": "LB2_J17",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.5783013701439,
+                "latitude": 45.49656920689464
+            },
+            {
+                "id": "LB2_J14",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57809618115425,
+                "latitude": 45.49662374325189
+            },
+            {
+                "id": "LB2.elevators",
+                "label": "Elevator",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57796542346479,
+                "latitude": 45.49665482836574
+            },
+            {
+                "id": "LB2_J12",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57784003019334,
+                "latitude": 45.49662468353347
+            }
+        ]
+    },
+    {
+        "direction": "LEFT",
+        "distance": 0.0,
+        "description": "Turn left",
+        "nodes": [
+            {
+                "id": "LB2_J12",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57784003019334,
+                "latitude": 45.49662468353347
+            }
+        ]
+    },
+    {
+        "direction": "STRAIGHT",
+        "distance": 40.92037047616629,
+        "description": "Go straight 40.92m",
+        "nodes": [
+            {
+                "id": "LB2_J12",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57784003019334,
+                "latitude": 45.49662468353347
+            },
+            {
+                "id": "LB2_J10",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.5777971148491,
+                "latitude": 45.496714010209914
+            },
+            {
+                "id": "LB2_J9",
+                "label": "Junction",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57761204242708,
+                "latitude": 45.49691334922956
+            },
+            {
+                "id": "LB2.249",
+                "label": "Female Washroom",
+                "wheelchairAccessible": true,
+                "floor": "2",
+                "building": "LB",
+                "longitude": -73.57756376266481,
+                "latitude": 45.49692537875709
+            }
+        ]
+    }
+];
 
 const getRoomId = (feature: MapPressFeature): string | null => {
     const propertyId =
@@ -126,12 +251,12 @@ export function FloorPlanViewer({
     const [fromNodeId, setFromNodeId] = useState<string | null>(null);
     const [toNodeId, setToNodeId] = useState<string | null>(null);
     const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
-
+    const[indoorDirectionisOpen,setIndoorDirectionIsOpen] = useState<boolean>(false);
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-
+    const [indoorDirectionOpen,setIndoorDirectionOpen] = useState<boolean>(false);
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -279,7 +404,17 @@ export function FloorPlanViewer({
                             />
                         </MapboxGL.ShapeSource>
                     )}
-
+                    <DirectionsLine    //DirectionLine to show indoor directions (edge by edge, node by node)
+                        useIndoorData={true}
+                        IndoorDirections={indoorSteps}
+                        lineWidth={5}
+                        directions={{
+                            polyline: "",
+                            distanceMeters: 30,
+                            durationSeconds: 20,
+                            steps:[]
+                        }}
+                    />
                     <RoomLabelLayer rooms={rooms} selectedRoomId={selectedRoomId}/>
                 </MapboxGL.MapView>
             ) : (
@@ -287,6 +422,18 @@ export function FloorPlanViewer({
             )}
 
             <View style={styles.directionBarContainer} pointerEvents="box-none">
+
+                 {indoorDirectionOpen && <DirectionsModal  // To see the indoor directions
+                    visible={true}
+                    steps={indoorSteps}
+                    origin="Your location"
+                    destination="LB251 Webster Library"
+                    onCurrentNodeChange={(node) => {
+                        console.log(node.id);
+                    }}
+                    onClose={() => setIndoorDirectionOpen(false)}
+                />}
+
                 <DirectionBar
                     mapsAdapter={nodeAdapter}
                     fromValue={fromQuery}
@@ -340,6 +487,8 @@ export function FloorPlanViewer({
                     fromPlaceholder="From room (e.g. H8.835)"
                     toPlaceholder="To room (e.g. H8.841)"
                 />
+
+
             </View>
 
             {selectedRoomId && (
