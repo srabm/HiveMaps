@@ -14,6 +14,25 @@ interface DirectionsDisplayProps {
     infoCardPosition?: 'top' | 'bottom';
     showInfoCard?: boolean;
     lineDasharray?: number[];
+    useIndoorData?:boolean;
+    IndoorDirections?: DirectionStep[];
+}
+
+export interface IndoorNode {
+    id: string;
+    label: string;
+    wheelchairAccessible: boolean;
+    floor: string;
+    building: string;
+    longitude: number;
+    latitude: number;
+}
+
+export interface DirectionStep {
+    direction: "STRAIGHT" | "LEFT" | "RIGHT";
+    distance: number;
+    description: string;
+    nodes: IndoorNode[];
 }
 
 /**
@@ -73,11 +92,24 @@ export function DirectionsLine({
                                    infoCardPosition = 'bottom',
                                    showInfoCard = true,
                                    lineDasharray,
+                                   useIndoorData = false,
+                                   IndoorDirections,
                                }: Readonly<DirectionsDisplayProps>) {
-    const coordinates = useMemo(
-        () => decodePolyline(directions.polyline),
-        [directions.polyline],
-    );
+
+
+    const coordinates = useMemo(() => {
+        if (useIndoorData && IndoorDirections) {
+            return IndoorDirections.flatMap((step) =>
+                step.nodes.map((node) => [node.longitude, node.latitude] as [number, number])
+            );
+        }
+
+        if (directions) {
+            return decodePolyline(directions.polyline);
+        }
+
+        return [];
+    }, [directions, IndoorDirections, useIndoorData]);
 
     const featureCollection = useMemo(
         () => {
