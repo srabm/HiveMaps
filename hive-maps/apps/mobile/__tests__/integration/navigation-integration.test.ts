@@ -67,7 +67,7 @@ describe('Walking navigation — full journey (AC 2.7.6)', () => {
     });
 
     it('auto-advances as user walks each step end', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(walkSteps, gps),
             { initialProps: { gps: null as LiveLocation | null } },
         );
@@ -92,7 +92,7 @@ describe('Walking navigation — full journey (AC 2.7.6)', () => {
     });
 
     it('totalDistanceRemaining decreases as user progresses', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(walkSteps, gps),
             { initialProps: { gps: loc(walkSteps[0].startLocation.latitude, walkSteps[0].startLocation.longitude) } },
         );
@@ -148,7 +148,7 @@ describe('Driving navigation — road instructions (AC 2.7.5)', () => {
     });
 
     it('off-route fires after 5 consecutive bad GPS readings', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(driveSteps, gps),
             { initialProps: { gps: null as LiveLocation | null } },
         );
@@ -209,7 +209,7 @@ describe('Shuttle navigation — three-phase journey (AC 2.7.7)', () => {
     });
 
     it('off-route is suppressed during shuttle phase', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(shuttleSteps, gps, boundaries),
             { initialProps: { gps: null as LiveLocation | null } },
         );
@@ -234,7 +234,7 @@ describe('Shuttle navigation — three-phase journey (AC 2.7.7)', () => {
     });
 
     it('off-route detection re-enables in walk-from-stop phase', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(shuttleSteps, gps, boundaries),
             { initialProps: { gps: null as LiveLocation | null } },
         );
@@ -317,7 +317,7 @@ describe('Mode switch — no errors on route change (AC acceptance)', () => {
     ];
 
     it('switching from walk to drive resets index without error', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { steps: Step[] }>(
             ({ steps }) => useStepNavigator(steps, null),
             { initialProps: { steps: walkRoute } },
         );
@@ -342,7 +342,7 @@ describe('Mode switch — no errors on route change (AC acceptance)', () => {
     });
 
     it('isOffRoute is cleared when a new route is loaded', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { steps: Step[] }>(
             ({ steps }) => useStepNavigator(steps, null),
             { initialProps: { steps: walkRoute } },
         );
@@ -384,7 +384,7 @@ describe('Real-time GPS update flow (AC 2.7.3)', () => {
             (steps[0].startLocation.longitude + steps[0].endLocation.longitude) / 2,
         );
 
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(steps, gps),
             { initialProps: { gps: startLoc } },
         );
@@ -397,7 +397,7 @@ describe('Real-time GPS update flow (AC 2.7.3)', () => {
     });
 
     it('instruction changes when step advances via GPS', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(steps, gps),
             { initialProps: { gps: null as LiveLocation | null } },
         );
