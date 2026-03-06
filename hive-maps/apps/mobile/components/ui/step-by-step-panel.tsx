@@ -74,31 +74,18 @@ const MANEUVER_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['
     'exit-rotary':      'roundabout-left',
     // Misc
     'notification':     'info-outline',
-
-    // ── Google Maps UPPER_SNAKE_CASE maneuver values ───────────────────────
-    TURN_RIGHT:         'turn-right',
-    TURN_LEFT:          'turn-left',
-    TURN_SLIGHT_RIGHT:  'turn-slight-right',
-    TURN_SLIGHT_LEFT:   'turn-slight-left',
-    TURN_SHARP_RIGHT:   'turn-sharp-right',
-    TURN_SHARP_LEFT:    'turn-sharp-left',
-    STRAIGHT:           'straight',
-    UTURN_LEFT:         'u-turn-left',
-    UTURN_RIGHT:        'u-turn-right',
-    RAMP_LEFT:          'ramp-left',
-    RAMP_RIGHT:         'ramp-right',
-    MERGE:              'merge',
-    FORK_LEFT:          'fork-left',
-    FORK_RIGHT:         'fork-right',
-    FERRY:              'directions-boat',
-    FERRY_TRAIN:        'train',
-    ROUNDABOUT_LEFT:    'roundabout-left',
-    ROUNDABOUT_RIGHT:   'roundabout-right',
+    // Google Maps values that normalise to forms not already in the map
+    'ferry':            'directions-boat',
+    'ferry-train':      'train',
+    'uturn-left':       'u-turn-left',
+    'uturn-right':      'u-turn-right',
 };
 
 function getManeuverIcon(maneuver: string): React.ComponentProps<typeof MaterialIcons>['name'] {
-    const icon = MANEUVER_ICON[maneuver] ?? MANEUVER_ICON[maneuver?.toUpperCase()];
-    if (!icon) {
+    // Normalise both Mapbox kebab-case and Google UPPER_SNAKE_CASE to lowercase-hyphen
+    const normalised = (maneuver ?? '').toLowerCase().replace(/_/g, '-');
+    const icon = MANEUVER_ICON[normalised];
+    if (!icon && normalised !== '' && normalised !== 'depart') {
         console.warn(`[StepByStepPanel] Unknown maneuver: "${maneuver}" — falling back to straight`);
     }
     return icon ?? 'straight';

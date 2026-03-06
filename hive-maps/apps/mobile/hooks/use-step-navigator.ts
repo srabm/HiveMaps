@@ -2,29 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from './use-live-location';
 
-/**
- * Radius in metres within which we consider a step's endpoint "reached"
- * and advance to the next step.
- *
- * Why 15 m and not ~10 m (typical GPS horizontal accuracy)?
- *
- * The threshold is checked against the straight-line distance from the
- * user's current GPS fix to the step's endLocation (the intersection
- * point after the turn). Two factors pull the safe minimum up:
- *
- *   1. GPS accuracy degrades near tall buildings (urban canyons) — the
- *      exact places where turn points are. 15 m gives a comfortable
- *      margin over the ~10 m CEP in open sky.
- *
- *   2. Step endpoints are intersections, not the start of the next road.
- *      When the user is 10 m from the endpoint they have already begun
- *      executing the turn; 15 m is the point where the maneuver starts,
- *      which is when the instruction should flip.
- *
- * Previously 40 m → direction changed well before the turn.
- * Going below ~12 m risks the step never advancing in degraded GPS.
- */
-const STEP_ARRIVAL_THRESHOLD_M = 15;
+/** Radius in metres within which we consider a step's endpoint "reached". */
+const STEP_ARRIVAL_THRESHOLD_M = 30;
 
 /**
  * How far off the route (metres) before counting as an off-route reading.
