@@ -2,6 +2,7 @@ import React, {useMemo} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {MapboxGL} from '@/services/mapbox';
 import type {DirectionsResponse} from '@/services/maps/directions-api-adapter';
+import { IndoorDirectionsResponse } from '@/services/http/indoor-api';
 
 type Position = [number, number];
 
@@ -15,24 +16,7 @@ interface DirectionsDisplayProps {
     showInfoCard?: boolean;
     lineDasharray?: number[];
     useIndoorData?:boolean;
-    IndoorDirections?: DirectionStep[];
-}
-
-export interface IndoorNode {
-    id: string;
-    label: string;
-    wheelchairAccessible: boolean;
-    floor: string;
-    building: string;
-    longitude: number;
-    latitude: number;
-}
-
-export interface DirectionStep {
-    direction: "STRAIGHT" | "LEFT" | "RIGHT";
-    distance: number;
-    description: string;
-    nodes: IndoorNode[];
+    IndoorDirections?: IndoorDirectionsResponse[];
 }
 
 /**

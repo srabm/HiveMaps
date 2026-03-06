@@ -1,5 +1,6 @@
+import { IndoorDirectionsResponse, IndoorNodeResponse } from "@/services/http/indoor-api";
 import React, { useState, useRef, useEffect } from "react";
-import {Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder, DimensionValue,} from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder, DimensionValue,} from "react-native";
 
 const AMBER       = "#E8A020";
 const AMBER_LIGHT = "#FDF3E0";
@@ -16,12 +17,9 @@ const FIXED_H      = 195;
 
 
 const DIRECTION_IMAGES: Record<string, any> = {
-    STRAIGHT:   require("@/./assets/images/straight.png"),
-    LEFT:        require("@/./assets/images/turn-left.png"),
-    TURN_LEFT:  require("@/./assets/images/turn-left.png"),
-    RIGHT:      require("@/./assets/images/turn-right.png"),
-    TURN_RIGHT: require("@/./assets/images/turn-right.png"),
-    ARRIVED:    require("@/./assets/images/bee.png"),
+    STRAIGHT:  require("@/./assets/images/straight.png"),
+    LEFT:      require("@/./assets/images/turn-left.png"),
+    RIGHT:     require("@/./assets/images/turn-right.png"),
     DEFAULT:   require("@/./assets/images/bee.png"),
 };
 
@@ -29,150 +27,21 @@ function getDirectionImage(direction: string): any {
     return DIRECTION_IMAGES[direction.toUpperCase()] ?? DIRECTION_IMAGES.DEFAULT;
 }
 
-
-export interface StepNode {
-    id: string;
-    label: string;
-    wheelchairAccessible: boolean;
-    floor: string;
-    building: string;
-    longitude: number;
-    latitude: number;
-}
-
-export interface DirectionStep {
-    direction: "STRAIGHT" | "LEFT" | "RIGHT" | "TURN_LEFT" | "TURN_RIGHT"| "ARRIVED" | string;
-    distance: number;
-    description: string;
-    nodes: StepNode[];
-}
-
 export interface DirectionsModalProps {
     visible: boolean;
-    steps?: DirectionStep[];
+    steps: IndoorDirectionsResponse[];
     origin?: string;
     destination?: string;
     onClose: () => void;
-    onCurrentNodeChange?: (node: StepNode) => void;
+    onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
 }
-
-
-const DEFAULT_STEPS: DirectionStep[] =[
-    {
-        "direction": "STRAIGHT",
-        "distance": 14.657954421607624,
-        "description": "Go straight 14.66m",
-        "nodes": [
-            {
-                "id": "LB2_J2",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.578317463398,
-                "latitude": 45.49677043187034
-            },
-            {
-                "id": "LB2_J3",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.57820615172386,
-                "latitude": 45.4968766833103
-            }
-        ]
-    },
-    {
-        "direction": "RIGHT",
-        "distance": 0.0,
-        "description": "Turn right",
-        "nodes": [
-            {
-                "id": "LB2_J3",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.57820615172386,
-                "latitude": 45.4968766833103
-            }
-        ]
-    },
-    {
-        "direction": "STRAIGHT",
-        "distance": 6.4942639852051425,
-        "description": "Go straight 6.49m",
-        "nodes": [
-            {
-                "id": "LB2_J3",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.57820615172386,
-                "latitude": 45.4968766833103
-            },
-            {
-                "id": "LB2_J16",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.5781230032444,
-                "latitude": 45.49687291731565
-            }
-        ]
-    },
-    {
-        "direction": "LEFT",
-        "distance": 0.0,
-        "description": "Turn left",
-        "nodes": [
-            {
-                "id": "LB2_J16",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.5781230032444,
-                "latitude": 45.49687291731565
-            }
-        ]
-    },
-    {
-        "direction": "STRAIGHT",
-        "distance": 10.585975862246118,
-        "description": "Go straight 10.59m",
-        "nodes": [
-            {
-                "id": "LB2_J17",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.5781230032444,
-                "latitude": 45.49687291731565
-            },
-            {
-                "id": "LB2_J8",
-                "label": "Junction",
-                "wheelchairAccessible": true,
-                "floor": "2",
-                "building": "LB",
-                "longitude": -73.57804521918297,
-                "latitude": 45.49695096028622
-            }
-        ]
-    }
-];
 
 /**
  * Returns the first node of a step — this represents the user's current
  * position when they are on that step.
  */
-function getFirstNode(step: DirectionStep): StepNode | null {
+function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null {
     if (!step.nodes || step.nodes.length === 0) return null;
     return step.nodes[0];
 }
@@ -181,7 +50,7 @@ function getFirstNode(step: DirectionStep): StepNode | null {
 
 const DirectionsModal: React.FC<DirectionsModalProps> = ({
                                                              visible,
-                                                             steps: stepsProp,
+                                                             steps,
                                                              origin = "Your location",
                                                              destination,
                                                              onClose,
@@ -189,16 +58,15 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                                                              beeImageSource,
                                                          }) => {
 
-    let steps = stepsProp && stepsProp.length > 0 ? stepsProp : DEFAULT_STEPS;
-    steps = [
-        ...steps,
-        {
-            direction: "ARRIVED",
-            distance: 0.0,
-            description: "You have arrived at your destination",
-            nodes: [ steps[steps.length - 1].nodes[steps[steps.length - 1].nodes.length - 1] ]
-        }
-    ];
+    // steps = [
+    //     ...steps,
+    //     {
+    //         direction: "ARRIVED",
+    //         distance: 0.0,
+    //         description: "You have arrived at your destination",
+    //         nodes: [ steps[steps.length - 1].nodes[steps[steps.length - 1].nodes.length - 1] ]
+    //     }
+    // ];
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight]   = useState(DEFAULT_HEIGHT);
 
@@ -296,153 +164,150 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     };
 
     return (
-        <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-            <View style={styles.overlay}>
-                <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <View style={styles.overlay} pointerEvents="box-none">
 
-                <Animated.View style={[styles.sheet, { height: hasStarted ? sheetHeight : "auto", transform: [{ translateY: sheetAnim }] }]}>
+            <Animated.View style={[styles.sheet, { height: hasStarted ? sheetHeight : "auto", transform: [{ translateY: sheetAnim }] }]}>
 
-                    {/* Draggable handle */}
-                    <View style={styles.handleArea} {...panResponder.panHandlers}>
-                        <View style={styles.handleBar} />
+                {/* Draggable handle */}
+                <View style={styles.handleArea} {...panResponder.panHandlers}>
+                    <View style={styles.handleBar} />
+                </View>
+
+                {!hasStarted ? (
+                    <View style={styles.preStartContainer}>
+                        <View style={styles.preStartHeader}>
+                            <Text style={styles.preStartLabel}>Walk</Text>
+                            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
+                                <Text style={styles.closeBtnText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.preStartRow}>
+                            <View style={styles.preStartEta}>
+                                <Text style={styles.preStartMin}>{Math.ceil((steps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
+                                <Text style={styles.preStartMinLabel}>min</Text>
+                            </View>
+                            <View style={styles.preStartInfo}>
+                                <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
+                                <Text style={styles.preStartDist}>
+                                    {steps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m
+                                </Text>
+                            </View>
+                            <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
+                                <Text style={styles.startBtnText}> Start</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
+                    ) :(
+                    <View style={{ flex: 1 }}>
 
-                    {!hasStarted ? (
-                        <View style={styles.preStartContainer}>
-                            <View style={styles.preStartHeader}>
-                                <Text style={styles.preStartLabel}>Walk</Text>
-                                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
-                                    <Text style={styles.closeBtnText}>✕</Text>
-                                </TouchableOpacity>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <View style={styles.headerLeft}>
+                                <Text style={styles.headerDest} numberOfLines={1}> End Destination: {destLabel}</Text>
                             </View>
-                            <View style={styles.preStartRow}>
-                                <View style={styles.preStartEta}>
-                                    <Text style={styles.preStartMin}>{Math.ceil((steps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
-                                    <Text style={styles.preStartMinLabel}>min</Text>
-                                </View>
-                                <View style={styles.preStartInfo}>
-                                    <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
-                                    <Text style={styles.preStartDist}>
-                                        {steps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m
-                                    </Text>
-                                </View>
-                                <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
-                                    <Text style={styles.startBtnText}> Start</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
+                                <Text style={styles.closeBtnText}>✕</Text>
+                            </TouchableOpacity>
                         </View>
-                        ) :(
-                        <View style={{ flex: 1 }}>
 
-                            {/* Header */}
-                            <View style={styles.header}>
-                                <View style={styles.headerLeft}>
-                                    <Text style={styles.headerDest} numberOfLines={1}> End Destination: {destLabel}</Text>
-                                </View>
-                                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
-                                    <Text style={styles.closeBtnText}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
+                        {/* Progress */}
+                        <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, { width: progressPct }]} />
+                        </View>
+                        <Text style={styles.progressLabel}>Step {Math.min(currentIndex + 1, totalSteps)} of {totalSteps}</Text>
 
-                            {/* Progress */}
-                            <View style={styles.progressTrack}>
-                                <View style={[styles.progressFill, { width: progressPct }]} />
-                            </View>
-                            <Text style={styles.progressLabel}>Step {Math.min(currentIndex + 1, totalSteps)} of {totalSteps}</Text>
-
-                            {/* Back / Forward buttons */}
-                            <View style={styles.navRow}>
-                                <TouchableOpacity
-                                    style={[styles.navBtn, isFirst && styles.navBtnDisabled]}
-                                    onPress={goBack}
-                                    activeOpacity={isFirst ? 1 : 0.82}
-                                    disabled={isFirst}
-                                >
-                                    <Text style={[styles.navBtnText1, isFirst && styles.navBtnTextDisabled]}>Back</Text>
-                                </TouchableOpacity>
-
-                                {isLast ? (
-                                    <View style={[styles.navBtn, styles.navBtnArrived]}>
-                                        <Text style={styles.navBtnArrivedText}>Arrived</Text>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity style={styles.navBtn1} onPress={goForward} activeOpacity={0.82}>
-                                        <Text style={styles.navBtnText2}>Next</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                            <View style={styles.stepRow} />
-
-                            {/* Scrollable list */}
-                            <ScrollView
-                                ref={scrollRef}
-                                style={{ height: listH }}
-                                contentContainerStyle={styles.listContent}
-                                showsVerticalScrollIndicator={true}
-                                bounces={false}
-                                onScrollBeginDrag={() => { isScrolling.current = true; }}
-                                onScrollEndDrag={() => { isScrolling.current = false; }}
+                        {/* Back / Forward buttons */}
+                        <View style={styles.navRow}>
+                            <TouchableOpacity
+                                style={[styles.navBtn, isFirst && styles.navBtnDisabled]}
+                                onPress={goBack}
+                                activeOpacity={isFirst ? 1 : 0.82}
+                                disabled={isFirst}
                             >
-                                {/* Origin / bee row */}
-                                <View style={styles.stepRow}>
-                                    <View style={styles.iconWrap}>
-                                        {beeImageSource
-                                            ? <Image source={beeImageSource} style={styles.directionImage} resizeMode="contain" />
-                                            : <Image source={require("@/assets/images/bee.png")} style={styles.directionImage} resizeMode="contain" />
-                                        }
-                                    </View>
-                                    <View style={styles.stepTextWrap}>
-                                        <Text style={styles.stepTitle}>{origin}</Text>
-                                        <Text style={styles.stepSub}>Starting point</Text>
-                                    </View>
+                                <Text style={[styles.navBtnText1, isFirst && styles.navBtnTextDisabled]}>Back</Text>
+                            </TouchableOpacity>
+
+                            {isLast ? (
+                                <View style={[styles.navBtn, styles.navBtnArrived]}>
+                                    <Text style={styles.navBtnArrivedText}>Arrived</Text>
                                 </View>
-
-                                <View />
-
-                                {/* Direction rows */}
-                                {remainingSteps.map((step, idx) => {
-                                    const isCurrentStep = idx === 0;
-                                    const isLastRow     = idx === remainingSteps.length - 1;
-
-                                    return (
-                                        <React.Fragment key={`s-${currentIndex}-${idx}`}>
-                                            <Animated.View style={[styles.stepRow, isCurrentStep && { opacity: fadeAnim }]}>
-                                                <View style={styles.iconWrap}>
-                                                    <Image
-                                                        source={getDirectionImage(step.direction)}
-                                                        style={styles.directionImage}
-                                                        resizeMode="contain"
-                                                    />
-                                                </View>
-                                                <View style={styles.stepTextWrap}>
-                                                    <Text style={styles.stepTitle}>{step.description}</Text>
-                                                    {step.distance > 0 && (
-                                                        <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text>
-                                                    )}
-                                                    {step.nodes[0]?.floor && (
-                                                        <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} · {step.nodes[0].building}</Text>
-                                                    )}
-                                                </View>
-                                                {isCurrentStep && (
-                                                    <View style={styles.currentBadge}>
-                                                        <Text style={styles.currentBadgeText}>Current Step</Text>
-                                                    </View>
-                                                )}
-                                            </Animated.View>
-                                            {!isLastRow && <View />}
-                                        </React.Fragment>
-                                    );
-                                })}
-
-                                <View style={{ height: 20 }} />
-                            </ScrollView>
-
+                            ) : (
+                                <TouchableOpacity style={styles.navBtn1} onPress={goForward} activeOpacity={0.82}>
+                                    <Text style={styles.navBtnText2}>Next</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                    )}
+                        <View style={styles.stepRow} />
 
-                </Animated.View>
-            </View>
-        </Modal>
+                        {/* Scrollable list */}
+                        <ScrollView
+                            ref={scrollRef}
+                            style={{ height: listH }}
+                            contentContainerStyle={styles.listContent}
+                            showsVerticalScrollIndicator={true}
+                            bounces={false}
+                            onScrollBeginDrag={() => { isScrolling.current = true; }}
+                            onScrollEndDrag={() => { isScrolling.current = false; }}
+                        >
+                            {/* Origin / bee row */}
+                            <View style={styles.stepRow}>
+                                <View style={styles.iconWrap}>
+                                    {beeImageSource
+                                        ? <Image source={beeImageSource} style={styles.directionImage} resizeMode="contain" />
+                                        : <Image source={require("@/assets/images/bee.png")} style={styles.directionImage} resizeMode="contain" />
+                                    }
+                                </View>
+                                <View style={styles.stepTextWrap}>
+                                    <Text style={styles.stepTitle}>{origin}</Text>
+                                    <Text style={styles.stepSub}>Starting point</Text>
+                                </View>
+                            </View>
+
+                            <View />
+
+                            {/* Direction rows */}
+                            {remainingSteps.map((step, idx) => {
+                                const isCurrentStep = idx === 0;
+                                const isLastRow     = idx === remainingSteps.length - 1;
+
+                                return (
+                                    <React.Fragment key={`s-${currentIndex}-${idx}`}>
+                                        <Animated.View style={[styles.stepRow, isCurrentStep && { opacity: fadeAnim }]}>
+                                            <View style={styles.iconWrap}>
+                                                <Image
+                                                    source={getDirectionImage(step.direction)}
+                                                    style={styles.directionImage}
+                                                    resizeMode="contain"
+                                                />
+                                            </View>
+                                            <View style={styles.stepTextWrap}>
+                                                <Text style={styles.stepTitle}>{step.description}</Text>
+                                                {step.distance > 0 && (
+                                                    <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text>
+                                                )}
+                                                {step.nodes[0]?.floor && (
+                                                    <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} · {step.nodes[0].building}</Text>
+                                                )}
+                                            </View>
+                                            {isCurrentStep && (
+                                                <View style={styles.currentBadge}>
+                                                    <Text style={styles.currentBadgeText}>Current Step</Text>
+                                                </View>
+                                            )}
+                                        </Animated.View>
+                                        {!isLastRow && <View />}
+                                    </React.Fragment>
+                                );
+                            })}
+
+                            <View style={{ height: 20 }} />
+                        </ScrollView>
+
+                    </View>
+                )}
+
+            </Animated.View>
+        </View>
     );
 };
 
