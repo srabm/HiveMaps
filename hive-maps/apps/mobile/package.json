@@ -6,7 +6,6 @@
     "start": "expo start",
     "test": "jest --passWithNoTests",
     "test:ci": "npm run test -- --coverage",
-    "test:integration": "jest __tests__/integration --runInBand",
     "typecheck": "tsc --noEmit",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
