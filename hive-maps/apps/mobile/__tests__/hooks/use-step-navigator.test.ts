@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { useStepNavigator, distanceMetres } from '@/hooks/use-step-navigator';
+import type { StepNavigatorState } from '@/hooks/use-step-navigator';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from '@/hooks/use-live-location';
 
@@ -209,7 +210,7 @@ describe('useStepNavigator — auto-advance', () => {
             STEP_C.endLocation.latitude,
             STEP_C.endLocation.longitude,
         );
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { loc: LiveLocation | null }>(
             ({ loc }) => useStepNavigator(THREE_STEPS, loc),
             { initialProps: { loc: null as LiveLocation | null } },
         );
@@ -294,7 +295,7 @@ describe('useStepNavigator — new route resets', () => {
     const NEW_ROUTE = [STEP_X, STEP_Y];
 
     it('resets to step 0 when steps array reference changes', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { steps: Step[] }>(
             ({ steps }) => useStepNavigator(steps, null),
             { initialProps: { steps: THREE_STEPS } },
         );
@@ -307,7 +308,7 @@ describe('useStepNavigator — new route resets', () => {
     });
 
     it('clears isOffRoute when route changes', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { steps: Step[] }>(
             ({ steps }) => useStepNavigator(steps, null),
             { initialProps: { steps: THREE_STEPS } },
         );
@@ -386,7 +387,7 @@ describe('useStepNavigator — off-route detection', () => {
     });
 
     it('flags off-route after 5 consecutive far readings', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { loc: LiveLocation | null }>(
             ({ loc }) => useStepNavigator(THREE_STEPS, loc),
             { initialProps: { loc: null as LiveLocation | null } },
         );
@@ -397,7 +398,7 @@ describe('useStepNavigator — off-route detection', () => {
     });
 
     it('resets off-route counter when user returns to route', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { loc: LiveLocation | null }>(
             ({ loc }) => useStepNavigator(THREE_STEPS, loc),
             { initialProps: { loc: null as LiveLocation | null } },
         );
@@ -422,7 +423,7 @@ describe('useStepNavigator — off-route detection', () => {
     it('does not flag off-route during shuttle phase', () => {
         const boundaries = { walkToStopCount: 0, shuttleLegCount: 3 };
         const shuttleSteps = THREE_STEPS; // treat all 3 as shuttle ride
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { loc: LiveLocation | null }>(
             ({ loc }) => useStepNavigator(shuttleSteps, loc, boundaries),
             { initialProps: { loc: null as LiveLocation | null } },
         );
@@ -433,7 +434,7 @@ describe('useStepNavigator — off-route detection', () => {
     });
 
     it('clearOffRoute resets isOffRoute after it was set', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { loc: LiveLocation | null }>(
             ({ loc }) => useStepNavigator(THREE_STEPS, loc),
             { initialProps: { loc: null as LiveLocation | null } },
         );
@@ -483,7 +484,7 @@ describe('useStepNavigator — polyline-based distance calculation (lines 62–8
     it('does not trigger off-route when user is on the polyline path', () => {
         // User is right on the first waypoint of the polyline
         const onRoute = makeLoc(45.4968, -73.5788);
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(stepsWithPolyline, gps),
             { initialProps: { gps: onRoute } },
         );
@@ -496,7 +497,7 @@ describe('useStepNavigator — polyline-based distance calculation (lines 62–8
 
     it('triggers off-route when user is far from the polyline path', () => {
         const offRoute = makeLoc(45.510, -73.700); // ~14 km away
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(stepsWithPolyline, gps),
             { initialProps: { gps: offRoute } },
         );
@@ -507,7 +508,7 @@ describe('useStepNavigator — polyline-based distance calculation (lines 62–8
     });
 
     it('auto-advances using polyline step end location', () => {
-        const { result, rerender } = renderHook(
+        const { result, rerender } = renderHook<StepNavigatorState, { gps: LiveLocation | null }>(
             ({ gps }) => useStepNavigator(stepsWithPolyline, gps),
             { initialProps: { gps: null as LiveLocation | null } },
         );

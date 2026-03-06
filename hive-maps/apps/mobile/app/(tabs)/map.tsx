@@ -72,7 +72,7 @@ type SelectedBuilding = {
 type NavigationOverlayProps = {
     steps: Step[];
     totalDurationSeconds: number;
-    cameraRef: React.RefObject<MapboxGL.Camera>;
+    cameraRef: React.RefObject<MapboxGL.Camera | null>;
     destination: { longitude: number; latitude: number };
     transportMode: TransportMode;
     provider: Provider;
@@ -191,7 +191,7 @@ function NavigationOverlay({
 
 export default function MapScreen() {
     const router = useRouter();
-    
+
     const {
         campus,
         campuses,
@@ -611,7 +611,7 @@ export default function MapScreen() {
                     />
                 )}
             </MapboxGL.MapView>
-        
+
              {!isNavigating && (
                   <View style={styles.topBar}>
                       <CampusBadge campus={campusMeta}/>
@@ -652,7 +652,7 @@ export default function MapScreen() {
                                 setToCoordinates(coordinates);
                                 focusCamera(coordinates);
                                 // Switch campus so the correct building polygons load
-                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1], campusMetaById);
                                 if (nearest) setCampus(nearest);
                             }
                         }}
@@ -677,7 +677,7 @@ export default function MapScreen() {
                                 fromCoordinatesIsUserLocation.current = false;
                                 focusCamera(coordinates);
                                 // Switch campus so the correct building polygons load
-                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1], campusMetaById);
                                 if (nearest) setCampus(nearest);
                             }
                         }}
@@ -692,7 +692,7 @@ export default function MapScreen() {
                                     animationDuration: 800,
                                 });
                                 // Switch campus so the correct building polygons load
-                                const nearest = getNearestCampus(coordinates[0], coordinates[1]);
+                                const nearest = getNearestCampus(coordinates[0], coordinates[1], campusMetaById);
                                 if (nearest) setCampus(nearest);
                             }
                         }}
@@ -865,7 +865,7 @@ export default function MapScreen() {
                         setIsNavigating(false);
                         // Snap campus to destination before clearing coords
                         if (toCoordinates) {
-                            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1]);
+                            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1], campusMetaById);
                             if (nearest) setCampus(nearest);
                         }
                         // Return to home screen — clear all route state
