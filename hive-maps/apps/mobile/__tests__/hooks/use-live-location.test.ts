@@ -166,7 +166,7 @@ describe('useLiveLocation — cleanup', () => {
     });
 
     it('removes watcher when enabled switches to false', async () => {
-        const { rerender } = renderHook(
+        const { rerender } = renderHook<ReturnType<typeof useLiveLocation>, { enabled: boolean }>(
             ({ enabled }) => useLiveLocation(enabled),
             { initialProps: { enabled: true } },
         );
