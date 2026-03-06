@@ -251,11 +251,6 @@ export function useStepNavigator(
 
         if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
             offRouteCountRef.current += 1;
-            console.log(
-                '[StepNavigator] Off-route reading ' +
-                offRouteCountRef.current + '/' + OFF_ROUTE_CONSECUTIVE_REQUIRED +
-                ' — ' + Math.round(distToRoute) + 'm from route'
-            );
             if (offRouteCountRef.current >= OFF_ROUTE_CONSECUTIVE_REQUIRED) {
                 console.warn('[StepNavigator] Off-route confirmed — triggering recalculation');
                 setIsOffRoute(true);
@@ -263,7 +258,6 @@ export function useStepNavigator(
         } else {
             // Back within tolerance — reset the counter
             if (offRouteCountRef.current > 0) {
-                console.log('[StepNavigator] Back on route, resetting counter');
                 offRouteCountRef.current = 0;
             }
         }

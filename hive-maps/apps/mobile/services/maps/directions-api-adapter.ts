@@ -89,7 +89,6 @@ export async function initializeDirectionsCache(): Promise<void> {
             Object.entries(parsed).forEach(([key, value]) => {
                 directionsCache.set(key, value);
             });
-            console.log(`[Cache] Loaded ${directionsCache.size} cached routes from storage`);
         }
     } catch (err) {
         console.warn('[Cache] Failed to load cache from storage', err);
@@ -181,7 +180,6 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
 
     for (const [cachedKey, cachedResponse] of directionsCache.entries()) {
         if (isCacheRelevant(cachedKey, requestKey, request)) {
-            console.log(`[Cache HIT - Transit] Found relevant cache: ${cachedKey}`);
             return cachedResponse;
         }
     }
@@ -407,7 +405,6 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
 
     // Check exact cache match first
     if (directionsCache.has(cacheKey)) {
-        console.log(`[Cache HIT] ${cacheKey}`);
         return directionsCache.get(cacheKey)!;
     }
 
@@ -419,7 +416,6 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
         }
     }
 
-    console.log(`[Cache MISS] ${cacheKey}`);
     emitDirectionsEvent({type: 'request-started', cacheKey, request});
 
     let response: DirectionsResponse;
@@ -450,12 +446,6 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
     const profile = getMapboxProfile(request.transportMode);
     const coordinates = `${request.origin.longitude},${request.origin.latitude};${request.destination.longitude},${request.destination.latitude}`;
 
-    console.log(`[Mapbox API] Fetching directions for ${profile} mode`, {
-        origin: request.origin,
-        destination: request.destination,
-        timeFilter: request.timeFilter
-    });
-
     const params = new URLSearchParams({
         access_token: process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '',
         geometries: 'polyline',
@@ -476,7 +466,6 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
-    console.log('[Mapbox API] Request URL', url);
 
     const response = await fetchWithTimeout(url);
 
