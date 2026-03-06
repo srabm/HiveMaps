@@ -19,9 +19,9 @@
 
 import { renderHook, act } from '@testing-library/react-native';
 import { useStepNavigator, distanceMetres } from '@/hooks/use-step-navigator';
+import type { StepNavigatorState, ShuttlePhaseBoundaries } from '@/hooks/use-step-navigator';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from '@/hooks/use-live-location';
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function loc(lat: number, lon: number): LiveLocation {
