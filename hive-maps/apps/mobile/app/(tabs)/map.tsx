@@ -528,6 +528,9 @@ export default function MapScreen() {
                           ?? 'Hours not listed',
                   allHours: details?.regularOpeningHours?.weekdayDescriptions,
                   coordinates: f.properties?.center,
+                  // Read directly from point — Mapbox serialises feature properties to
+                  // JSON on press, which can corrupt booleans to strings or drop them.
+                  hasIndoorMap: !!point?.building?.hasIndoorMap,
                 });
               }
             }}
