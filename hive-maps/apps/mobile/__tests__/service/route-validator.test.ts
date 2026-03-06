@@ -4,16 +4,25 @@ import {
     haversineKM,
     validateCampusRoute,
 } from '../../services/maps/route-validator';
-import {campuses} from '../../constants/campus';
+
+const campuses = {
+    SGW: {id: 'SGW', label: 'SGW', name: 'Sir George Williams', center: [-73.5788, 45.4972] as [number, number], zoom: 16.2},
+    LOY: {id: 'LOY', label: 'Loyola', name: 'Loyola', center: [-73.6406, 45.4583] as [number, number], zoom: 16.0},
+};
+
+const buildingCampusByCode = {
+    H: 'SGW',
+    CC: 'LOY',
+};
 
 describe('route-validator helpers', () => {
     it('resolves campus for a building code (case-insensitive)', () => {
-        expect(getCampusForBuilding('h')).toBe('SGW');
-        expect(getCampusForBuilding('CC')).toBe('LOY');
+        expect(getCampusForBuilding('h', buildingCampusByCode)).toBe('SGW');
+        expect(getCampusForBuilding('CC', buildingCampusByCode)).toBe('LOY');
     });
 
     it('returns null for unknown building code', () => {
-        expect(getCampusForBuilding('UNKNOWN')).toBeNull();
+        expect(getCampusForBuilding('UNKNOWN', buildingCampusByCode)).toBeNull();
     });
 
     it('computes haversine distance and is symmetric', () => {
@@ -29,9 +38,9 @@ describe('route-validator helpers', () => {
     });
 
     it('finds nearest campus when within radius and returns null when out of bounds', () => {
-        expect(getNearestCampus(campuses.SGW.center[0], campuses.SGW.center[1])).toBe('SGW');
-        expect(getNearestCampus(campuses.LOY.center[0], campuses.LOY.center[1])).toBe('LOY');
-        expect(getNearestCampus(0, 0)).toBeNull();
+        expect(getNearestCampus(campuses.SGW.center[0], campuses.SGW.center[1], campuses)).toBe('SGW');
+        expect(getNearestCampus(campuses.LOY.center[0], campuses.LOY.center[1], campuses)).toBe('LOY');
+        expect(getNearestCampus(0, 0, campuses)).toBeNull();
     });
 });
 
@@ -40,7 +49,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'building', code: 'nope'},
             destination: {type: 'building', code: 'H'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -53,7 +62,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'building', code: 'H'},
             destination: {type: 'building', code: 'nope'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -66,7 +75,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'coordinate', longitude: 0, latitude: 0},
             destination: {type: 'building', code: 'H'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -79,7 +88,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'building', code: 'H'},
             destination: {type: 'coordinate', longitude: 0, latitude: 0},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -92,7 +101,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'building', code: 'h'},
             destination: {type: 'building', code: 'H'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -106,7 +115,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'coordinate', longitude: lon, latitude: lat},
             destination: {type: 'coordinate', longitude: lon + 0.00001, latitude: lat + 0.00001},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: false,
@@ -119,7 +128,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'building', code: 'H'},
             destination: {type: 'building', code: 'CC'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: true,
@@ -138,7 +147,7 @@ describe('validateCampusRoute', () => {
         const result = validateCampusRoute({
             origin: {type: 'coordinate', longitude: lon, latitude: lat},
             destination: {type: 'building', code: 'H'},
-        });
+        }, campuses, buildingCampusByCode);
 
         expect(result).toEqual({
             valid: true,

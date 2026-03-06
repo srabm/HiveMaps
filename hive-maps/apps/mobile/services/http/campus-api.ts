@@ -1,23 +1,10 @@
 import Constants from 'expo-constants';
 
-import { CampusId } from '@/constants/campus';
+import type { Building, CampusId, CampusMeta } from '@/types/campus';
 
-export type CampusResponse = {
-  id: CampusId;
-  label: string;
-  name: string;
-  center: { lon: number; lat: number };
-  zoom: number;
-};
+export type CampusResponse = CampusMeta;
 
-export type BuildingResponse = {
-  campus: CampusId;
-  code: string;
-  name: string;
-  location?: any;
-  addresses: string[];
-  center: { lon: number; lat: number };
-};
+export type BuildingResponse = Building;
 
 // Prefer EXPO_PUBLIC_* env var so local .env can override app.json defaults
 // (e.g. iOS simulator typically needs http://localhost:8080).
@@ -50,11 +37,43 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 export async function fetchCampuses(): Promise<CampusResponse[]> {
-  return getJson<CampusResponse[]>('/api/campuses');
+  const campuses = await getJson<Array<{
+    id: CampusId;
+    label: string;
+    name: string;
+    center: { lon: number; lat: number };
+    zoom: number;
+  }>>('/api/campuses');
+
+  return campuses.map((campus) => ({
+    id: campus.id,
+    label: campus.label,
+    name: campus.name,
+    center: [campus.center.lon, campus.center.lat],
+    zoom: campus.zoom,
+  }));
 }
 
 export async function fetchBuildings(campus: CampusId): Promise<BuildingResponse[]> {
-  return getJson<BuildingResponse[]>(`/api/campuses/${campus}/buildings`);
+  const buildings = await getJson<Array<{
+    campus: CampusId;
+    code: string;
+    name: string;
+    location?: any;
+    addresses: string[];
+    center: { lon: number; lat: number };
+    hasIndoorMap?: boolean;
+  }>>(`/api/campuses/${campus}/buildings`);
+
+  return buildings.map((building) => ({
+    campus: building.campus,
+    code: building.code,
+    name: building.name,
+    location: building.location,
+    addresses: building.addresses,
+    center: [building.center.lon, building.center.lat],
+    hasIndoorMap: !!building.hasIndoorMap,
+  }));
 }
 
 export async function searchPlaceByAddress(address: string){

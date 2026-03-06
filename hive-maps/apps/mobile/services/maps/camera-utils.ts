@@ -1,6 +1,4 @@
-
-import { campuses } from '@/constants/campus';
-import type { CampusId } from '@/constants/campus';
+import type { CampusId, CampusMetaById } from '@/types/campus';
 import type { CameraStop } from '@rnmapbox/maps';
 
 
@@ -8,6 +6,7 @@ const INTER_CAMPUS_PADDING = 0.01;
 export function getCameraBoundsForRoute(
     originCampus: CampusId,
     destinationCampus: CampusId,
+    campuses: CampusMetaById,
 ): CameraStop {
     if (originCampus === destinationCampus) {
         const campus = campuses[originCampus];

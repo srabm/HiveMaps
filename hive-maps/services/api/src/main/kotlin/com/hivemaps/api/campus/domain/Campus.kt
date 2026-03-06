@@ -14,7 +14,8 @@ data class Building(
     val name: String,
     val addresses: List<String>,
     val location: Map<String, Any>? = null,
-    val center: Coordinate
+    val center: Coordinate,
+    val hasIndoorMap: Boolean = false,
 )
 
 data class Coordinate(

@@ -62,6 +62,33 @@ describe('BuildingInfoModal', () => {
     expect(getByText('Accessible elevator')).toBeTruthy();
   });
 
+  it('renders indoor action for supported building and calls handler', () => {
+    const onIndoorMap = jest.fn();
+    const { getByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{ ...baseBuilding, code: 'H', hasIndoorMap: true }}
+        onClose={jest.fn()}
+        onIndoorMap={onIndoorMap}
+      />
+    );
+
+    fireEvent.press(getByText('Indoor'));
+    expect(onIndoorMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render indoor action for unsupported building', () => {
+    const { queryByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{ ...baseBuilding, code: 'XYZ', hasIndoorMap: false }}
+        onClose={jest.fn()}
+      />
+      );
+
+    expect(queryByText('Indoor')).toBeNull();
+  });
+  
   it('renders allHours entries when provided', () => {
     const buildingWithAllHours = {
       ...baseBuilding,

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { CampusId } from '@/constants/campus';
+import type { CampusId } from '@/types/campus';
 import { loadSelectedCampus, saveSelectedCampus } from '@/storage/campus-storage';
 
 export type AppState = {
-  campus: CampusId;
+  campus: CampusId | null;
 };
 
 const defaultState: AppState = {
-  campus: 'SGW',
+  campus: null,
 };
 
 export function useAppState() {

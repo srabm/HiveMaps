@@ -1,29 +1,28 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { CampusId, campuses } from '@/constants/campus';
 import { ThemedText } from '@/components/themed-text';
+import type { CampusId, CampusMeta } from '@/types/campus';
 
 type Props = {
-  value: CampusId;
+  options: CampusMeta[];
+  value: CampusId | null;
   onChange: (campus: CampusId) => void;
 };
 
-const options: CampusId[] = ['SGW', 'LOY'];
-
-export function CampusSwitch({ value, onChange }: Readonly<Props>) {
+export function CampusSwitch({ options, value, onChange }: Readonly<Props>) {
   return (
       // Shadow wrapper
       <View style={styles.shadowWrap}>
         <View style={styles.pill}>
           {options.map((option, index) => {
-            const selected = value === option;
+            const selected = value === option.id;
             const isFirst = index === 0;
             const isLast = index === options.length - 1;
 
             return (
                 <View
-                  key={option}
+                  key={option.id}
                   style={[
                     styles.tabWrap,
                     isFirst && styles.tabWrapFirst,
@@ -31,10 +30,10 @@ export function CampusSwitch({ value, onChange }: Readonly<Props>) {
                   ]}
                 >
                   <Pressable
-                      testID={`campus-tab-${option}`}
+                      testID={`campus-tab-${option.id}`}
                       accessibilityRole="tab"
                       accessibilityState={{ selected }}
-                      onPress={() => onChange(option)}
+                      onPress={() => onChange(option.id)}
                       style={({ pressed }) => [
                         styles.tab,
                         selected && styles.tabSelected,
@@ -45,7 +44,7 @@ export function CampusSwitch({ value, onChange }: Readonly<Props>) {
                       hitSlop={6}
                   >
                     <ThemedText style={[styles.label, selected ? styles.labelSelected : styles.labelUnselected]}>
-                      {campuses[option].label}
+                      {option.label}
                     </ThemedText>
                   </Pressable>
                 </View>

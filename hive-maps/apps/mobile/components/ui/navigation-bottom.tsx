@@ -16,10 +16,12 @@ import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleScheduleModal} from '@/components/ui/shuttle-schedule-modal';
 import {ShuttleScheduleSection} from '@/components/ui/shuttle-schedule-section';
+import type { CampusMetaById } from '@/types/campus';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Shuttle';
 
 interface NavigationBottomProps {
+    campuses?: CampusMetaById;
     origin: Coordinate;
     destination: Coordinate;
     onDirectionsChange?: (directions: DirectionsResponse) => void;
@@ -250,6 +252,7 @@ function computeDisplayState({
 }
 
 export function NavigationBottom({
+    campuses,
     origin,
     destination,
     onDirectionsChange,
@@ -359,10 +362,10 @@ export function NavigationBottom({
         const result = validateCampusRoute({
             origin: {type: 'coordinate', longitude: origin.longitude, latitude: origin.latitude},
             destination: {type: 'coordinate', longitude: destination.longitude, latitude: destination.latitude},
-        });
+        }, campuses ?? {});
         if (!result.valid) return true;
         return !result.route.isInterCampus;
-    }, [origin.longitude, origin.latitude, destination.longitude, destination.latitude]);
+    }, [campuses, origin.longitude, origin.latitude, destination.longitude, destination.latitude]);
 
     const handleModeChange = (mode: TransportModeLabel) => {
         setSelectedMode(mode);

@@ -1,0 +1,25 @@
+appId: com.anonymous.mobile
+---
+- launchApp:
+    clearState: true
+
+- assertVisible: "SGW • Sir George Williams"
+
+- tapOn: "Loyola"
+- assertVisible: "Loyola • Loyola"
+
+- tapOn: "Search building or address"
+- inputText: "V Lib"
+
+- tapOn: "Vanier Library"
+
+- tapOn:
+    point: 50%, 50%
+
+- tapOn: "Indoor"
+- assertVisible: "1st Floor"
+
+- tapOn: "2nd Floor"
+- assertVisible: "2nd Floor"
+
+- stopApp

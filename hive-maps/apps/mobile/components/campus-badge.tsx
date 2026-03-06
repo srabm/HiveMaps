@@ -1,17 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
-import { campuses, type CampusId } from '@/constants/campus';
 import { ThemedText } from '@/components/themed-text';
+import type { CampusMeta } from '@/types/campus';
 
 type Props = {
-  campus: CampusId;
+  campus: CampusMeta;
 };
 
 export function CampusBadge({ campus }: Readonly<Props>) {
   return (
-    <View style={styles.badge} accessibilityRole="text" accessibilityLabel={`Campus ${campus}`}>
+    <View style={styles.badge} accessibilityRole="text" accessibilityLabel={`Campus ${campus.id}`}>
       <ThemedText type="defaultSemiBold" style={styles.text}>
-        {campuses[campus].label} • {campuses[campus].name}
+        {campus.label} • {campus.name}
       </ThemedText>
     </View>
   );

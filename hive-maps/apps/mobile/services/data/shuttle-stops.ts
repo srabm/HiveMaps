@@ -1,4 +1,4 @@
-import type {CampusId} from '@/constants/campus';
+import type {CampusId} from '@/types/campus';
 import type {Coordinate} from '@/services/maps/directions-api-adapter';
 
 export type ShuttleStop = {

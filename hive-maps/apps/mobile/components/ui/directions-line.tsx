@@ -103,6 +103,8 @@ export function DirectionsLine({
 
     const endpointsCollection = useMemo(
         () => {
+            const start = coordinates[0] ?? [0, 0];
+            const end = coordinates[coordinates.length - 1] ?? [0, 0];
             if (!coordinates.length) {
                 return {
                     type: 'FeatureCollection' as const,
