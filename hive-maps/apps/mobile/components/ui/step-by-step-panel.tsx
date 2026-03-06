@@ -81,12 +81,59 @@ const MANEUVER_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['
     'uturn-right':      'u-turn-right',
 };
 
-function getManeuverIcon(maneuver: string): React.ComponentProps<typeof MaterialIcons>['name'] {
-    // Normalise both Mapbox kebab-case and Google UPPER_SNAKE_CASE to lowercase-hyphen
-    const normalised = (maneuver ?? '').toLowerCase().replace(/_/g, '-');
-    const icon = MANEUVER_ICON[normalised];
-    if (!icon && normalised !== '' && normalised !== 'depart') {
-        console.warn(`[StepByStepPanel] Unknown maneuver: "${maneuver}" — falling back to straight`);
+/**
+ * Combine a raw Mapbox maneuver type and optional modifier into the
+ * canonical hyphenated key used by MANEUVER_ICON.
+ * Mirrors the logic previously in directions-api-adapter's buildMapboxManeuver,
+ * now living here where icon rendering belongs.
+ */
+function buildManeuverKey(type: string, modifier?: string): string {
+    if (!type) return 'continue';
+
+    const mod = modifier ? modifier.trim().replace(/\s+/g, '-') : '';
+
+    const standalone = new Set(['depart', 'arrive', 'merge', 'notification', 'use lane']);
+    if (standalone.has(type)) return type;
+
+    if (type === 'turn') {
+        return mod ? `turn-${mod}` : 'turn-right';
+    }
+
+    if (type === 'on ramp' || type === 'off ramp') return type;
+
+    if (type === 'roundabout' || type === 'rotary' ||
+        type === 'roundabout turn' || type === 'exit roundabout' || type === 'exit rotary') {
+        if (mod === 'left') return 'roundabout-left';
+        if (mod === 'right') return 'roundabout-right';
+        return 'roundabout-left';
+    }
+
+    if (type === 'fork') {
+        if (mod === 'left' || mod === 'slight-left') return 'fork-left';
+        return 'fork-right';
+    }
+
+    if (type === 'end of road') {
+        if (mod === 'left') return 'u-turn-left';
+        return 'u-turn-right';
+    }
+
+    const directional = new Set(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn']);
+    if (directional.has(mod)) {
+        return `${type.replace(/\s+/g, '-')}-${mod}`;
+    }
+
+    return type.replace(/\s+/g, '-');
+}
+
+function getManeuverIcon(maneuver: string, modifier?: string): React.ComponentProps<typeof MaterialIcons>['name'] {
+    // Normalise Google UPPER_SNAKE_CASE to lowercase-hyphen, then resolve via
+    // buildManeuverKey so raw Mapbox type+modifier pairs map to the right icon.
+    const normalisedType = (maneuver ?? '').toLowerCase().replace(/_/g, '-');
+    const key = buildManeuverKey(normalisedType, modifier);
+    const icon = MANEUVER_ICON[key];
+    if (!icon && key !== '' && key !== 'depart') {
+        console.warn(`[StepByStepPanel] Unknown maneuver: "${maneuver}" (modifier: "${modifier ?? ''}") — falling back to straight`);
     }
     return icon ?? 'straight';
 }
@@ -277,7 +324,7 @@ function StepRow({
         <View style={[stepRowStyles.row, isCurrent && stepRowStyles.rowActive]}>
             <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive]}>
                 <MaterialIcons
-                    name={getManeuverIcon(step.maneuver)}
+                    name={getManeuverIcon(step.maneuver, step.maneuverModifier)}
                     size={18}
                     color={isCurrent ? '#ffffff' : '#6B7280'}
                 />
@@ -471,7 +518,7 @@ export function StepByStepPanel({
                     <View style={styles.mainRow}>
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
                             <MaterialIcons
-                                name={getManeuverIcon(currentStep.maneuver)}
+                                name={getManeuverIcon(currentStep.maneuver, currentStep.maneuverModifier)}
                                 size={28}
                                 color="#ffffff"
                             />
@@ -500,7 +547,7 @@ export function StepByStepPanel({
                 <Pressable style={styles.nextRow} onPress={toggleAllSteps} hitSlop={8}>
                     <View style={styles.nextIconWrap}>
                         <MaterialIcons
-                            name={nextStep ? getManeuverIcon(nextStep.maneuver) : 'flag'}
+                            name={nextStep ? getManeuverIcon(nextStep.maneuver, nextStep.maneuverModifier) : 'flag'}
                             size={16}
                             color="#ffffff"
                         />

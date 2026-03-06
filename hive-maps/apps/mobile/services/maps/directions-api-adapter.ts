@@ -36,6 +36,7 @@ export interface Step {
     duration: number;
     instruction: string;
     maneuver: string;
+    maneuverModifier?: string;
     startLocation: Coordinate;
     endLocation: Coordinate;
     polyline?: string;
@@ -256,10 +257,8 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
         distance: step.distance,
         duration: Math.round(step.duration),
         instruction: step.maneuver.instruction,
-        // Combine type + modifier so icons are direction-aware.
-        // e.g. type="turn" modifier="left" → "turn-left"
-        // See buildMapboxManeuver below for full rules.
-        maneuver: buildMapboxManeuver(step.maneuver.type, step.maneuver.modifier),
+        maneuver: step.maneuver.type ?? 'continue',
+        maneuverModifier: step.maneuver.modifier,
         startLocation: {
             latitude: step.intersections[0].location[1],
             longitude: step.intersections[0].location[0]
