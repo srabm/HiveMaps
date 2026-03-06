@@ -2,17 +2,31 @@ import React from 'react'
 import { render } from '@testing-library/react-native'
 import { POIMarker } from '@/components/indoor/POIMarker'
 
-jest.mock('@expo/vector-icons/MaterialIcons', () => {
+const makeMuiIconMock = () => {
   const React = require('react')
   const { Text } = require('react-native')
 
-  return ({ testID }: { testID?: string }) => React.createElement(Text, { testID }, 'icon')
-})
+  return ({ testID, ['data-testid']: dataTestId }: { testID?: string; 'data-testid'?: string }) =>
+    React.createElement(Text, { testID: testID ?? dataTestId }, 'icon')
+}
+
+jest.mock('@mui/icons-material/Man', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Woman2', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Wc', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Accessible', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Escalator', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Stairs', () => makeMuiIconMock(), { virtual: true })
+jest.mock('@mui/icons-material/Elevator', () => makeMuiIconMock(), { virtual: true })
 
 describe('POIMarker', () => {
   it.each([
     'bathroom',
-    'water_fountain',
+    'bathroom_men',
+    'bathroom_women',
+    'bathroom_unisex',
+    'bathroom_unisex_acc',
+    'bathroom_men_acc',
+    'bathroom_women_acc',
     'stairs',
     'elevator',
     'escalator',
@@ -24,8 +38,15 @@ describe('POIMarker', () => {
   })
 
   it('normalizes casing and whitespace for known types', () => {
-    const { getByTestId } = render(<POIMarker type="  WATER_FOUNTAIN " />)
-    expect(getByTestId('poi-icon-water_fountain')).toBeTruthy()
+    const { getByTestId } = render(<POIMarker type="  BATHROOM_MEN  " />)
+    expect(getByTestId('poi-icon-bathroom_men')).toBeTruthy()
+  })
+
+  it('falls back to generic dot for water_fountain (no icon configured)', () => {
+    const { getByTestId, queryByTestId } = render(<POIMarker type="water_fountain" />)
+
+    expect(getByTestId('poi-dot-fallback')).toBeTruthy()
+    expect(queryByTestId('poi-icon-water_fountain')).toBeNull()
   })
 
   it('falls back to generic dot for unknown type', () => {
