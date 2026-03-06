@@ -326,6 +326,7 @@ export function FloorPlanViewer({
                     )}
 
                     {indoorSteps && <DirectionsLine    //DirectionLine to show indoor directions (edge by edge, node by node)
+                        endpointId='indoor-directions-endpoints'
                         useIndoorData={true}
                         IndoorDirections={indoorSteps}
                         lineWidth={5}
@@ -342,11 +343,19 @@ export function FloorPlanViewer({
                             bee: require('@/assets/images/bee.png')
                         }}
                     />
-
+                    
                     {(currentNode || userLocation) && (
-                        <MapboxGL.ShapeSource id="user-location-source" shape={convertCoordinatesToFeature(currentNode ? [currentNode.longitude, currentNode.latitude]: userLocation!)}>
+                        <MapboxGL.ShapeSource 
+                            id="user-location-source" 
+                            shape={convertCoordinatesToFeature(
+                                currentNode 
+                                    ? [currentNode.longitude, currentNode.latitude] 
+                                    : userLocation!
+                            )}
+                        >
                             <MapboxGL.SymbolLayer
                                 id="indoor-user-location-icon"
+                                aboveLayerID={indoorSteps ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
                                 style={{
                                     iconImage: 'bee',
                                     iconSize: 0.25,
@@ -376,6 +385,7 @@ export function FloorPlanViewer({
                         if (coordinates) cameraRef.current?.setCamera({
                             centerCoordinate: coordinates,
                             zoomLevel: 21,
+                            padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
                             animationDuration: 500
                         });
                     }}

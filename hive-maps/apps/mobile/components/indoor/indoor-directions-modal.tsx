@@ -2,7 +2,7 @@ import { IndoorDirectionsResponse, IndoorNodeResponse } from "@/services/http/in
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder, DimensionValue,} from "react-native";
 
-const AMBER       = "#E8A020";
+const AMBER       = "#E5A712";
 const AMBER_LIGHT = "#FDF3E0";
 const BG          = "#FFFFFF";
 const DARK        = "#1A1A1A";
@@ -58,15 +58,18 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                                                              beeImageSource,
                                                          }) => {
 
-    // steps = [
-    //     ...steps,
-    //     {
-    //         direction: "ARRIVED",
-    //         distance: 0.0,
-    //         description: "You have arrived at your destination",
-    //         nodes: [ steps[steps.length - 1].nodes[steps[steps.length - 1].nodes.length - 1] ]
-    //     }
-    // ];
+    if (steps.length > 0) {
+        steps = [
+            ...steps,
+            {
+                direction: "DEFAULT",
+                distance: 0,
+                description: "You have arrived at your destination",
+                nodes: [ steps.at(-1)!.nodes[steps.at(-1)!.nodes.length - 1] ]
+            }
+        ];
+    }
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight]   = useState(DEFAULT_HEIGHT);
 
@@ -328,8 +331,8 @@ const styles = StyleSheet.create({
     progressFill:         { height: "100%", backgroundColor: AMBER, borderRadius: 2 },
     progressLabel:        { fontSize: 11, color: MUTED, marginHorizontal: 18, marginTop: 5, marginBottom: 2, fontWeight: "500" },
     navRow:               { flexDirection: "row", gap: 10, marginHorizontal: 18, marginTop: 8, marginBottom: 4 },
-    navBtn:               { flex: 1, backgroundColor: "#FF0000", borderRadius: 13, paddingVertical: 13, alignItems: "center" },
-    navBtn1:               { flex: 1, backgroundColor: "#FFD400", borderRadius: 13, paddingVertical: 13, alignItems: "center" },
+    navBtn:               { flex: 1, backgroundColor: "#9d1e30", borderRadius: 13, paddingVertical: 13, alignItems: "center" },
+    navBtn1:               { flex: 1, backgroundColor: AMBER, borderRadius: 13, paddingVertical: 13, alignItems: "center" },
     navBtnDisabled:       { backgroundColor: "#F0F0F0" },
     navBtnText:           { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: 0.2 },
     navBtnText1:           { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: 0.2 },
@@ -338,7 +341,7 @@ const styles = StyleSheet.create({
     navBtnArrived:        { backgroundColor: AMBER_LIGHT, borderWidth: 1.5, borderColor: AMBER },
     navBtnArrivedText:    { color: AMBER, fontSize: 14, fontWeight: "700" },
     listContent:          { paddingHorizontal: 18, paddingTop: 6 },
-    stepRow:              { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "#888888", marginHorizontal: -18 },
+    stepRow:              { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "#eeeeee", marginHorizontal: -18 },
     iconWrap:             { width: 44, height: 44, borderRadius: 22, backgroundColor: "#F5F5F5", justifyContent: "center", alignItems: "center", marginRight: 12, flexShrink: 0 },
     directionImage:       { width: 28, height: 28 },
     stepTextWrap:         { flex: 1 },
@@ -353,38 +356,13 @@ const styles = StyleSheet.create({
     preStartLabel:      { fontSize: 16, fontWeight: "600", color: DARK },
     preStartRow:        { flexDirection: "row", alignItems: "center", gap: 12 },
     preStartEta:        { alignItems: "center", minWidth: 36 },
-    preStartMin:        { fontSize: 22, fontWeight: "700", color: AMBER },
-    preStartMinLabel:   { fontSize: 11, color: MUTED, fontWeight: "500" },
+    preStartMin:        { fontSize: 22, fontWeight: "700", color: '#10B981' },
+    preStartMinLabel:   { fontSize: 11, color: '#10B981', fontWeight: "500" },
     preStartInfo:       { flex: 1 },
     preStartArrive:     { fontSize: 14, fontWeight: "600", color: DARK },
     preStartDist:       { fontSize: 12, color: MUTED, marginTop: 2 },
-    startBtn:           { backgroundColor: "#FF0000", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
+    startBtn:           { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
     startBtnText:       { color: BG, fontSize: 14, fontWeight: "700" },
 });
 
 export default DirectionsModal;
-
-
-/*
-
-There is a default direction inside this tsx file. This needs toe be removed once everything is working fine.
-The Onclose can be used to close or open the modal when necessary. It is passing a boolean to the parent that calls upon it.
- Default call : <DirectionsModal visible={true} onClose={() => setIsOpen(false)} />
-
-
-Normal call :  <DirectionsModal
-                visible={modalOpen}
-                steps={route}
-                origin="Your location"
-                destination="LB251 Webster Library"
-                onClose={handleClose}
-                onCurrentNodeChange={handleNodeChange}
-                beeImageSource={require("@/assets/images/bee.png")}
-            />
-
-            The "steps" variable is the json file you get from the backend that you give as input. The onCurrentNodeChange return the node
-            where the user is located in (moving towards or smt).
-
-            Need to insert images for the different directions. See the top of the file
-
- */

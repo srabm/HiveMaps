@@ -3,7 +3,7 @@ import {getApiBaseUrl} from './campus-api';
 export type BuildingCode = string;
 export type FloorId = string;
 export type IndoorCampusId = string;
-export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN';
+export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN' | 'DEFAULT';
 
 export interface FloorSummary {
     id: FloorId;

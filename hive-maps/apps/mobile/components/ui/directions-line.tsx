@@ -10,6 +10,7 @@ interface DirectionsDisplayProps {
     directions: DirectionsResponse;
     sourceId?: string;
     layerId?: string;
+    endpointId?: string;
     lineColor?: string;
     lineWidth?: number;
     infoCardPosition?: 'top' | 'bottom';
@@ -71,6 +72,7 @@ export function DirectionsLine({
                                    directions,
                                    sourceId = 'directions-source',
                                    layerId = 'directions-layer',
+                                   endpointId,
                                    lineColor = '#e5a712',
                                    lineWidth = 10,
                                    infoCardPosition = 'bottom',
@@ -167,7 +169,7 @@ export function DirectionsLine({
 
             <MapboxGL.ShapeSource id={`${sourceId}-endpoints`} shape={endpointsCollection}>
                 <MapboxGL.CircleLayer
-                    id={`${layerId}-endpoints`}
+                    id={endpointId || `${layerId}-endpoints`}
                     style={{
                         circleColor: lineColor,
                         circleRadius: 8,
