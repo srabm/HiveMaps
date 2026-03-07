@@ -9,7 +9,7 @@ import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, Indoo
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 
-export type FloorPlanViewerProps = {
+export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
     rooms?: GeoJSON.FeatureCollection | null
     selectedRoomId?: string | null
@@ -17,7 +17,7 @@ export type FloorPlanViewerProps = {
     onDirectionsActiveChange?: (active: boolean) => void
     buildingCode: string
     floorId: string
-}
+}>
 
 type RoomFeatureProperties = {
     id?: string
