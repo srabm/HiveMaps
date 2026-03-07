@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
     Pressable,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     LayoutAnimation,
     Platform,
     UIManager,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { Step } from '@/services/maps/directions-api-adapter';
+import { buildManeuverKey } from '@/services/maps/directions-api-adapter';
 import type { ShuttlePhase } from '@/hooks/use-step-navigator';
 
 // Enable LayoutAnimation on Android
@@ -87,45 +87,6 @@ const MANEUVER_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['
  * Mirrors the logic previously in directions-api-adapter's buildMapboxManeuver,
  * now living here where icon rendering belongs.
  */
-function buildManeuverKey(type: string, modifier?: string): string {
-    if (!type) return 'continue';
-
-    const mod = modifier ? modifier.trim().replace(/\s+/g, '-') : '';
-
-    const standalone = new Set(['depart', 'arrive', 'merge', 'notification', 'use lane']);
-    if (standalone.has(type)) return type;
-
-    if (type === 'turn') {
-        return mod ? `turn-${mod}` : 'turn-right';
-    }
-
-    if (type === 'on ramp' || type === 'off ramp') return type;
-
-    if (type === 'roundabout' || type === 'rotary' ||
-        type === 'roundabout turn' || type === 'exit roundabout' || type === 'exit rotary') {
-        if (mod === 'left') return 'roundabout-left';
-        if (mod === 'right') return 'roundabout-right';
-        return 'roundabout-left';
-    }
-
-    if (type === 'fork') {
-        if (mod === 'left' || mod === 'slight-left') return 'fork-left';
-        return 'fork-right';
-    }
-
-    if (type === 'end of road') {
-        if (mod === 'left') return 'u-turn-left';
-        return 'u-turn-right';
-    }
-
-    const directional = new Set(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn']);
-    if (directional.has(mod)) {
-        return `${type.replace(/\s+/g, '-')}-${mod}`;
-    }
-
-    return type.replace(/\s+/g, '-');
-}
-
 function getManeuverIcon(maneuver: string, modifier?: string): React.ComponentProps<typeof MaterialIcons>['name'] {
     // Normalise Google UPPER_SNAKE_CASE to lowercase-hyphen, then resolve via
     // buildManeuverKey so raw Mapbox type+modifier pairs map to the right icon.
@@ -171,7 +132,7 @@ const SHUTTLE_PHASE_LABEL: Record<ShuttlePhase, { icon: React.ComponentProps<typ
 };
 
 // ─── Transit boarding card ───────────────────────────────────────────────────
-function TransitCard({ step }: { step: Step }) {
+function TransitCard({ step }: Readonly<{ step: Step }>) {
     const td = step.transitDetails;
     if (!td) return null;
 
@@ -315,11 +276,11 @@ function StepRow({
     step,
     index,
     isCurrent,
-}: {
+}: Readonly<{
     step: Step;
     index: number;
     isCurrent: boolean;
-}) {
+}>) {
     return (
         <View style={[stepRowStyles.row, isCurrent && stepRowStyles.rowActive]}>
             <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive]}>
@@ -443,7 +404,7 @@ export function StepByStepPanel({
     // We re-render the bottom bar every 10 s so the arrival time clock stays
     // accurate even when the user is stationary (totalDurationSecondsRemaining
     // doesn't change, but wall-clock time advances).
-    const [tick, setTick] = useState(0);
+    const [, setTick] = useState(0);
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 10_000);
         return () => clearInterval(id);
@@ -460,7 +421,7 @@ export function StepByStepPanel({
                 <View style={styles.topPanel}>
                     <View style={styles.mainRow}>
                         {/* Red flag matches the app's brand colour */}
-                        <View style={[styles.mainIconWrap, styles.mainIconWrapArrived]}>
+                        <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
                             <MaterialIcons name="flag" size={28} color="#ffffff" />
                         </View>
                         <View style={styles.instructionBlock}>
@@ -469,7 +430,7 @@ export function StepByStepPanel({
                     </View>
                 </View>
                 {/* Centred End button */}
-                <View style={styles.bottomBarArrived}>
+                <View style={[styles.bottomBarBase, styles.bottomBarArrived]}>
                     <Pressable style={styles.endButton} onPress={onExit}>
                         <Text style={styles.endButtonText}>End Navigation</Text>
                     </Pressable>
@@ -480,7 +441,7 @@ export function StepByStepPanel({
 
     if (!currentStep) return null;
 
-    const distLabel = distanceToNextTurn != null ? formatDist(distanceToNextTurn) : '';
+    const distLabel = distanceToNextTurn == null ? '' : formatDist(distanceToNextTurn);
 
     // ── The top card always shows the CURRENT step — the action the user is
     // performing right now, with the distance remaining until its endpoint.
@@ -573,7 +534,7 @@ export function StepByStepPanel({
                     >
                         {steps.map((step, idx) => (
                             <StepRow
-                                key={`step-${idx}`}
+                                key={`${step.maneuver}-${step.instruction}-${idx}`}
                                 step={step}
                                 index={idx}
                                 isCurrent={idx === currentStepIndex}
@@ -584,7 +545,7 @@ export function StepByStepPanel({
             </View>
 
             {/* ── Bottom status bar ── */}
-            <View style={styles.bottomBar}>
+            <View style={[styles.bottomBarBase, styles.bottomBar]}>
                 <View style={styles.bottomStat}>
                     {/* Arrival time — adjustsFontSizeToFit prevents wrapping on wide locales */}
                     <Text style={styles.bottomStatValue} numberOfLines={1} adjustsFontSizeToFit>
@@ -676,12 +637,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    // Active navigation: red filled circle with white icon
+    // Active/arrived state: red filled circle with white icon (shared)
     mainIconWrapActive: {
-        backgroundColor: '#9d1e30',
-    },
-    // Arrived state: same red circle, reused
-    mainIconWrapArrived: {
         backgroundColor: '#9d1e30',
     },
     instructionBlock: { flex: 1 },
@@ -739,14 +696,12 @@ const styles = StyleSheet.create({
         borderTopColor: '#E5E7EB',
     },
 
-    // ── Bottom bar (normal navigation)
-    bottomBar: {
+    // ── Bottom bar shared base
+    bottomBarBase: {
         marginHorizontal: 12,
         marginBottom: 20,
         backgroundColor: '#ffffff',
         borderRadius: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingVertical: 14,
         paddingHorizontal: 20,
         shadowColor: '#000',
@@ -754,24 +709,19 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowRadius: 8,
         elevation: 8,
+    },
+
+    // ── Bottom bar (normal navigation)
+    bottomBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
     },
 
     // ── Bottom bar (arrived state) — centred End button
     bottomBarArrived: {
-        marginHorizontal: 12,
-        marginBottom: 20,
-        backgroundColor: '#ffffff',
-        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 20,
-        shadowColor: '#000',
-        shadowOpacity: 0.15,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 8,
     },
 
     bottomStat: {

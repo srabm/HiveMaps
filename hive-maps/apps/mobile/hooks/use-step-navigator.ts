@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from './use-live-location';
 
@@ -132,7 +132,29 @@ function distanceToRemainingRoute(
     return minDist;
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Off-route counter helper ─────────────────────────────────────────────────
+
+/**
+ * Updates the consecutive off-route counter and triggers recalculation when
+ * the threshold is reached. Resets the counter when back within tolerance.
+ * Extracted to reduce cognitive complexity of the GPS update effect.
+ */
+function updateOffRouteCounter(
+    distToRoute: number,
+    countRef: React.MutableRefObject<number>,
+    setIsOffRoute: (v: boolean) => void,
+): void {
+    if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
+        countRef.current += 1;
+        if (countRef.current >= OFF_ROUTE_CONSECUTIVE_REQUIRED) {
+            console.warn('[StepNavigator] Off-route confirmed — triggering recalculation');
+            setIsOffRoute(true);
+        }
+        return;
+    }
+    // Back within tolerance — reset the counter unconditionally
+    countRef.current = 0;
+}
 
 /**
  * Step index boundaries for the three shuttle legs.
@@ -249,18 +271,7 @@ export function useStepNavigator(
             currentStepIndex,
         );
 
-        if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
-            offRouteCountRef.current += 1;
-            if (offRouteCountRef.current >= OFF_ROUTE_CONSECUTIVE_REQUIRED) {
-                console.warn('[StepNavigator] Off-route confirmed — triggering recalculation');
-                setIsOffRoute(true);
-            }
-        } else {
-            // Back within tolerance — reset the counter
-            if (offRouteCountRef.current > 0) {
-                offRouteCountRef.current = 0;
-            }
-        }
+        updateOffRouteCounter(distToRoute, offRouteCountRef, setIsOffRoute);
     }, [liveLocation, currentStepIndex, steps, offRouteDisabled, isOffRoute]);
 
     const distanceToNextTurn = useMemo(() => {

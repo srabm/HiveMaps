@@ -446,6 +446,89 @@ export default function MapScreen() {
         };
     }, [userLocation]);
 
+    const transportMode =
+        selectedMode === 'Drive' ? TransportMode.DRIVING :
+        selectedMode === 'Transit' ? TransportMode.TRANSIT :
+        TransportMode.WALKING;
+
+    const handleStartPress = useCallback(() => {
+        const isShuttleMode = selectedMode === 'Shuttle';
+        if (!isShuttleMode && !directions) return;
+        const walkToSteps = shuttleRouting.walkToStop?.steps ?? [];
+        const rawShuttleSteps = shuttleRouting.shuttleLeg?.steps ?? [];
+        const walkFromSteps = shuttleRouting.walkFromStop?.steps ?? [];
+
+        const originName = shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop';
+        const destName   = shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop';
+        const destStopCoord = shuttleRouting.stopsForTrip?.destinationStop?.coordinate;
+        const originStopCoord = shuttleRouting.stopsForTrip?.originStop?.coordinate;
+
+        const totalShuttleDist = rawShuttleSteps.reduce((s, st) => s + st.distance, 0);
+        const totalShuttleDur  = rawShuttleSteps.reduce((s, st) => s + st.duration, 0);
+
+        const shuttleSteps = rawShuttleSteps.length > 0 ? [{
+            distance: totalShuttleDist,
+            duration: totalShuttleDur,
+            instruction: 'Ride the Concordia Shuttle',
+            maneuver: 'depart',
+            startLocation: originStopCoord ?? rawShuttleSteps[0].startLocation,
+            endLocation: destStopCoord ?? rawShuttleSteps[rawShuttleSteps.length - 1].endLocation,
+            polyline: undefined,
+            transitDetails: {
+                transitLine: {
+                    name: 'Concordia Shuttle',
+                    nameShort: 'Shuttle',
+                    color: '#e5a712',
+                },
+                stopDetails: {
+                    departureStop: { name: originName },
+                    arrivalStop:   { name: destName },
+                },
+            },
+        }] : [];
+
+        const steps = isShuttleMode
+            ? [...walkToSteps, ...shuttleSteps, ...walkFromSteps]
+            : (directions?.steps ?? []);
+        setActiveSteps(steps);
+        setActiveShuttlePhaseBoundaries(
+            isShuttleMode
+                ? { walkToStopCount: walkToSteps.length, shuttleLegCount: shuttleSteps.length }
+                : undefined
+        );
+        setActiveShuttleLegs(
+            isShuttleMode
+                ? {
+                    walkToStop: shuttleRouting.walkToStop,
+                    shuttleLeg: shuttleRouting.shuttleLeg,
+                    walkFromStop: shuttleRouting.walkFromStop,
+                    originStopName: shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop',
+                    destinationStopName: shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop',
+                    shuttleDurationSeconds: shuttleRouting.shuttleLeg?.durationSeconds ?? 0,
+                  }
+                : null
+        );
+        setIsNavigating(true);
+    }, [selectedMode, directions, shuttleRouting]);
+
+    const handleNavigationExit = useCallback(() => {
+        setIsNavigating(false);
+        if (toCoordinates) {
+            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1], campusMetaById);
+            if (nearest) setCampus(nearest);
+        }
+        setSeeDirectionBar(false);
+        setFrom('');
+        setFromCoordinates(null);
+        fromCoordinatesIsUserLocation.current = false;
+        setTo('');
+        setToCoordinates(null);
+        setDirections(null);
+        setActiveSteps([]);
+        setActiveShuttlePhaseBoundaries(undefined);
+        setActiveShuttleLegs(null);
+    }, [toCoordinates, campusMetaById, setCampus]);
+
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
     if (!hydrated || !campusMeta) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
@@ -761,78 +844,7 @@ export default function MapScreen() {
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
-                        onStartPress={() => {
-                            const isShuttleMode = selectedMode === 'Shuttle';
-                            // Shuttle mode uses shuttleRouting legs directly — no directions needed.
-                            // Other modes require directions to be loaded first.
-                            if (!isShuttleMode && !directions) return;
-                            const walkToSteps = shuttleRouting.walkToStop?.steps ?? [];
-                            const rawShuttleSteps = shuttleRouting.shuttleLeg?.steps ?? [];
-                            const walkFromSteps = shuttleRouting.walkFromStop?.steps ?? [];
-
-                            // Collapse all Mapbox driving steps for the shuttle leg into a
-                            // single synthetic transit-style step. This means:
-                            //  - Only one "Ride the Concordia Shuttle" row in the list
-                            //  - endLocation = destination stop coordinate, so auto-advance
-                            //    fires correctly as the user approaches the drop-off point
-                            //  - distance / duration = totals across all driving steps
-                            const originName = shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop';
-                            const destName   = shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop';
-                            const destStopCoord = shuttleRouting.stopsForTrip?.destinationStop?.coordinate;
-                            const originStopCoord = shuttleRouting.stopsForTrip?.originStop?.coordinate;
-
-                            const totalShuttleDist = rawShuttleSteps.reduce((s, st) => s + st.distance, 0);
-                            const totalShuttleDur  = rawShuttleSteps.reduce((s, st) => s + st.duration, 0);
-
-                            // startLocation = origin stop; endLocation = destination stop
-                            const shuttleSteps = rawShuttleSteps.length > 0 ? [{
-                                distance: totalShuttleDist,
-                                duration: totalShuttleDur,
-                                instruction: 'Ride the Concordia Shuttle',
-                                maneuver: 'depart',
-                                startLocation: originStopCoord ?? rawShuttleSteps[0].startLocation,
-                                endLocation: destStopCoord ?? rawShuttleSteps[rawShuttleSteps.length - 1].endLocation,
-                                // No polyline — the ShuttleRouteOverlay draws the yellow line independently
-                                polyline: undefined,
-                                transitDetails: {
-                                    transitLine: {
-                                        name: 'Concordia Shuttle',
-                                        nameShort: 'Shuttle',
-                                        color: '#e5a712',
-                                    },
-                                    stopDetails: {
-                                        departureStop: { name: originName },
-                                        arrivalStop:   { name: destName },
-                                    },
-                                },
-                            }] : [];
-
-                            const steps = isShuttleMode
-                                ? [...walkToSteps, ...shuttleSteps, ...walkFromSteps]
-                                : (directions?.steps ?? []);
-                            setActiveSteps(steps);
-                            // Snapshot boundaries — must stay in sync with the frozen steps array
-                            setActiveShuttlePhaseBoundaries(
-                                isShuttleMode
-                                    ? { walkToStopCount: walkToSteps.length, shuttleLegCount: shuttleSteps.length }
-                                    : undefined
-                            );
-                            // Freeze shuttle polylines + stop names so the map overlay
-                            // and shuttle card keep rendering after the hook goes dormant
-                            setActiveShuttleLegs(
-                                isShuttleMode
-                                    ? {
-                                        walkToStop: shuttleRouting.walkToStop,
-                                        shuttleLeg: shuttleRouting.shuttleLeg,
-                                        walkFromStop: shuttleRouting.walkFromStop,
-                                        originStopName: shuttleRouting.stopsForTrip?.originStop?.name ?? 'Shuttle Stop',
-                                        destinationStopName: shuttleRouting.stopsForTrip?.destinationStop?.name ?? 'Shuttle Stop',
-                                        shuttleDurationSeconds: shuttleRouting.shuttleLeg?.durationSeconds ?? 0,
-                                      }
-                                    : null
-                            );
-                            setIsNavigating(true);
-                        }}
+                        onStartPress={handleStartPress}
                     />
                 </View>
             )}
@@ -853,36 +865,14 @@ export default function MapScreen() {
                         ? { longitude: toCoordinates[0], latitude: toCoordinates[1] }
                         : { longitude: 0, latitude: 0 }
                     }
-                    transportMode={
-                        selectedMode === 'Drive' ? TransportMode.DRIVING :
-                        selectedMode === 'Transit' ? TransportMode.TRANSIT :
-                        TransportMode.WALKING
-                    }
+                    transportMode={transportMode}
                     provider={selectedMode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX}
                     shuttlePhaseBoundaries={activeShuttlePhaseBoundaries}
                     onRecalculated={(newDirections) => {
                         setDirections(newDirections);
                         setActiveSteps(newDirections.steps ?? []);
                     }}
-                    onExit={() => {
-                        setIsNavigating(false);
-                        // Snap campus to destination before clearing coords
-                        if (toCoordinates) {
-                            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1], campusMetaById);
-                            if (nearest) setCampus(nearest);
-                        }
-                        // Return to home screen — clear all route state
-                        setSeeDirectionBar(false);
-                        setFrom('');
-                        setFromCoordinates(null);
-                        fromCoordinatesIsUserLocation.current = false;
-                        setTo('');
-                        setToCoordinates(null);
-                        setDirections(null);
-                        setActiveSteps([]);
-                        setActiveShuttlePhaseBoundaries(undefined);
-                        setActiveShuttleLegs(null);
-                    }}
+                    onExit={handleNavigationExit}
                 />
             )}
 

@@ -284,11 +284,17 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
  * Mapbox modifier values: "left" | "right" | "slight left" | "slight right" |
  *                         "sharp left" | "sharp right" | "uturn" | "straight"
  */
-function buildMapboxManeuver(type: string, modifier?: string): string {
+function resolveMapboxRoundaboutKey(mod: string): string {
+    if (mod === 'left') return 'roundabout-left';
+    if (mod === 'right') return 'roundabout-right';
+    return 'roundabout-left';
+}
+
+export function buildManeuverKey(type: string, modifier?: string): string {
     if (!type) return 'continue';
 
     // Normalise modifier: "slight left" -> "slight-left"
-    const mod = modifier ? modifier.trim().replace(/\s+/g, '-') : '';
+    const mod = modifier ? modifier.trim().replaceAll(' ', '-') : '';
 
     // Types that never need a modifier suffix
     const standalone = new Set(['depart', 'arrive', 'merge', 'notification', 'use lane']);
@@ -303,12 +309,8 @@ function buildMapboxManeuver(type: string, modifier?: string): string {
     if (type === 'on ramp' || type === 'off ramp') return type;
 
     // Roundabout family
-    if (type === 'roundabout' || type === 'rotary' ||
-        type === 'roundabout turn' || type === 'exit roundabout' || type === 'exit rotary') {
-        if (mod === 'left') return 'roundabout-left';
-        if (mod === 'right') return 'roundabout-right';
-        return 'roundabout-left';
-    }
+    const roundaboutTypes = new Set(['roundabout', 'rotary', 'roundabout turn', 'exit roundabout', 'exit rotary']);
+    if (roundaboutTypes.has(type)) return resolveMapboxRoundaboutKey(mod);
 
     // Fork encodes left/right
     if (type === 'fork') {
@@ -325,12 +327,15 @@ function buildMapboxManeuver(type: string, modifier?: string): string {
     // continue / new name — add modifier only when it's a directional word
     const directional = new Set(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn']);
     if (directional.has(mod)) {
-        return `${type.replace(/\s+/g, '-')}-${mod}`;
+        return `${type.replaceAll(' ', '-')}-${mod}`;
     }
 
     // Catch-all: just the type, spaces to hyphens
-    return type.replace(/\s+/g, '-');
+    return type.replaceAll(' ', '-');
 }
+
+// Internal alias used by convertMapboxResponse
+const buildMapboxManeuver = buildManeuverKey;
 
 // Helper to convert TransportMode to Mapbox profile
 function getMapboxProfile(mode: TransportMode): string {
