@@ -248,10 +248,9 @@ export default function MapScreen() {
         if (!selectedBuilding) return;
         setStartingPointAsUserCoordinates();
         setTo(selectedBuilding.name + (!!selectedBuilding.addresses && selectedBuilding.addresses.length > 0 ? ', ' + selectedBuilding.addresses[0] : ''));
-        if (!cameraRef.current) return;
         if (selectedBuilding.coordinates) {
             setToCoordinates(selectedBuilding.coordinates);
-            cameraRef.current.setCamera({
+            cameraRef.current?.setCamera({
                 centerCoordinate: selectedBuilding.coordinates,
                 zoomLevel: 18,
                 animationDuration: 800,
@@ -936,7 +935,7 @@ export default function MapScreen() {
         visible={!!selectedBuilding}
         building={selectedBuilding}
         onClose={() => setSelectedBuilding(null)}
-        
+
 
         onIndoorMap={() => {
         if (selectedBuilding?.code) {
