@@ -889,7 +889,10 @@ function renderWithBuilding() {
  * 5. Press start-btn → isNavigating=true → NavigationOverlay mounts
  */
 async function renderAndStartNavigation(stepNavOverrides: any = {}, navControllerOverrides: any = {}) {
-    (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav(stepNavOverrides));
+    // Pass null as stepNavOverrides to skip this — lets the caller own the mock entirely.
+    if (stepNavOverrides !== null) {
+        (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav(stepNavOverrides));
+    }
 
     // Set the nav controller mock BEFORE render, merging points + any overrides.
     // renderWithBuilding() would overwrite this, so we inline the render here.
@@ -1294,10 +1297,11 @@ describe('NavigationOverlay — off-route recalculation', () => {
     });
 
     it('hides recalc-text and calls clearOffRoute after successful recalc', async () => {
-        // Use a mutable ref so every render reads the current isOffRoute value.
-        // clearOffRoute flips it to false — the next render triggered by
-        // setIsRecalculating(false) in .finally() will then see isOffRoute=false
-        // and the effect won't re-fire.
+        // mockImplementation reads `isOffRoute` on every render call, so when
+        // clearOffRoute flips it to false the next render sees false and the
+        // recalc effect does not re-fire.
+        // We pass null as stepNavOverrides so renderAndStartNavigation does NOT
+        // call mockReturnValue (which would silently override mockImplementation).
         let isOffRoute = true;
         const clearOffRoute = jest.fn(() => { isOffRoute = false; });
         (useStepNavigator as jest.Mock).mockImplementation(() =>
@@ -1309,7 +1313,7 @@ describe('NavigationOverlay — off-route recalculation', () => {
             location: { longitude: -73.58, latitude: 45.50 },
         });
 
-        const utils = await renderAndStartNavigation({ isOffRoute: true, clearOffRoute });
+        const utils = await renderAndStartNavigation(null);
 
         await waitFor(() => {
             expect(utils.queryByTestId('recalc-text')).toBeNull();
