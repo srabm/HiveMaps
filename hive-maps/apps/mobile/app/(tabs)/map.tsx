@@ -530,7 +530,7 @@ export default function MapScreen() {
         const details = point?.details as BuildingDetails | undefined;
         const day = new Date().getDay();
         setSelectedBuilding({
-            ...(f.properties ?? {}),
+            ...f.properties,
             phone: details?.nationalPhoneNumber,
             website: details?.websiteUri,
             hours: details?.regularOpeningHours?.weekdayDescription?.[day === 0 ? 6 : day - 1]
