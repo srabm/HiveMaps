@@ -1,10 +1,12 @@
 /**
  * Unit tests for StepByStepPanel and its sub-components.
  *
+ * File location: __tests__/components/ui/step-by-step-panel.test.tsx
+ *
  * Stack: Jest + React Native Testing Library (@testing-library/react-native)
  *
  * Run with:
- *   npx jest step-by-step-panel.test.tsx
+ *   npx jest step-by-step-panel
  *
  * Robolectric note:
  *   These tests are pure JS/React unit tests and run on the JVM (via Jest).
@@ -15,7 +17,7 @@
 
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
-import { StepByStepPanel } from './step-by-step-panel';
+import { StepByStepPanel } from '@/components/ui/step-by-step-panel';
 import type { Step } from '@/services/maps/directions-api-adapter';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -28,7 +30,6 @@ jest.mock('@expo/vector-icons/MaterialIcons', () => {
     );
 });
 
-// Mock buildManeuverKey — tested separately in directions-api-adapter tests
 jest.mock('@/services/maps/directions-api-adapter', () => ({
     buildManeuverKey: jest.fn((type: string, modifier?: string) => {
         if (modifier) return `${type}-${modifier}`;
