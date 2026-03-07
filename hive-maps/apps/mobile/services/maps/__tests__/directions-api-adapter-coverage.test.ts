@@ -50,7 +50,7 @@ const TRANSIT_GOOGLE_REQUEST: DirectionsRequest = {
     origin: SGW,
     destination: LOY,
     transportMode: TransportMode.TRANSIT,
-    provider: Provider.GOOGLE_MAPS,
+    provider: Provider.GOOGLE,
     timeFilter: '2026-03-06T05:00:00Z',
     timeFilterMode: 'depart',
 };
@@ -546,5 +546,245 @@ describe('clearDirectionsCache — AsyncStorage.removeItem failure', () => {
     it('swallows removeItem errors silently', async () => {
         AsyncStorage.removeItem.mockRejectedValueOnce(new Error('storage locked'));
         await expect(clearDirectionsCache()).resolves.not.toThrow();
+    });
+});
+
+describe('initializeDirectionsCache — loads valid storage data (L88-94)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let adapter: any;
+    let AsyncStorageMock: any;
+
+    beforeAll(() => {
+        jest.resetModules();
+        AsyncStorageMock = require('@react-native-async-storage/async-storage');
+        adapter = require('@/services/maps/directions-api-adapter');
+    });
+
+    afterAll(() => {
+        // Restore the module registry so subsequent describe blocks use the
+        // top-level imports again.
+        jest.resetModules();
+    });
+
+    beforeEach(async () => {
+        jest.clearAllMocks();
+        await adapter.clearDirectionsCache();
+    });
+
+    it('pre-warms in-memory cache so a subsequent getDirections needs no fetch', async () => {
+        // ── Step 1: do one real fetch to let the adapter write the cache key
+        //            into AsyncStorage via persistCache (setItem).
+        mockFetch.mockResolvedValueOnce(okJson(mapboxApiResponse()));
+        await adapter.getDirections({
+            origin:         { latitude: 45.4971, longitude: -73.5785 },
+            destination:    { latitude: 45.4583, longitude: -73.6406 },
+            transportMode:  adapter.TransportMode.WALKING,
+            provider:       adapter.Provider.MAPBOX,
+            timeFilter:     '2026-03-06T08:00:00Z',
+            timeFilterMode: 'depart',
+        });
+
+        // ── Step 2: capture the exact key the module used
+        const [, serialised] = AsyncStorageMock.setItem.mock.calls[0];
+        const storedMap = JSON.parse(serialised) as Record<string, unknown>;
+        const [derivedKey] = Object.keys(storedMap);
+
+        const storedResponse = {
+            distanceMeters: 500,
+            durationSeconds: 120,
+            polyline: 'cachedPoly',
+            steps: [],
+        };
+
+        // ── Step 3: clear the in-memory cache and reset the cacheInitialized
+        //            flag by re-requiring the module (resetModules in beforeAll
+        //            already gave us an isolated instance, so clearDirectionsCache
+        //            only clears the Map; we need to re-require to reset the flag).
+        jest.resetModules();
+        AsyncStorageMock = require('@react-native-async-storage/async-storage');
+        adapter = require('@/services/maps/directions-api-adapter');
+        jest.clearAllMocks();
+
+        // ── Step 4: seed AsyncStorage with the fixture under the derived key
+        AsyncStorageMock.getItem.mockResolvedValueOnce(
+            JSON.stringify({ [derivedKey]: storedResponse })
+        );
+        await adapter.initializeDirectionsCache();
+
+        // ── Step 5: getDirections should hit the pre-warmed cache — no fetch
+        const result = await adapter.getDirections({
+            origin:         { latitude: 45.4971, longitude: -73.5785 },
+            destination:    { latitude: 45.4583, longitude: -73.6406 },
+            transportMode:  adapter.TransportMode.WALKING,
+            provider:       adapter.Provider.MAPBOX,
+            timeFilter:     '2026-03-06T08:00:00Z',
+            timeFilterMode: 'depart',
+        });
+
+        expect(mockFetch).not.toHaveBeenCalled();
+        expect(result.distanceMeters).toBe(500);
+        expect(result.polyline).toBe('cachedPoly');
+    });
+});
+
+// ─── L146 — isCacheRelevant non-transit: exact key comparison ────────────────
+
+describe('isCacheRelevant — non-transit exact key check (L146)', () => {
+    it('mismatched transport mode produces a cache miss', async () => {
+        mockFetch
+            .mockResolvedValueOnce(okJson(mapboxApiResponse()))
+            .mockResolvedValueOnce(okJson(mapboxApiResponse()));
+
+        await getDirections(BASE_MAPBOX_REQUEST);
+        await getDirections(DRIVING_MAPBOX_REQUEST);
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+});
+
+// ─── L155 — isCacheRelevant transit: base-segment mismatch ───────────────────
+
+describe('isCacheRelevant — transit base-key mismatch (L155)', () => {
+    it('does not reuse transit cache when destination differs', async () => {
+        mockFetch
+            .mockResolvedValueOnce(okJson(googleApiResponse()))
+            .mockResolvedValueOnce(okJson(googleApiResponse()));
+
+        await getDirections(TRANSIT_GOOGLE_REQUEST);
+        await getDirections({
+            ...TRANSIT_GOOGLE_REQUEST,
+            destination: { latitude: 45.510, longitude: -73.560 },
+        });
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reuse transit cache when timeFilterMode changes depart → arrive', async () => {
+        mockFetch
+            .mockResolvedValueOnce(okJson(googleApiResponse()))
+            .mockResolvedValueOnce(okJson(googleApiResponse()));
+
+        await getDirections(TRANSIT_GOOGLE_REQUEST);
+        await getDirections({
+            ...TRANSIT_GOOGLE_REQUEST,
+            timeFilterMode: 'arrive',
+            timeFilter: '2026-03-06T05:01:00Z',
+        });
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+});
+
+// ─── L167 — isCacheRelevant transit: catch block on invalid date ──────────────
+
+describe('isCacheRelevant — invalid cached date falls back to false (L167)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let freshAdapter: any;
+    let freshAsyncStorage: any;
+
+    beforeAll(() => {
+        jest.resetModules();
+        freshAsyncStorage = require('@react-native-async-storage/async-storage');
+        freshAdapter = require('@/services/maps/directions-api-adapter');
+    });
+
+    afterAll(() => {
+        jest.resetModules();
+    });
+
+    beforeEach(async () => {
+        jest.clearAllMocks();
+        await freshAdapter.clearDirectionsCache();
+    });
+
+    it('treats a transit entry with an unparseable timestamp as irrelevant', async () => {
+        // ── Step 1: real fetch to derive the transit cache key format
+        mockFetch.mockResolvedValueOnce(okJson(googleApiResponse()));
+        await freshAdapter.getDirections({
+            origin:         { latitude: 45.4971, longitude: -73.5785 },
+            destination:    { latitude: 45.4583, longitude: -73.6406 },
+            transportMode:  freshAdapter.TransportMode.TRANSIT,
+            provider:       freshAdapter.Provider.GOOGLE_MAPS,
+            timeFilter:     '2026-03-06T08:00:00Z',
+            timeFilterMode: 'depart',
+        });
+
+        const [, serialised] = freshAsyncStorage.setItem.mock.calls[0];
+        const [realKey] = Object.keys(JSON.parse(serialised));
+
+        // ── Step 2: corrupt the timestamp segment and re-require for fresh flag
+        const parts = realKey.split('|');
+        parts[4] = 'NOT_A_DATE';
+        const badKey = parts.join('|');
+
+        jest.resetModules();
+        freshAsyncStorage = require('@react-native-async-storage/async-storage');
+        freshAdapter = require('@/services/maps/directions-api-adapter');
+        jest.clearAllMocks();
+
+        freshAsyncStorage.getItem.mockResolvedValueOnce(
+            JSON.stringify({ [badKey]: { distanceMeters: 999, durationSeconds: 1, polyline: 'bad', steps: [] } })
+        );
+        await freshAdapter.initializeDirectionsCache();
+
+        // ── Step 3: a fresh transit request must NOT be served from the bad entry
+        mockFetch.mockResolvedValueOnce(okJson(googleApiResponse()));
+        await freshAdapter.getDirections({
+            origin:         { latitude: 45.4971, longitude: -73.5785 },
+            destination:    { latitude: 45.4583, longitude: -73.6406 },
+            transportMode:  freshAdapter.TransportMode.TRANSIT,
+            provider:       freshAdapter.Provider.GOOGLE_MAPS,
+            timeFilter:     '2026-03-06T08:00:00Z',
+            timeFilterMode: 'depart',
+        });
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ─── L176 — findRelevantTransitCache: non-transit early-return null ───────────
+
+describe('findRelevantTransitCache — non-transit returns null immediately (L176)', () => {
+    it('does not serve a walking request from a transit cache entry', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(googleApiResponse()));
+        await getDirections(TRANSIT_GOOGLE_REQUEST);
+
+        mockFetch.mockResolvedValueOnce(okJson(mapboxApiResponse()));
+        await getDirections(BASE_MAPBOX_REQUEST);
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+});
+
+// ─── L350 — getMapboxProfile default branch ───────────────────────────────────
+
+describe('getMapboxProfile — default branch (L350)', () => {
+    it('falls back to the walking profile for an unrecognised transport mode', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(mapboxApiResponse()));
+
+        await getDirections({
+            ...BASE_MAPBOX_REQUEST,
+            transportMode: 999 as TransportMode,
+            destination: { latitude: 45.530, longitude: -73.530 },
+        });
+
+        expect(mockFetch.mock.calls[0][0]).toContain('/mapbox/walking/');
+    });
+});
+
+// ─── L364 — getGoogleTravelMode default branch ───────────────────────────────
+
+describe('getGoogleTravelMode — default branch (L364)', () => {
+    it('falls back to WALK travel mode for an unrecognised transport mode', async () => {
+        mockFetch.mockResolvedValueOnce(okJson(googleApiResponse()));
+
+        await getDirections({
+            ...TRANSIT_GOOGLE_REQUEST,
+            transportMode: 999 as TransportMode,
+            destination: { latitude: 45.531, longitude: -73.531 },
+        });
+
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+        expect(body.travelMode).toBe('WALK');
     });
 });

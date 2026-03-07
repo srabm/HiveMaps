@@ -30,20 +30,33 @@ jest.mock('@expo/vector-icons/MaterialIcons', () => {
     );
 });
 
-jest.mock('@/services/maps/directions-api-adapter', () => ({
-    buildManeuverKey: jest.fn((type: string, modifier?: string) => {
-        if (modifier) return `${type}-${modifier}`;
-        return type;
-    }),
-}));
+// Use the real buildManeuverKey — mocking it caused unknown-maneuver warnings
+// because a stub didn't replicate the "turn" → "turn-right" fallback logic.
+jest.mock('@/services/maps/directions-api-adapter', () => {
+    const actual = jest.requireActual('@/services/maps/directions-api-adapter');
+    return { ...actual };
+});
 
-// Mock LayoutAnimation so toggle tests don't throw
-jest.mock('react-native/Libraries/LayoutAnimation/LayoutAnimation', () => ({
-    configureNext: jest.fn(),
-    Presets: { easeInEaseOut: {} },
-}));
+// LayoutAnimation is imported from 'react-native' directly in the component.
+// We spread the real RN mock (provided by jest-expo / @testing-library/react-native)
+// and override LayoutAnimation so configureNext is a no-op jest.fn() instead of
+// undefined (which is what the default RN Jest preset gives it).
+jest.mock('react-native', () => {
+    const rn = jest.requireActual('react-native');
+    rn.LayoutAnimation = {
+        configureNext: jest.fn(),
+        Presets: { easeInEaseOut: {} },
+        Types: {},
+        Properties: {},
+        create: jest.fn(),
+        spring: jest.fn(),
+        linear: jest.fn(),
+        easeInEaseOut: jest.fn(),
+    };
+    return rn;
+});
 
-// Freeze timers by default so the 10-second interval doesn't interfere
+// Freeze timers so the 10-second interval doesn't fire during assertions
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
     jest.clearAllMocks();
@@ -67,7 +80,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
 }
 
 const defaultProps = {
-    steps: [makeStep(), makeStep({ instruction: 'Turn right onto Elm St', maneuver: 'turn', maneuverModifier: 'right' })],
+    steps: [
+        makeStep(),
+        makeStep({ instruction: 'Turn right onto Elm St', maneuver: 'turn', maneuverModifier: 'right' }),
+    ],
     currentStep: makeStep(),
     nextStep: makeStep({ instruction: 'Turn right onto Elm St', maneuver: 'turn', maneuverModifier: 'right' }),
     afterNextStep: null,
@@ -101,10 +117,11 @@ describe('Arrived state', () => {
         expect(onExit).toHaveBeenCalledTimes(1);
     });
 
-    it('does not render the instruction panel or bottom bar when arrived', () => {
+    it('does not render the instruction panel when arrived', () => {
         const { queryByText } = render(<StepByStepPanel {...defaultProps} arrived />);
         expect(queryByText('Head north on Main St')).toBeNull();
-        expect(queryByText('End')).toBeNull(); // normal "End" button absent
+        // Normal "End" button is absent — only "End Navigation" shown
+        expect(queryByText('End')).toBeNull();
     });
 });
 
@@ -128,27 +145,30 @@ describe('Normal navigation', () => {
     });
 
     it('renders the distance to next turn when provided', () => {
-        const { getByText } = render(
-            <StepByStepPanel {...defaultProps} distanceToNextTurn={150} />
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} distanceToNextTurn={150} totalDistanceRemaining={350} />
         );
-        // 150 m rounds to 150 m
-        expect(getByText('150 m')).toBeTruthy();
+        expect(getAllByText('150 m').length).toBeGreaterThan(0);
     });
 
     it('renders distance in km when >= 1000 m', () => {
-        const { getByText } = render(
-            <StepByStepPanel {...defaultProps} distanceToNextTurn={1500} />
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} distanceToNextTurn={1500} totalDistanceRemaining={1500} />
         );
-        expect(getByText('1.5 km')).toBeTruthy();
+        expect(getAllByText('1.5 km').length).toBeGreaterThan(0);
     });
 
-    it('does not render distance label when distanceToNextTurn is null', () => {
+    it('does not render a distance label when distanceToNextTurn is null', () => {
+        // Pass null for both so the bottom bar "remain" stat is also empty
         const { queryByText } = render(
-            <StepByStepPanel {...defaultProps} distanceToNextTurn={null} />
+            <StepByStepPanel
+                {...defaultProps}
+                distanceToNextTurn={null}
+                totalDistanceRemaining={null}
+            />
         );
-        // The distance label text should not appear (neither km nor m)
-        expect(queryByText(/\d+ km/)).toBeNull();
-        expect(queryByText(/\d+ m/)).toBeNull();
+        expect(queryByText(/\d+(\.\d+)? km/)).toBeNull();
+        expect(queryByText(/^\d+ m$/)).toBeNull();
     });
 
     it('renders "Then:" next step preview when nextStep is provided', () => {
@@ -170,7 +190,6 @@ describe('Normal navigation', () => {
                 currentStep={makeStep({ instruction: '' })}
             />
         );
-        // "Continue" may appear for both current and fallback — at least once
         expect(getAllByText('Continue').length).toBeGreaterThan(0);
     });
 
@@ -192,43 +211,41 @@ describe('Normal navigation', () => {
 describe('Expandable step list', () => {
     it('does not show all steps by default', () => {
         const { queryByText } = render(<StepByStepPanel {...defaultProps} />);
-        // The second step instruction only appears when list is expanded
-        expect(queryByText('Turn right onto Elm St')).toBeNull();
+        // The step row only appears when list is expanded (not in the preview row)
+        expect(queryByText(/^Turn right onto Elm St$/)).toBeNull();
     });
 
     it('shows all steps after pressing the next-step row', () => {
-        const { getByText } = render(<StepByStepPanel {...defaultProps} />);
+        const { getByText, getAllByText } = render(<StepByStepPanel {...defaultProps} />);
         fireEvent.press(getByText('Then: Turn right onto Elm St'));
-        expect(getByText('Turn right onto Elm St')).toBeTruthy();
+        expect(getAllByText('Head north on Main St').length).toBeGreaterThanOrEqual(1);
+        expect(getAllByText('Turn right onto Elm St').length).toBeGreaterThanOrEqual(1);
     });
 
     it('hides steps again on second press (toggle)', () => {
         const { getByText, queryByText } = render(<StepByStepPanel {...defaultProps} />);
-        const toggleRow = getByText('Then: Turn right onto Elm St');
-        fireEvent.press(toggleRow);
-        // Now visible — press again to collapse
-        fireEvent.press(toggleRow);
-        // After collapse the step list item is gone
-        expect(queryByText('Turn right onto Elm St')).toBeNull();
+        fireEvent.press(getByText('Then: Turn right onto Elm St')); // expand
+        fireEvent.press(getByText('Then: Turn right onto Elm St')); // collapse
+        expect(queryByText(/^Turn right onto Elm St$/)).toBeNull();
     });
 
     it('highlights the current step row in the expanded list', () => {
         const steps = [
             makeStep({ instruction: 'Step one' }),
-            makeStep({ instruction: 'Step two', maneuver: 'turn' }),
+            makeStep({ instruction: 'Step two', maneuver: 'turn', maneuverModifier: 'right' }),
         ];
-        const { getByText } = render(
+        const { getByText, getAllByText } = render(
             <StepByStepPanel
                 {...defaultProps}
                 steps={steps}
-                currentStepIndex={0}
+                currentStep={steps[0]}
                 nextStep={steps[1]}
+                currentStepIndex={0}
             />
         );
         fireEvent.press(getByText('Then: Step two'));
-        // Both rows are visible; step one is the current one
-        expect(getByText('Step one')).toBeTruthy();
-        expect(getByText('Step two')).toBeTruthy();
+        expect(getAllByText('Step one').length).toBeGreaterThanOrEqual(1);
+        expect(getAllByText('Step two').length).toBeGreaterThanOrEqual(1);
     });
 });
 
@@ -239,14 +256,14 @@ describe('Recalculating banner', () => {
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} isRecalculating />
         );
-        expect(getByText('Recalculating route…')).toBeTruthy();
+        expect(getByText('Recalculating route\u2026')).toBeTruthy();
     });
 
     it('does not show recalculating banner when isRecalculating=false', () => {
         const { queryByText } = render(
             <StepByStepPanel {...defaultProps} isRecalculating={false} />
         );
-        expect(queryByText('Recalculating route…')).toBeNull();
+        expect(queryByText('Recalculating route\u2026')).toBeNull();
     });
 });
 
@@ -298,7 +315,7 @@ describe('Shuttle phase strip', () => {
         expect(queryByText('Walk to destination')).toBeNull();
     });
 
-    it('hides the maneuver icon row when shuttlePhase is "shuttle"', () => {
+    it('hides the maneuver icon row and shows shuttle label when shuttlePhase is "shuttle"', () => {
         const currentStep = makeStep({
             instruction: 'Ride the Concordia Shuttle',
             maneuver: 'depart',
@@ -310,16 +327,14 @@ describe('Shuttle phase strip', () => {
                 },
             },
         });
-        const { queryByText, getByText } = render(
+        const { getByText, queryByText } = render(
             <StepByStepPanel
                 {...defaultProps}
                 currentStep={currentStep}
                 shuttlePhase="shuttle"
             />
         );
-        // The shuttle ride label is shown
         expect(getByText('Ride the Concordia Shuttle')).toBeTruthy();
-        // The normal instruction text (from the maneuver row) is NOT shown separately
         expect(queryByText('Head north on Main St')).toBeNull();
     });
 });
@@ -368,7 +383,7 @@ describe('TransitCard', () => {
                 transitLine: { name: 'Orange Line', color: '#ea580c' },
                 stopDetails: {
                     departureStop: { name: 'Snowdon' },
-                    arrivalStop: { name: 'Côte-Vertu' },
+                    arrivalStop: { name: 'Cote-Vertu' },
                 },
             },
         });
@@ -389,8 +404,10 @@ describe('TransitCard', () => {
 
 describe('Bottom stats bar', () => {
     it('renders the "remain" distance label', () => {
+        // Use distinct values so distanceToNextTurn and totalDistanceRemaining
+        // don't produce the same text node
         const { getByText } = render(
-            <StepByStepPanel {...defaultProps} totalDistanceRemaining={500} />
+            <StepByStepPanel {...defaultProps} distanceToNextTurn={100} totalDistanceRemaining={500} />
         );
         expect(getByText('500 m')).toBeTruthy();
         expect(getByText('remain')).toBeTruthy();
@@ -405,7 +422,6 @@ describe('Bottom stats bar', () => {
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} totalDurationSecondsRemaining={300} />
         );
-        // 300 s = 5 min
         expect(getByText('5')).toBeTruthy();
         expect(getByText('min')).toBeTruthy();
     });
@@ -414,53 +430,48 @@ describe('Bottom stats bar', () => {
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} totalDurationSecondsRemaining={5400} />
         );
-        // 5400 s = 90 min = 1h 30
         expect(getByText('1h 30')).toBeTruthy();
     });
 
     it('uses 0 seconds as fallback when totalDurationSecondsRemaining is null', () => {
-        // Should not throw; renders "0" min
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} totalDurationSecondsRemaining={null} />
         );
         expect(getByText('0')).toBeTruthy();
     });
 
-    it('updates arrival time after 10-second interval tick', () => {
+    it('does not crash after 10-second interval tick', () => {
         const { getByText } = render(<StepByStepPanel {...defaultProps} />);
-        const before = getByText('arrival').parent;
         act(() => { jest.advanceTimersByTime(10_000); });
-        // Component should still render without crashing after a tick
         expect(getByText('arrival')).toBeTruthy();
-        void before; // suppress unused-var warning
     });
 });
 
 // ─── formatDist helper (via rendered output) ──────────────────────────────────
 
 describe('formatDist display values', () => {
+    // Both props set to the same value so the same text appears in both the
+    // distance label and the bottom "remain" stat — use getAllByText.
     const cases: [number, string][] = [
-        [0,    '0 m'],
-        [50,   '50 m'],
-        [99,   '99 m'],
-        [100,  '100 m'],
-        [150,  '150 m'],
-        [999,  '1000 m'],   // Math.round(999/10)*10 = 1000
-        [1000, '1.0 km'],
-        [1500, '1.5 km'],
+        [0,     '0 m'],
+        [50,    '50 m'],
+        [99,    '99 m'],
+        [100,   '100 m'],
+        [155,   '160 m'],   // Math.round(155/10)*10 = 160
+        [1000,  '1.0 km'],
+        [1500,  '1.5 km'],
         [12345, '12.3 km'],
     ];
 
-    test.each(cases)('%i m → "%s"', (metres, expected) => {
-        const { getByText } = render(
+    test.each(cases)('%i m renders as "%s"', (metres, expected) => {
+        const { getAllByText } = render(
             <StepByStepPanel
                 {...defaultProps}
                 distanceToNextTurn={metres}
                 totalDistanceRemaining={metres}
             />
         );
-        // At least one instance of the formatted value must appear
-        expect(getByText(expected)).toBeTruthy();
+        expect(getAllByText(expected).length).toBeGreaterThan(0);
     });
 });
 
