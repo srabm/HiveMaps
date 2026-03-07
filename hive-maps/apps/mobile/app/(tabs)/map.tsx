@@ -1,5 +1,5 @@
 import { Href, useRouter } from 'expo-router';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
