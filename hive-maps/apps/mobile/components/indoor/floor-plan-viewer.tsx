@@ -1,8 +1,10 @@
 import type * as GeoJSON from 'geojson'
-import { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { MapboxGL } from '@/services/mapbox'
+import { POIMarker } from '@/components/indoor/POIMarker'
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer'
+import { MaterialIcons } from '@expo/vector-icons'
 
 export type FloorPlanViewerProps = {
   planGeometry?: GeoJSON.Geometry | null
@@ -18,6 +20,7 @@ type RoomFeatureProperties = {
   code?: string
   name?: string
   label?: string
+  type?: string
   [key: string]: unknown
 }
 
@@ -25,6 +28,13 @@ type MapPressFeature = {
   id?: string | number
   properties?: RoomFeatureProperties
 }
+
+const POI_TYPES = [
+  'bathroom', 'bathroom_men', 'bathroom_women', 'bathroom_unisex',
+  'bathroom_unisex_acc', 'bathroom_men_acc', 'bathroom_women_acc',
+  'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
+  'escalator', 'printer', 'ramp'
+]
 
 const getRoomId = (feature: MapPressFeature): string | null => {
   const propertyId =
@@ -67,26 +77,49 @@ const collectCoordinates = (geometry: GeoJSON.Geometry | null | undefined): [num
       item.geometries.forEach(addGeometry)
       return
     }
-    addCoordinateList(item.coordinates)
+    addCoordinateList((item as any).coordinates)
   }
 
   if (geometry.type === 'GeometryCollection') {
     geometry.geometries.forEach(addGeometry)
   } else {
-    addCoordinateList(geometry.coordinates)
+    addCoordinateList((geometry as any).coordinates)
   }
 
   return accumulator
 }
 
+const getGeometryCenter = (geometry: GeoJSON.Geometry | null | undefined): [number, number] => {
+  const coords = collectCoordinates(geometry)
+  if (coords.length === 0) return [-73.578, 45.496]
+
+  const bounds = coords.reduce(
+    (memo, [lng, lat]) => ({
+      minLng: Math.min(memo.minLng, lng),
+      maxLng: Math.max(memo.maxLng, lng),
+      minLat: Math.min(memo.minLat, lat),
+      maxLat: Math.max(memo.maxLat, lat),
+    }),
+    {
+      minLng: coords[0][0],
+      maxLng: coords[0][0],
+      minLat: coords[0][1],
+      maxLat: coords[0][1],
+    },
+  )
+
+  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+}
+
 const getCenterCoordinate = (
   planGeometry?: GeoJSON.Geometry | null,
   rooms?: GeoJSON.FeatureCollection | null,
-): [number, number] | undefined => {
+): [number, number] => {
   const planCoordinates = collectCoordinates(planGeometry)
   const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
   const coordinates = [...planCoordinates, ...roomCoordinates]
-  if (coordinates.length === 0) return undefined
+  
+  if (coordinates.length === 0) return [-73.578, 45.496]
 
   const bounds = coordinates.reduce(
     (memo, [lng, lat]) => ({
@@ -107,6 +140,28 @@ const getCenterCoordinate = (
 }
 
 export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRoom }: FloorPlanViewerProps) {
+  
+  const { roomCollectionForLabels, poiFeatures } = useMemo(() => {
+    if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
+
+    const labelRooms: GeoJSON.Feature[] = []
+    const pois: GeoJSON.Feature[] = []
+
+    rooms.features.forEach((feature) => {
+      const type = (feature.properties?.type as string | undefined)?.toLowerCase().trim()
+      if (type && POI_TYPES.includes(type)) {
+        pois.push(feature)
+      } else {
+        labelRooms.push(feature)
+      }
+    })
+
+    return {
+      roomCollectionForLabels: { type: 'FeatureCollection' as const, features: labelRooms },
+      poiFeatures: pois,
+    }
+  }, [rooms])
+
   const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
 
   const planShape = useMemo(() => {
@@ -151,8 +206,17 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
   return (
     <View testID="indoor-floor-plan" style={styles.container}>
       {planShape && rooms ? (
-        <MapboxGL.MapView style={StyleSheet.absoluteFill} logoEnabled={false} scaleBarEnabled={false}>
-          <MapboxGL.Camera centerCoordinate={centerCoordinate} zoomLevel={19} />
+        <MapboxGL.MapView 
+          style={StyleSheet.absoluteFill} 
+          logoEnabled={false} 
+          scaleBarEnabled={false}
+          styleURL={MapboxGL.StyleURL.Light} 
+        >
+          <MapboxGL.Camera 
+            centerCoordinate={centerCoordinate} 
+            zoomLevel={18.5} 
+            animationDuration={600} 
+          />
 
           <MapboxGL.ShapeSource id="indoor-plan-source" shape={planShape}>
             <MapboxGL.FillLayer
@@ -212,10 +276,30 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
             </MapboxGL.ShapeSource>
           )}
 
-          <RoomLabelLayer rooms={rooms} selectedRoomId={selectedRoomId} />
+          {poiFeatures.map((poi) => {
+            const coords = poi.geometry.type === 'Point' 
+              ? (poi.geometry as GeoJSON.Point).coordinates 
+              : getGeometryCenter(poi.geometry);
+
+            const poiId = poi.properties?.id || Math.random().toString();
+            const poiType = poi.properties?.type as string;
+            const poiLabel = poi.properties?.label as string | undefined;
+
+            return (
+              <MapboxGL.MarkerView
+                key={`poi-${poiId}`}
+                id={`poi-${poiId}`}
+                coordinate={coords}
+              >
+                <POIMarker type={poiType} label={poiLabel} size={22} />
+              </MapboxGL.MarkerView>
+            );
+          })}
+
+          <RoomLabelLayer rooms={roomCollectionForLabels} selectedRoomId={selectedRoomId} />
         </MapboxGL.MapView>
       ) : (
-        <Text style={styles.placeholderText}>Floor plan viewer wired</Text>
+        <Text style={styles.placeholderText}>Floor plan viewer loading...</Text>
       )}
 
       {selectedRoomId && (
