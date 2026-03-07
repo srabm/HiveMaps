@@ -50,7 +50,7 @@ const TRANSIT_GOOGLE_REQUEST: DirectionsRequest = {
     origin: SGW,
     destination: LOY,
     transportMode: TransportMode.TRANSIT,
-    provider: Provider.GOOGLE,
+    provider: Provider.GOOGLE_MAPS,
     timeFilter: '2026-03-06T05:00:00Z',
     timeFilterMode: 'depart',
 };
