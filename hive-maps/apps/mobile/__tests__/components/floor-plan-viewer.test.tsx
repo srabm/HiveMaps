@@ -24,6 +24,10 @@ jest.mock('@/services/mapbox', () => {
       FillLayer: () => null,
       LineLayer: () => null,
       SymbolLayer: () => null,
+      MarkerView: ({ children }: any) => React.createElement(View, null, children),
+      StyleURL: {
+        Light: 'mapbox://styles/mapbox/light-v10',
+      },
     },
   }
 })

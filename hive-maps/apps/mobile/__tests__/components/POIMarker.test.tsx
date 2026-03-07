@@ -2,21 +2,14 @@ import React from 'react'
 import { render } from '@testing-library/react-native'
 import { POIMarker } from '@/components/indoor/POIMarker'
 
-const makeMuiIconMock = () => {
-  const React = require('react')
+jest.mock('@expo/vector-icons', () => {
   const { Text } = require('react-native')
-
-  return ({ testID, ['data-testid']: dataTestId }: { testID?: string; 'data-testid'?: string }) =>
-    React.createElement(Text, { testID: testID ?? dataTestId }, 'icon')
-}
-
-jest.mock('@mui/icons-material/Man', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Woman2', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Wc', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Accessible', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Escalator', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Stairs', () => makeMuiIconMock(), { virtual: true })
-jest.mock('@mui/icons-material/Elevator', () => makeMuiIconMock(), { virtual: true })
+  return {
+    MaterialIcons: ({ name, testID }: { name: string; testID: string }) => (
+      <Text testID={testID}>{name}</Text>
+    ),
+  }
+})
 
 describe('POIMarker', () => {
   it.each([
@@ -27,14 +20,18 @@ describe('POIMarker', () => {
     'bathroom_unisex_acc',
     'bathroom_men_acc',
     'bathroom_women_acc',
+    'bathroom_private_acc',
+    'water_fountain',
     'stairs',
     'elevator',
     'escalator',
+    'printer',
+    'ramp'
   ])('renders icon for known type %s', (type) => {
     const { getByTestId, queryByTestId } = render(<POIMarker type={type} />)
 
     expect(getByTestId(`poi-icon-${type}`)).toBeTruthy()
-    expect(queryByTestId('poi-dot-fallback')).toBeNull()
+    expect(queryByTestId('poi-label-fallback')).toBeNull()
   })
 
   it('normalizes casing and whitespace for known types', () => {
@@ -42,25 +39,25 @@ describe('POIMarker', () => {
     expect(getByTestId('poi-icon-bathroom_men')).toBeTruthy()
   })
 
-  it('falls back to generic dot for water_fountain (no icon configured)', () => {
-    const { getByTestId, queryByTestId } = render(<POIMarker type="water_fountain" />)
+  it('falls back to text label pill for unknown type', () => {
+    const { getByTestId, getByText } = render(<POIMarker type="unknown_magic_room" label="Narnia" />)
 
-    expect(getByTestId('poi-dot-fallback')).toBeTruthy()
-    expect(queryByTestId('poi-icon-water_fountain')).toBeNull()
+    expect(getByTestId('poi-label-fallback')).toBeTruthy()
+    expect(getByText('Narnia')).toBeTruthy()
+  })
+  
+  it('uses type string as fallback label if no label is provided', () => {
+    const { getByTestId, getByText } = render(<POIMarker type="mystery_box" />)
+
+    expect(getByTestId('poi-label-fallback')).toBeTruthy()
+    expect(getByText('mystery_box')).toBeTruthy()
   })
 
-  it('falls back to generic dot for unknown type', () => {
-    const { getByTestId, queryByTestId } = render(<POIMarker type="printer" />)
-
-    expect(getByTestId('poi-dot-fallback')).toBeTruthy()
-    expect(queryByTestId('poi-icon-printer')).toBeNull()
-  })
-
-  it('falls back to generic dot for empty or missing type', () => {
+  it('falls back to empty generic label for empty or missing type', () => {
     const empty = render(<POIMarker type="" />)
-    expect(empty.getByTestId('poi-dot-fallback')).toBeTruthy()
+    expect(empty.getByTestId('poi-label-fallback')).toBeTruthy()
 
     const missing = render(<POIMarker />)
-    expect(missing.getByTestId('poi-dot-fallback')).toBeTruthy()
+    expect(missing.getByTestId('poi-label-fallback')).toBeTruthy()
   })
 })
