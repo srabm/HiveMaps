@@ -345,6 +345,8 @@ export default function IndoorMapScreen() {
             rooms={floorDetails?.rooms}
             selectedRoomId={selectedRoomId}
             onPressRoom={setSelectedRoomId}
+            buildingCode={buildingCode ?? ''}
+            floorId={activeFloorId ?? ''}
           />
 
           {noticeMessage ? (
