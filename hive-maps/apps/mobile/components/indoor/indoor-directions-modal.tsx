@@ -135,12 +135,6 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                 const newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, dragStartH.current - gs.dy));
                 setSheetHeight(newH);
             },
-
-            onPanResponderRelease: () => {
-                if (sheetHeight < DEFAULT_HEIGHT * 0.5) {
-                    onClose();
-                }
-            },
         })
     ).current;
 
