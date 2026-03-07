@@ -442,10 +442,9 @@ export default function MapScreen() {
         };
     }, [userLocation]);
 
-    const transportMode =
-        selectedMode === 'Drive' ? TransportMode.DRIVING :
-        selectedMode === 'Transit' ? TransportMode.TRANSIT :
-        TransportMode.WALKING;
+    let transportMode: TransportMode = TransportMode.WALKING;
+    if (selectedMode === 'Drive') transportMode = TransportMode.DRIVING;
+    else if (selectedMode === 'Transit') transportMode = TransportMode.TRANSIT;
 
     const handleStartPress = useCallback(() => {
         const isShuttleMode = selectedMode === 'Shuttle';
