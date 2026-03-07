@@ -278,16 +278,14 @@ export default function MapScreen() {
         return unsubscribe;
     }, []);
 
-    const isSameCampusRoute =
-        fromCoordinates && toCoordinates
-            ? (() => {
-                  const result = validateCampusRoute({
-                      origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
-                      destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
-                  }, campusMetaById);
-                  return !result.valid || !result.route.isInterCampus;
-              })()
-            : false;
+    const isSameCampusRoute = useMemo(() => {
+        if (!fromCoordinates || !toCoordinates) return false;
+        const result = validateCampusRoute({
+            origin: {type: 'coordinate', longitude: fromCoordinates[0], latitude: fromCoordinates[1]},
+            destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
+        }, campusMetaById);
+        return !result.valid || !result.route.isInterCampus;
+    }, [fromCoordinates, toCoordinates, campusMetaById]);
 
     const shuttleRouting = useShuttleRouting({
         enabled: selectedMode === 'Shuttle' && !isSameCampusRoute && !isNavigating,
@@ -528,6 +526,25 @@ export default function MapScreen() {
         setActiveShuttlePhaseBoundaries(undefined);
         setActiveShuttleLegs(null);
     }, [toCoordinates, campusMetaById, setCampus]);
+    const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
+        if (isNavigating) return;
+        const f = e.features[0];
+        const point = points.find(p => p.id === f.properties?.id);
+        const details = point?.details as BuildingDetails | undefined;
+        const day = new Date().getDay();
+        setSelectedBuilding({
+            ...(f.properties ?? {}),
+            phone: details?.nationalPhoneNumber,
+            website: details?.websiteUri,
+            hours: details?.regularOpeningHours?.weekdayDescription?.[day === 0 ? 6 : day - 1]
+                ?? 'Hours not listed',
+            allHours: details?.regularOpeningHours?.weekdayDescriptions,
+            coordinates: f.properties?.center as Coordinates | undefined,
+            // Read directly from point — Mapbox serialises feature properties to
+            // JSON on press, which can corrupt booleans to strings or drop them.
+            hasIndoorMap: !!point?.building?.hasIndoorMap,
+        });
+    }, [isNavigating, points]);
 
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
@@ -595,28 +612,7 @@ export default function MapScreen() {
           <MapboxGL.ShapeSource
             id="campus-buildings-source"
             shape={shapeCollection}
-            onPress={(e) => {
-              const f = e.features[0];
-              console.log('Pressed feature:', f);
-
-              const point = points.find(p => p.id === f.properties?.id);
-              const details = point?.details as BuildingDetails | undefined;
-
-              if (!isNavigating) {
-                setSelectedBuilding({
-                  ...f.properties,
-                  phone: details?.nationalPhoneNumber,
-                  website: details?.websiteUri,
-                  hours: details?.regularOpeningHours?.weekdayDescription?.[new Date().getDay() === 0 ? 6: new Date().getDay()-1]
-                          ?? 'Hours not listed',
-                  allHours: details?.regularOpeningHours?.weekdayDescriptions,
-                  coordinates: f.properties?.center,
-                  // Read directly from point — Mapbox serialises feature properties to
-                  // JSON on press, which can corrupt booleans to strings or drop them.
-                  hasIndoorMap: !!point?.building?.hasIndoorMap,
-                });
-              }
-            }}
+            onPress={handleBuildingPress}
           >
             {/* LAYER A: Burgundy Background */}
             <MapboxGL.FillLayer
