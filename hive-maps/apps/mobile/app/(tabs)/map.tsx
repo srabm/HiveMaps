@@ -41,6 +41,46 @@ import type { CampusId } from '@/types/campus';
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
 
+function buildPolygonFeatures(points: ReturnType<typeof useNavigationController>['points'], userLocation: [number, number] | null) {
+    const polys = [];
+    for (const point of points) {
+        const loc = point.building.location as any;
+        if (loc?.type === 'Polygon' && loc?.coordinates) {
+            let coords = loc.coordinates;
+            let depth = 0;
+            let current = coords;
+            while (Array.isArray(current)) {
+                depth++;
+                current = current[0];
+            }
+            if (depth === 4) {
+                coords = coords[0];
+            } else if (depth === 2) {
+                coords = [coords];
+            }
+            const inUserBuilding = userLocation
+                ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
+                : false;
+            polys.push({
+                type: 'Feature' as const,
+                id: point.id,
+                geometry: { type: 'Polygon' as const, coordinates: coords },
+                properties: {
+                    id: point.id,
+                    name: point.building.name,
+                    code: point.building.code,
+                    campus: point.building.campus,
+                    addresses: point.building.addresses,
+                    isUserBuilding: inUserBuilding,
+                    center: point.building.center,
+                    hasIndoorMap: point.building.hasIndoorMap,
+                },
+            });
+        }
+    }
+    return polys;
+}
+
 type BuildingOpeningHours = {
     weekdayDescription?: string[];
     weekdayDescriptions?: string[];
@@ -352,75 +392,35 @@ export default function MapScreen() {
         });
     };
 
-    const ensureAndroidPermissions = useCallback(async (isActive: () => boolean) => {
-        if (Platform.OS !== 'android' || typeof MapboxGL.requestAndroidLocationPermissions !== 'function') return;
-        try {
-            const granted = await MapboxGL.requestAndroidLocationPermissions();
-            if (!isActive()) return;
-            if (granted) {
-                setLocationPermissionStatus('granted');
-            } else {
+    useEffect(() => {
+        let active = true;
+        const ensureAndroidPermissions = async () => {
+            if (Platform.OS !== 'android' || typeof MapboxGL.requestAndroidLocationPermissions !== 'function') return;
+            try {
+                const granted = await MapboxGL.requestAndroidLocationPermissions();
+                if (!active) return;
+                if (granted) {
+                    setLocationPermissionStatus('granted');
+                } else {
+                    setLocationPermissionStatus('denied');
+                    setShowLocationPrompt(true);
+                }
+            } catch {
+                if (!active) return;
                 setLocationPermissionStatus('denied');
                 setShowLocationPrompt(true);
             }
-        } catch {
-            if (!isActive()) return;
-            setLocationPermissionStatus('denied');
-            setShowLocationPrompt(true);
-        }
+        };
+        ensureAndroidPermissions();
+        return () => {
+            active = false;
+        };
     }, []);
-
-    useEffect(() => {
-        let active = true;
-        ensureAndroidPermissions(() => active);
-        return () => { active = false; };
-    }, [ensureAndroidPermissions]);
 
     const theme = Colors[colorScheme ?? 'light'];
 
   // --- FEATURE BUILDER ---
-  const { polygonFeatures } = useMemo(() => {
-    const polys = [];
-    const dots = [];
-
-    for (const point of points) {
-        const loc = point.building.location as any;
-        if (loc?.type === 'Polygon' && loc?.coordinates) {
-            let coords = loc.coordinates;
-            let depth = 0;
-            let current = coords;
-            while (Array.isArray(current)) {
-                depth++;
-                current = current[0];
-            }
-            if (depth === 4) {
-                coords = coords[0];
-            } else if (depth === 2) {
-                coords = [coords];
-            }
-            const inUserBuilding = userLocation
-                ? PolygonUtils.isPointInPolygon(userLocation, coords as [number, number][][])
-                : false;
-
-            polys.push({
-            type: 'Feature' as const,
-            id: point.id,
-            geometry: { type: 'Polygon' as const, coordinates: coords },
-            properties: {
-                id: point.id,
-                name: point.building.name,
-                code: point.building.code,
-                campus: point.building.campus,
-                addresses: point.building.addresses,
-                isUserBuilding: inUserBuilding,
-                center: point.building.center,
-                hasIndoorMap: point.building.hasIndoorMap,
-            },
-            });
-        }
-    }
-    return { polygonFeatures: polys};
-  }, [points, userLocation]);
+  const polygonFeatures = useMemo(() => buildPolygonFeatures(points, userLocation), [points, userLocation]);
 
     const shapeCollection = useMemo(() => ({
         type: 'FeatureCollection' as const,
