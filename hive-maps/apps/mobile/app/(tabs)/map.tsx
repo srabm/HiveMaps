@@ -352,30 +352,29 @@ export default function MapScreen() {
         });
     };
 
-    useEffect(() => {
-        let active = true;
-        const ensureAndroidPermissions = async () => {
-            if (Platform.OS !== 'android' || typeof MapboxGL.requestAndroidLocationPermissions !== 'function') return;
-            try {
-                const granted = await MapboxGL.requestAndroidLocationPermissions();
-                if (!active) return;
-                if (granted) {
-                    setLocationPermissionStatus('granted');
-                } else {
-                    setLocationPermissionStatus('denied');
-                    setShowLocationPrompt(true);
-                }
-            } catch {
-                if (!active) return;
+    const ensureAndroidPermissions = useCallback(async (isActive: () => boolean) => {
+        if (Platform.OS !== 'android' || typeof MapboxGL.requestAndroidLocationPermissions !== 'function') return;
+        try {
+            const granted = await MapboxGL.requestAndroidLocationPermissions();
+            if (!isActive()) return;
+            if (granted) {
+                setLocationPermissionStatus('granted');
+            } else {
                 setLocationPermissionStatus('denied');
                 setShowLocationPrompt(true);
             }
-        };
-        ensureAndroidPermissions();
-        return () => {
-            active = false;
-        };
+        } catch {
+            if (!isActive()) return;
+            setLocationPermissionStatus('denied');
+            setShowLocationPrompt(true);
+        }
     }, []);
+
+    useEffect(() => {
+        let active = true;
+        ensureAndroidPermissions(() => active);
+        return () => { active = false; };
+    }, [ensureAndroidPermissions]);
 
     const theme = Colors[colorScheme ?? 'light'];
 
