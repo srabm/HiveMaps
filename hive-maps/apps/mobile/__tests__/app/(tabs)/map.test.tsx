@@ -1294,19 +1294,20 @@ describe('NavigationOverlay — off-route recalculation', () => {
     });
 
     it('hides recalc-text and calls clearOffRoute after successful recalc', async () => {
-        const clearOffRoute = jest.fn(() => {
-            // Simulate the real hook: clearOffRoute flips isOffRoute back to false
-            (useStepNavigator as jest.Mock).mockReturnValue(
-                makeStepNav({ isOffRoute: false, clearOffRoute })
-            );
-        });
+        // Use a mutable ref so every render reads the current isOffRoute value.
+        // clearOffRoute flips it to false — the next render triggered by
+        // setIsRecalculating(false) in .finally() will then see isOffRoute=false
+        // and the effect won't re-fire.
+        let isOffRoute = true;
+        const clearOffRoute = jest.fn(() => { isOffRoute = false; });
+        (useStepNavigator as jest.Mock).mockImplementation(() =>
+            makeStepNav({ isOffRoute, clearOffRoute })
+        );
+
         (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
         (useLiveLocation as jest.Mock).mockReturnValue({
             location: { longitude: -73.58, latitude: 45.50 },
         });
-        (useStepNavigator as jest.Mock).mockReturnValue(
-            makeStepNav({ isOffRoute: true, clearOffRoute })
-        );
 
         const utils = await renderAndStartNavigation({ isOffRoute: true, clearOffRoute });
 
