@@ -161,4 +161,101 @@ describe('DirectionsLine display information', () => {
         const tree = toJSON();
         expect(treeHasStyleValue(tree, 'bottom', 20)).toBe(true);
     });
+})
+
+
+const makeNode = (id: string, lng: number, lat: number) => ({
+    id,
+    label: 'Junction',
+    wheelchairAccessible: true,
+    floor: '2',
+    building: 'LB',
+    longitude: lng,
+    latitude: lat,
+});
+
+const mockIndoorSteps = [
+    {
+        direction: 'STRAIGHT',
+        distance: 57,
+        description: 'Go straight 57m',
+        nodes: [makeNode('N1', -73.001, 45.001), makeNode('N2', -73.002, 45.002)],
+    },
+    {
+        direction: 'LEFT',
+        distance: 0,
+        description: 'Turn left',
+        nodes: [makeNode('N2', -73.002, 45.002)],
+    },
+    {
+        direction: 'STRAIGHT',
+        distance: 41,
+        description: 'Go straight 41m',
+        nodes: [makeNode('N2', -73.002, 45.002), makeNode('N3', -73.003, 45.003)],
+    },
+];
+
+const indoorProps = (steps: typeof mockIndoorSteps) =>
+    ({
+        useIndoorData: true,
+        IndoorDirections: steps,
+        directions: makeDirections(), // dummy directions
+    } as any);
+
+
+describe('DirectionsLine – indoor map', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('renders without crashing for valid indoor steps', () => {
+        const { toJSON } = render(
+            <DirectionsLine {...indoorProps(mockIndoorSteps)} />,
+        );
+        expect(toJSON()).not.toBeNull();
+    });
+
+    it('returns null when IndoorDirections is empty', () => {
+        const { toJSON } = render(
+            <DirectionsLine {...indoorProps([])} />,
+        );
+        expect(toJSON()).toBeNull();
+    });
+
+    it('passes a valid GeoJSON FeatureCollection to ShapeSource', () => {
+        render(<DirectionsLine {...indoorProps(mockIndoorSteps)} />);
+        const shape = mockShapeSource.mock.calls[0][0].shape;
+        expect(shape.type).toBe('FeatureCollection');
+        expect(shape.features[0].geometry.type).toBe('LineString');
+    });
+
+    it('maps each node to [lng, lat]', () => {
+        render(<DirectionsLine {...indoorProps(mockIndoorSteps)} />);
+        const coords = mockShapeSource.mock.calls[0][0].shape.features[0].geometry.coordinates;
+        expect(coords[0]).toEqual([-73.001, 45.001]);
+    });
+
+    it('flattens nodes across all steps', () => {
+        render(<DirectionsLine {...indoorProps(mockIndoorSteps)} />);
+        const coords = mockShapeSource.mock.calls[0][0].shape.features[0].geometry.coordinates;
+        expect(coords).toHaveLength(5);
+    });
+
+    it('includes coordinates from every step', () => {
+        render(<DirectionsLine {...indoorProps(mockIndoorSteps)} />);
+        const coords = mockShapeSource.mock.calls[0][0].shape.features[0].geometry.coordinates;
+        expect(coords).toContainEqual([-73.001, 45.001]);
+        expect(coords).toContainEqual([-73.002, 45.002]);
+        expect(coords).toContainEqual([-73.003, 45.003]);
+    });
+
+    it('handles a single step with one node', () => {
+        const single = [mockIndoorSteps[1]];
+        render(<DirectionsLine {...indoorProps(single)} />);
+        const coords = mockShapeSource.mock.calls[0][0].shape.features[0].geometry.coordinates;
+        expect(coords).toHaveLength(1);
+        expect(coords[0]).toEqual([-73.002, 45.002]);
+    });
 });
