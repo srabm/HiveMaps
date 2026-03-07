@@ -37,6 +37,7 @@ jest.mock('@/services/mapbox', () => {
             FillLayer: () => null,
             LineLayer: () => null,
             SymbolLayer: () => null,
+            Images: () => null,
         },
     };
 });
@@ -52,6 +53,18 @@ jest.mock('@/components/directions-bars', () => {
         },
     };
 });
+
+jest.mock('@/components/indoor/indoor-directions-modal', () => {
+    const React = require('react');
+    const {View} = require('react-native');
+    return {
+        __esModule: true,
+        default: () => React.createElement(View, {testID: 'directions-modal'}),
+    };
+});
+jest.mock('@/components/ui/directions-line', () => ({
+    DirectionsLine: () => null,
+}));
 
 jest.mock('@/services/maps/indoor-node-search-adapter', () => ({
     createIndoorNodeSearchAdapter: jest.fn(() => ({
@@ -78,6 +91,7 @@ jest.mock('@/components/search-bar', () => {
 const mockFetchNearestNode = jest.fn();
 jest.mock('@/services/http/indoor-api', () => ({
     fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
+    fetchIndoorDirections: jest.fn().mockResolvedValue([]),
 }));
 
 // ─── fixtures ─────────────────────────────────────────────────────────────────
