@@ -85,13 +85,40 @@ function decodePolyline(encoded: string): Array<[number, number]> {
     return points;
 }
 
+/** Minimum distance from a point to all segments of a decoded polyline. */
+function distanceToPolylineSegments(
+    lat: number, lon: number,
+    coords: Array<[number, number]>,
+): number {
+    let minDist = Infinity;
+    for (let j = 0; j + 1 < coords.length; j++) {
+        const [aLon, aLat] = coords[j];
+        const [bLon, bLat] = coords[j + 1];
+        const d = distanceToSegmentMetres(lat, lon, aLat, aLon, bLat, bLon);
+        if (d < minDist) minDist = d;
+        if (minDist < 5) return minDist; // close enough — stop early
+    }
+    return minDist;
+}
+
+/**
+ * Minimum distance from a point to a single step.
+ * Uses the full decoded polyline when available, otherwise falls back to
+ * the single start→end segment (e.g. Google Maps transit steps).
+ */
+function distanceToStep(lat: number, lon: number, step: Step): number {
+    if (step.polyline) {
+        return distanceToPolylineSegments(lat, lon, decodePolyline(step.polyline));
+    }
+    return distanceToSegmentMetres(
+        lat, lon,
+        step.startLocation.latitude, step.startLocation.longitude,
+        step.endLocation.latitude, step.endLocation.longitude,
+    );
+}
+
 /**
  * Minimum distance from a point to ANY segment across all remaining steps.
- *
- * When a step has a per-step `polyline`, we decode it and check every
- * segment — this handles curves and diagonal roads accurately.
- * Falls back to the single start→end segment when polyline is absent
- * (e.g. Google Maps transit steps).
  *
  * We only look at steps from `fromStepIndex` onward to avoid falsely
  * matching against already-completed segments behind the user.
@@ -104,29 +131,9 @@ function distanceToRemainingRoute(
     let minDist = Infinity;
 
     for (let i = fromStepIndex; i < steps.length; i++) {
-        const step = steps[i];
-
-        if (step.polyline) {
-            // Use the full decoded polyline for this step
-            const coords = decodePolyline(step.polyline);
-            for (let j = 0; j + 1 < coords.length; j++) {
-                const [aLon, aLat] = coords[j];
-                const [bLon, bLat] = coords[j + 1];
-                const d = distanceToSegmentMetres(lat, lon, aLat, aLon, bLat, bLon);
-                if (d < minDist) minDist = d;
-                if (minDist < 5) return minDist; // close enough — stop early
-            }
-        } else {
-            // Fallback: single start→end segment
-            const d = distanceToSegmentMetres(
-                lat, lon,
-                step.startLocation.latitude, step.startLocation.longitude,
-                step.endLocation.latitude, step.endLocation.longitude,
-            );
-            if (d < minDist) minDist = d;
-        }
-
-        if (minDist < 5) return minDist;
+        const d = distanceToStep(lat, lon, steps[i]);
+        if (d < minDist) minDist = d;
+        if (minDist < 5) return minDist; // close enough — stop early
     }
 
     return minDist;
