@@ -1297,27 +1297,38 @@ describe('NavigationOverlay — off-route recalculation', () => {
     });
 
     it('hides recalc-text and calls clearOffRoute after successful recalc', async () => {
-        // mockImplementation reads `isOffRoute` on every render call, so when
-        // clearOffRoute flips it to false the next render sees false and the
-        // recalc effect does not re-fire.
-        // We pass null as stepNavOverrides so renderAndStartNavigation does NOT
-        // call mockReturnValue (which would silently override mockImplementation).
+        // This test verifies that after getDirections resolves:
+        //   1. clearOffRoute is called
+        //   2. isRecalculating returns to false (recalc-text disappears)
+        //
+        // We use a deferred promise so we control exactly when getDirections resolves,
+        // then flush all microtasks/state updates inside act() before asserting.
+        let resolveDirections!: (v: any) => void;
+        (getDirections as jest.Mock).mockReturnValue(
+            new Promise(r => { resolveDirections = r; })
+        );
+        (useLiveLocation as jest.Mock).mockReturnValue({
+            location: { longitude: -73.58, latitude: 45.50 },
+        });
+
         let isOffRoute = true;
         const clearOffRoute = jest.fn(() => { isOffRoute = false; });
         (useStepNavigator as jest.Mock).mockImplementation(() =>
             makeStepNav({ isOffRoute, clearOffRoute })
         );
 
-        (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
-        (useLiveLocation as jest.Mock).mockReturnValue({
-            location: { longitude: -73.58, latitude: 45.50 },
-        });
-
         const utils = await renderAndStartNavigation(null);
 
-        await waitFor(() => {
-            expect(utils.queryByTestId('recalc-text')).toBeNull();
+        // Recalc should be in-flight — recalc-text visible
+        await waitFor(() => expect(utils.queryByTestId('recalc-text')).toBeTruthy());
+
+        // Resolve directions and flush all async work inside act()
+        await act(async () => {
+            resolveDirections(BASE_DIRECTIONS);
         });
+
+        // After act() drains, isRecalculating=false and isOffRoute=false
+        expect(utils.queryByTestId('recalc-text')).toBeNull();
         expect(clearOffRoute).toHaveBeenCalled();
     });
 
