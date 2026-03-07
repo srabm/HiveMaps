@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -90,7 +90,7 @@ const MANEUVER_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['
 function getManeuverIcon(maneuver: string, modifier?: string): React.ComponentProps<typeof MaterialIcons>['name'] {
     // Normalise Google UPPER_SNAKE_CASE to lowercase-hyphen, then resolve via
     // buildManeuverKey so raw Mapbox type+modifier pairs map to the right icon.
-    const normalisedType = (maneuver ?? '').toLowerCase().replace(/_/g, '-');
+    const normalisedType = (maneuver ?? '').toLowerCase().replaceAll('_', '-');
     const key = buildManeuverKey(normalisedType, modifier);
     const icon = MANEUVER_ICON[key];
     if (!icon && key !== '' && key !== 'depart') {
@@ -404,9 +404,9 @@ export function StepByStepPanel({
     // We re-render the bottom bar every 10 s so the arrival time clock stays
     // accurate even when the user is stationary (totalDurationSecondsRemaining
     // doesn't change, but wall-clock time advances).
-    const [, setTick] = useState(0);
+    const [tick, incrementTick] = useReducer((t: number) => t + 1, 0);
     useEffect(() => {
-        const id = setInterval(() => setTick((t) => t + 1), 10_000);
+        const id = setInterval(incrementTick, 10_000);
         return () => clearInterval(id);
     }, []);
 
