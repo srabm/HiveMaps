@@ -276,12 +276,12 @@ export function FloorPlanViewer({ planGeometry, rooms, selectedRoomId, onPressRo
             </MapboxGL.ShapeSource>
           )}
 
-          {poiFeatures.map((poi) => {
+          {poiFeatures.map((poi, index) => {
             const coords = poi.geometry.type === 'Point' 
               ? (poi.geometry as GeoJSON.Point).coordinates 
               : getGeometryCenter(poi.geometry);
 
-            const poiId = poi.properties?.id || Math.random().toString();
+            const poiId = poi.properties?.id || `poi-fallback-${index}`;
             const poiType = poi.properties?.type as string;
             const poiLabel = poi.properties?.label as string | undefined;
 

@@ -32,6 +32,10 @@ jest.mock('@/services/mapbox', () => {
   }
 })
 
+jest.mock('@/components/indoor/POIMarker', () => ({
+  POIMarker: () => null,
+}))
+
 const makePlanGeometry = (): GeoJSON.Polygon => ({
   type: 'Polygon',
   coordinates: [
@@ -50,7 +54,7 @@ const makeRooms = (): GeoJSON.FeatureCollection => ({
   features: [
     {
       type: 'Feature',
-      id: 'H-101',
+      id: 123,
       properties: { label: 'H-101' },
       geometry: {
         type: 'Polygon',
@@ -65,6 +69,44 @@ const makeRooms = (): GeoJSON.FeatureCollection => ({
         ],
       },
     },
+    {
+      type: 'Feature',
+      properties: { room_id: 'H-BATH', type: 'bathroom_men', name: 'Mens Washroom' },
+      geometry: {
+        type: 'Point',
+        coordinates: [-73.579, 45.490],
+      },
+    },
+    {
+      type: 'Feature',
+      properties: { code: 'H-ELEV', type: 'elevator' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [-73.5799, 45.4901],
+            [-73.5796, 45.4901],
+            [-73.5796, 45.4904],
+            [-73.5799, 45.4904],
+            [-73.5799, 45.4901],
+          ],
+        ],
+      },
+    },
+    {
+      type: 'Feature',
+      id: 'H-COLL',
+      properties: { name: 'H-Collection' },
+      geometry: {
+        type: 'GeometryCollection',
+        geometries: [
+          {
+            type: 'Point',
+            coordinates: [-73.579, 45.490],
+          }
+        ]
+      }
+    }
   ],
 })
 
@@ -76,6 +118,11 @@ describe('FloorPlanViewer', () => {
   it('renders loading placeholder when geometry/rooms are missing', () => {
     const { getByText } = render(<FloorPlanViewer />)
     expect(getByText('Floor plan viewer loading...')).toBeTruthy()
+  })
+
+  it('renders correctly with missing planGeometry but valid rooms (tests coordinate fallback)', () => {
+    const { getByTestId } = render(<FloorPlanViewer planGeometry={null} rooms={makeRooms()} />)
+    expect(getByTestId('indoor-rooms-source')).toBeTruthy()
   })
 
   it('calls onPressRoom with room id when a room is pressed', () => {
@@ -94,22 +141,22 @@ describe('FloorPlanViewer', () => {
       latestRoomsPressHandler?.({
         features: [
           {
-            id: 'H-101',
+            id: 123,
             properties: { label: 'H-101' },
           },
         ],
       })
     })
 
-    expect(onPressRoom).toHaveBeenCalledWith('H-101')
+    expect(onPressRoom).toHaveBeenCalledWith('123')
   })
 
-  it('shows selected room info card', () => {
+  it('shows selected room info card with proper label', () => {
     const { getByTestId, getByText } = render(
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={makeRooms()}
-        selectedRoomId="H-101"
+        selectedRoomId="123"
       />,
     )
 
