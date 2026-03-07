@@ -404,7 +404,7 @@ export function StepByStepPanel({
     // We re-render the bottom bar every 10 s so the arrival time clock stays
     // accurate even when the user is stationary (totalDurationSecondsRemaining
     // doesn't change, but wall-clock time advances).
-    const [tick, incrementTick] = useReducer((t: number) => t + 1, 0);
+    const [_tick, incrementTick] = useReducer((t: number) => t + 1, 0);
     useEffect(() => {
         const id = setInterval(incrementTick, 10_000);
         return () => clearInterval(id);
