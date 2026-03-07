@@ -90,7 +90,7 @@ const MANEUVER_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['
 function getManeuverIcon(maneuver: string, modifier?: string): React.ComponentProps<typeof MaterialIcons>['name'] {
     // Normalise Google UPPER_SNAKE_CASE to lowercase-hyphen, then resolve via
     // buildManeuverKey so raw Mapbox type+modifier pairs map to the right icon.
-    const normalisedType = (maneuver ?? '').toLowerCase().replace(/_/g, '-');
+    const normalisedType = (maneuver ?? '').toLowerCase().replaceAll('_', '-');
     const key = buildManeuverKey(normalisedType, modifier);
     const icon = MANEUVER_ICON[key];
     if (!icon && key !== '' && key !== 'depart') {
