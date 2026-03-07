@@ -24,6 +24,8 @@ interface DirectionBarProps {
     onClearTo?: () => void;
     onResetFrom: () => void;
     onClose?: () => void;
+    fromPlaceholder?: string
+    toPlaceholder?: string
 }
 
 const DirectionBar: React.FC<DirectionBarProps> = ({
@@ -39,6 +41,8 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                                                        onClearTo,
                                                        onResetFrom,
                                                        onClose,
+                                                       fromPlaceholder = 'Choose starting point',
+                                                       toPlaceholder = 'Choose destination'
                                                    }) => {
     const [activeField, setActiveField] = useState<"from" | "to" | null>(null);
     const [fromSuggestions, setFromSuggestions] = useState<MapLocation[]>([]);
@@ -133,7 +137,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                         </TouchableOpacity>
                         <TextInput
                             value={fromValue}
-                            placeholder="Choose starting point"
+                            placeholder={fromPlaceholder}
                             style={styles.input}
                             onFocus={() => setActiveField("from")}
                             onChangeText={(text) => {
@@ -155,7 +159,7 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                         <Ionicons name="navigate-outline" size={20} color="#000" />
                         <TextInput
                             value={toValue}
-                            placeholder="Choose destination"
+                            placeholder={toPlaceholder}
                             style={styles.input}
                             onFocus={() => setActiveField("to")}
                             onChangeText={(text) => {
