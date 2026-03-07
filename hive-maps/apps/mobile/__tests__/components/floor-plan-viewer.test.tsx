@@ -73,9 +73,9 @@ describe('FloorPlanViewer', () => {
     latestRoomsPressHandler = undefined
   })
 
-  it('renders Day 1 placeholder when geometry/rooms are missing', () => {
+  it('renders loading placeholder when geometry/rooms are missing', () => {
     const { getByText } = render(<FloorPlanViewer />)
-    expect(getByText('Floor plan viewer wired')).toBeTruthy()
+    expect(getByText('Floor plan viewer loading...')).toBeTruthy()
   })
 
   it('calls onPressRoom with room id when a room is pressed', () => {
