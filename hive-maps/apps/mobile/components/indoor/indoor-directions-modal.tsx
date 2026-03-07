@@ -166,7 +166,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
             <Animated.View style={[styles.sheet, { height: hasStarted ? sheetHeight : "auto", transform: [{ translateY: sheetAnim }] }]}>
 
                 {/* Draggable handle */}
-                <View style={styles.handleArea} {...panResponder.panHandlers}>
+                <View testID="drag-handle" style={styles.handleArea} {...panResponder.panHandlers}>
                     <View style={styles.handleBar} />
                 </View>
 

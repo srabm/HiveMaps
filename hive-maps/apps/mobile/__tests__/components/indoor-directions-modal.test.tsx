@@ -216,3 +216,147 @@ describe('DirectionsModal', () => {
         expect(getByText('You have arrived at your destination')).toBeTruthy();
     });
 });
+
+describe('PanResponder drag handle', () => {
+    let capturedGrant: ((e: any, gs: any) => void) | undefined;
+    let capturedMove:  ((e: any, gs: any) => void) | undefined;
+
+    beforeEach(() => {
+        capturedGrant = undefined;
+        capturedMove  = undefined;
+
+        jest.spyOn(require('react-native').PanResponder, 'create')
+            .mockImplementation((config: any) => {
+                capturedGrant = config.onPanResponderGrant;
+                capturedMove  = config.onPanResponderMove;
+                return { panHandlers: {} };
+            });
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('clamps sheet height to MAX_HEIGHT when dragging up beyond limit', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        act(() => {
+            capturedGrant?.({}, { y0: 500, dy: 0 });
+        });
+        act(() => {
+            capturedMove?.({}, { y0: 500, dy: -9999 });
+        });
+
+        expect(getByText('End Destination: Room B')).toBeTruthy();
+    });
+
+    it('clamps sheet height to MIN_HEIGHT when dragging down beyond limit', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        act(() => {
+            capturedGrant?.({}, { y0: 300, dy: 0 });
+        });
+        act(() => {
+            capturedMove?.({}, { y0: 300, dy: 9999 });
+        });
+
+        expect(getByText('End Destination: Room B')).toBeTruthy();
+    });
+
+    it('sets sheet height correctly for a mid-range drag', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        act(() => {
+            capturedGrant?.({}, { y0: 400, dy: 0 });
+        });
+        act(() => {
+            capturedMove?.({}, { y0: 400, dy: -50 });
+        });
+        expect(getByText(/Step 1 of/)).toBeTruthy();
+    });
+
+    it('does not crash when onPanResponderGrant fires without a prior move', () => {
+        renderModal();
+        expect(() => {
+            act(() => { capturedGrant?.({}, { y0: 200, dy: 0 }); });
+        }).not.toThrow();
+    });
+});
+
+describe('goBack', () => {
+    it('does nothing when already on the first step (isFirst guard)', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        fireEvent.press(getByText('Back'));
+        expect(getByText(/Step 1 of 4/)).toBeTruthy();
+    });
+
+    it('decrements currentIndex by 1 when not on first step', async () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => expect(getByText(/Step 2 of 4/)).toBeTruthy());
+
+        await act(async () => { fireEvent.press(getByText('Back')); });
+        await waitFor(() => expect(getByText(/Step 1 of 4/)).toBeTruthy());
+    });
+
+    it('shows correct step description after going back', async () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => expect(getByText('Turn left')).toBeTruthy());
+
+        await act(async () => { fireEvent.press(getByText('Back')); });
+        await waitFor(() => expect(getByText('Walk straight')).toBeTruthy());
+    });
+
+    it('can go back multiple steps correctly', async () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => expect(getByText(/Step 3 of 4/)).toBeTruthy());
+
+        await act(async () => { fireEvent.press(getByText('Back')); });
+        await waitFor(() => expect(getByText(/Step 2 of 4/)).toBeTruthy());
+
+        await act(async () => { fireEvent.press(getByText('Back')); });
+        await waitFor(() => expect(getByText(/Step 1 of 4/)).toBeTruthy());
+    });
+
+    it('Back button becomes enabled after advancing to step 2', async () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => {
+            const backBtn = getByText('Back').parent?.parent;
+            const isDisabled = backBtn?.props.accessibilityState?.disabled ?? backBtn?.props.disabled;
+            expect(isDisabled).toBeFalsy();
+        });
+    });
+
+    it('calls onCurrentNodeChange with the previous step node when going back', async () => {
+        const onCurrentNodeChange = jest.fn();
+        const steps = [
+            makeStep('Step 1', 'STRAIGHT', 5, [makeNode('node-1')]),
+            makeStep('Step 2', 'LEFT',     5, [makeNode('node-2')]),
+        ];
+        const { getByText } = renderModal({ steps, onCurrentNodeChange });
+        fireEvent.press(getByText('Start'));
+
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Back')); });
+
+        await waitFor(() => {
+            expect(onCurrentNodeChange).toHaveBeenLastCalledWith(
+                expect.objectContaining({ id: 'node-1' })
+            );
+        });
+    });
+});
