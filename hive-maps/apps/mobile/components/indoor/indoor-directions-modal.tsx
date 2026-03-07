@@ -176,31 +176,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                     <View style={styles.handleBar} />
                 </View>
 
-                {!hasStarted ? (
-                    <View style={styles.preStartContainer}>
-                        <View style={styles.preStartHeader}>
-                            <Text style={styles.preStartLabel}>Walk</Text>
-                            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
-                                <Text style={styles.closeBtnText}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <View style={styles.preStartRow}>
-                            <View style={styles.preStartEta}>
-                                <Text style={styles.preStartMin}>{Math.ceil((steps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
-                                <Text style={styles.preStartMinLabel}>min</Text>
-                            </View>
-                            <View style={styles.preStartInfo}>
-                                <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
-                                <Text style={styles.preStartDist}>
-                                    {steps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m
-                                </Text>
-                            </View>
-                            <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
-                                <Text style={styles.startBtnText}> Start</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                    ) :(
+                {hasStarted ? (
                     <View style={{ flex: 1 }}>
 
                         {/* Header */}
@@ -307,7 +283,31 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                         </ScrollView>
 
                     </View>
-                )}
+                ) : (
+                    <View style={styles.preStartContainer}>
+                <View style={styles.preStartHeader}>
+                    <Text style={styles.preStartLabel}>Walk</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
+                        <Text style={styles.closeBtnText}>✕</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.preStartRow}>
+                    <View style={styles.preStartEta}>
+                        <Text style={styles.preStartMin}>{Math.ceil((steps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
+                        <Text style={styles.preStartMinLabel}>min</Text>
+                    </View>
+                    <View style={styles.preStartInfo}>
+                        <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
+                        <Text style={styles.preStartDist}>
+                            {steps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m
+                        </Text>
+                    </View>
+                    <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
+                        <Text style={styles.startBtnText}> Start</Text>
+                    </TouchableOpacity>
+                </View>
+        </View>
+    )}
 
             </Animated.View>
         </View>
