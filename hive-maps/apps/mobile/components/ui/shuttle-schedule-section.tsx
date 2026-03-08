@@ -57,42 +57,21 @@ export function ShuttleScheduleSection({
     // "See full schedule" button — no metrics, no route-specific departures.
     if (showSameCampusRedirect) {
         return (
-            <View
-                testID="shuttle-schedule-section"
-                accessibilityLabel="shuttle-schedule-section"
-                style={[styles.shuttleSection, styles.shuttleSectionNoTopSpacing]}
-            >
+            <View style={[styles.shuttleSection, styles.shuttleSectionNoTopSpacing]}>
                 {!!onSameCampusRedirect && (
-                    <Pressable
-                        testID="shuttle-same-campus-redirect-button"
-                        accessibilityLabel="shuttle-same-campus-redirect-button"
-                        accessible
-                        onPress={onSameCampusRedirect}
-                        style={styles.transitSuggestion}
-                    >
+                    <Pressable onPress={onSameCampusRedirect} style={styles.transitSuggestion}>
                         <Text style={styles.transitSuggestionText}>Both locations are on the same campus.</Text>
                         <Text style={styles.transitSuggestionLink}>Switch to Walk</Text>
                     </Pressable>
                 )}
                 <View style={styles.shuttleHeaderRow}>
                     <View>
-                        <Text
-                            testID="shuttle-schedule-title"
-                            accessibilityLabel="shuttle-schedule-title"
-                            style={styles.shuttleTitle}
-                        >
-                            Shuttle Schedule
-                        </Text>
+                        <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
                         {validPeriod ? (
                             <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
                         ) : null}
                     </View>
-                    <Pressable
-                        testID="shuttle-see-full-schedule-button"
-                        accessibilityLabel="shuttle-see-full-schedule-button"
-                        accessible
-                        onPress={onOpenModal}
-                    >
+                    <Pressable onPress={onOpenModal}>
                         <Text style={styles.seeMoreLink}>See full schedule</Text>
                     </Pressable>
                 </View>
@@ -101,11 +80,7 @@ export function ShuttleScheduleSection({
     }
 
     return (
-        <View
-            testID="shuttle-schedule-section"
-            accessibilityLabel="shuttle-schedule-section"
-            style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}
-        >
+        <View style={[styles.shuttleSection, noTopSpacing && styles.shuttleSectionNoTopSpacing]}>
             {inlineMetrics && !showNextServiceLabel && (
                 <View style={styles.inlineMetricsRow}>
                     <View style={styles.inlineMetricItem}>
@@ -125,13 +100,7 @@ export function ShuttleScheduleSection({
             )}
 
             {showTransitSuggestion && (
-                <Pressable
-                    testID="shuttle-check-transit-button"
-                    accessibilityLabel="shuttle-check-transit-button"
-                    accessible
-                    onPress={onFallbackPress}
-                    style={styles.transitSuggestion}
-                >
+                <Pressable onPress={onFallbackPress} style={styles.transitSuggestion}>
                     <Text style={styles.transitSuggestionText}>{suggestionText}</Text>
                     <Text style={styles.transitSuggestionLink}>Check Transit</Text>
                 </Pressable>
@@ -139,24 +108,13 @@ export function ShuttleScheduleSection({
 
             <View style={styles.shuttleHeaderRow}>
                 <View>
-                    <Text
-                        testID="shuttle-schedule-title"
-                        accessibilityLabel="shuttle-schedule-title"
-                        style={styles.shuttleTitle}
-                    >
-                        Shuttle Schedule
-                    </Text>
+                    <Text style={styles.shuttleTitle}>Shuttle Schedule</Text>
                     {validPeriod ? (
                         <Text style={styles.shuttleSubtle}>Valid {validPeriod}</Text>
                     ) : null}
                 </View>
                 {showSeeMoreButton && (
-                    <Pressable
-                        testID="shuttle-see-full-schedule-button"
-                        accessibilityLabel="shuttle-see-full-schedule-button"
-                        accessible
-                        onPress={onOpenModal}
-                    >
+                    <Pressable onPress={onOpenModal}>
                         <Text style={styles.seeMoreLink}>See full schedule</Text>
                     </Pressable>
                 )}
@@ -165,11 +123,7 @@ export function ShuttleScheduleSection({
             {hasSchedule && (
                 <View>
                     <View style={styles.directionHeader}>
-                        <Text
-                            testID="shuttle-direction-label"
-                            accessibilityLabel="shuttle-direction-label"
-                            style={styles.shuttleListTitle}
-                        >
+                        <Text style={styles.shuttleListTitle}>
                             {directionLabel}
                             {showNextServiceLabel && nextServiceLabel
                                 ? <Text style={styles.nextServiceInline}>{'  ·  '}Next: {nextServiceLabel}</Text>

@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import {formatISOToTime, formatTimeToISO} from '@/utils/timeFormatter';
 import {TimeFilterMode} from '@/services/maps/directions-api-adapter';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 interface TimePickerModalProps {
     visible: boolean;
@@ -29,7 +28,6 @@ export function TimePickerModal({
                                     initialTime = new Date().toISOString(),
                                     initialMode = 'depart',
                                 }: Readonly<TimePickerModalProps>) {
-    const insets = useSafeAreaInsets();
     const hours = Array.from({length: 12}, (_, i) => String((i + 12) % 12 || 12).padStart(2, '0'));
     const minutes = Array.from({length: 60}, (_, i) => String(i).padStart(2, '0'));
     const periods = ['AM', 'PM'];
@@ -141,7 +139,7 @@ export function TimePickerModal({
             onRequestClose={onCancel}
         >
             <View style={styles.overlay}>
-                <View style={[styles.container, {paddingBottom: insets.bottom + 20}]}>
+                <View style={styles.container}>
                     <View style={styles.header}>
                         <View style={styles.timeModeContainer}>
                             <Pressable
@@ -161,9 +159,6 @@ export function TimePickerModal({
                                 </Text>
                             </Pressable>
                             <Pressable
-                                testID="time-picker-mode-arrive"
-                                accessibilityLabel="time-picker-mode-arrive"
-                                accessible
                                 style={[
                                     styles.timeModeButton,
                                     timeMode === 'arrive' && styles.timeModeButtonActive,
@@ -276,9 +271,6 @@ export function TimePickerModal({
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </Pressable>
                         <Pressable
-                            testID="time-picker-confirm-button"
-                            accessibilityLabel="time-picker-confirm-button"
-                            accessible
                             onPress={handleConfirm}
                             style={[styles.confirmButton, isPastSelection && styles.confirmButtonDisabled]}
                             disabled={isPastSelection}

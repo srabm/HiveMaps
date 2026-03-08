@@ -70,8 +70,6 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placehol
                 )}
                 <TouchableOpacity
                     testID='navigate-button'
-                    accessibilityLabel='navigate-button'
-                    accessible
                     style={styles.circleButton}
                     onPress={onClickButton}
                     activeOpacity={0.7}
