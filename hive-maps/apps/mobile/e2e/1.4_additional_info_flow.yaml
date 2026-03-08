@@ -1,0 +1,19 @@
+appId: com.anonymous.mobile
+---
+- tapOn:
+    point: 50%,54%
+- assertVisible: Henry F. Hall Building
+- assertVisible: Hours
+- assertVisible: Phone
+- tapOn:
+    point: 50%,50%
+- tapOn:
+    point: 50%,54%
+- repeat:
+    times: 10
+    commands:
+        - assertVisible: J.W. McConnell Building
+- assertVisible: J.W. McConnell Building
+- assertVisible: Hours
+- assertVisible: Phone
+- stopApp

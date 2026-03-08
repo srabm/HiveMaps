@@ -1,0 +1,367 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Step } from '@/services/maps/directions-api-adapter';
+import type { LiveLocation } from './use-live-location';
+
+/** Radius in metres within which we consider a step's endpoint "reached". */
+const STEP_ARRIVAL_THRESHOLD_M = 30;
+
+/**
+ * How far off the route (metres) before counting as an off-route reading.
+ * Generous enough for GPS drift and curved roads.
+ */
+const OFF_ROUTE_THRESHOLD_M = 35;
+
+/**
+ * How many consecutive off-route readings before triggering recalculation.
+ * At ~2 s per reading, 5 readings = ~10 s of sustained deviation.
+ * This prevents false positives from momentary GPS jumps.
+ */
+const OFF_ROUTE_CONSECUTIVE_REQUIRED = 5;
+
+// ─── Geometry helpers ────────────────────────────────────────────────────────
+
+const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+/** Haversine distance in metres between two lat/lon pairs. */
+export function distanceMetres(
+    lat1: number, lon1: number,
+    lat2: number, lon2: number,
+): number {
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Minimum distance in metres from point P to line segment AB. */
+function distanceToSegmentMetres(
+    pLat: number, pLon: number,
+    aLat: number, aLon: number,
+    bLat: number, bLon: number,
+): number {
+    const abLat = bLat - aLat;
+    const abLon = bLon - aLon;
+    const abLenSq = abLat * abLat + abLon * abLon;
+
+    if (abLenSq === 0) return distanceMetres(pLat, pLon, aLat, aLon);
+
+    const t = Math.max(0, Math.min(1,
+        ((pLat - aLat) * abLat + (pLon - aLon) * abLon) / abLenSq,
+    ));
+
+    return distanceMetres(pLat, pLon, aLat + t * abLat, aLon + t * abLon);
+}
+
+/**
+ * Decode a Mapbox-encoded polyline string into [lon, lat] pairs.
+ * Returns an empty array if the string is missing or malformed.
+ */
+function decodePolyline(encoded: string): Array<[number, number]> {
+    if (!encoded) return [];
+    const points: Array<[number, number]> = [];
+    let index = 0, lat = 0, lng = 0;
+
+    while (index < encoded.length) {
+        let result = 0, shift = 0, byte: number;
+        do {
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
+            result |= (byte & 0x1f) << shift;
+            shift += 5;
+        } while (byte >= 0x20);
+        lat += (result & 1) ? ~(result >> 1) : result >> 1;
+
+        result = 0; shift = 0;
+        do {
+            byte = (encoded.codePointAt(index++) ?? 0) - 63;
+            result |= (byte & 0x1f) << shift;
+            shift += 5;
+        } while (byte >= 0x20);
+        lng += (result & 1) ? ~(result >> 1) : result >> 1;
+
+        points.push([lng / 1e5, lat / 1e5]);
+    }
+    return points;
+}
+
+/** Minimum distance from a point to all segments of a decoded polyline. */
+function distanceToPolylineSegments(
+    lat: number, lon: number,
+    coords: Array<[number, number]>,
+): number {
+    let minDist = Infinity;
+    for (let j = 0; j + 1 < coords.length; j++) {
+        const [aLon, aLat] = coords[j];
+        const [bLon, bLat] = coords[j + 1];
+        const d = distanceToSegmentMetres(lat, lon, aLat, aLon, bLat, bLon);
+        if (d < minDist) minDist = d;
+        if (minDist < 5) return minDist; // close enough — stop early
+    }
+    return minDist;
+}
+
+/**
+ * Minimum distance from a point to a single step.
+ * Uses the full decoded polyline when available, otherwise falls back to
+ * the single start→end segment (e.g. Google Maps transit steps).
+ */
+function distanceToStep(lat: number, lon: number, step: Step): number {
+    if (step.polyline) {
+        return distanceToPolylineSegments(lat, lon, decodePolyline(step.polyline));
+    }
+    return distanceToSegmentMetres(
+        lat, lon,
+        step.startLocation.latitude, step.startLocation.longitude,
+        step.endLocation.latitude, step.endLocation.longitude,
+    );
+}
+
+/**
+ * Minimum distance from a point to ANY segment across all remaining steps.
+ *
+ * We only look at steps from `fromStepIndex` onward to avoid falsely
+ * matching against already-completed segments behind the user.
+ */
+function distanceToRemainingRoute(
+    lat: number, lon: number,
+    steps: Step[],
+    fromStepIndex: number,
+): number {
+    let minDist = Infinity;
+
+    for (let i = fromStepIndex; i < steps.length; i++) {
+        const d = distanceToStep(lat, lon, steps[i]);
+        if (d < minDist) minDist = d;
+        if (minDist < 5) return minDist; // close enough — stop early
+    }
+
+    return minDist;
+}
+
+// ─── Off-route counter helper ─────────────────────────────────────────────────
+
+/**
+ * Updates the consecutive off-route counter and triggers recalculation when
+ * the threshold is reached. Resets the counter when back within tolerance.
+ * Extracted to reduce cognitive complexity of the GPS update effect.
+ */
+function updateOffRouteCounter(
+    distToRoute: number,
+    countRef: React.MutableRefObject<number>,
+    setIsOffRoute: (v: boolean) => void,
+): void {
+    if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
+        countRef.current += 1;
+        if (countRef.current >= OFF_ROUTE_CONSECUTIVE_REQUIRED) {
+            console.warn('[StepNavigator] Off-route confirmed — triggering recalculation');
+            setIsOffRoute(true);
+        }
+        return;
+    }
+    // Back within tolerance — reset the counter unconditionally
+    countRef.current = 0;
+}
+
+/**
+ * Step index boundaries for the three shuttle legs.
+ * Provided by the caller when mode is Shuttle so off-route detection
+ * can be selectively disabled only during the fixed shuttle-ride segment.
+ *
+ * walkToStopCount  — number of steps in the "walk to stop" leg
+ * shuttleLegCount  — number of steps in the shuttle ride leg
+ *
+ * Indices: [0 … walkToStopCount-1]           = walk to stop
+ *          [walkToStopCount … walkToStopCount+shuttleLegCount-1] = shuttle ride
+ *          [walkToStopCount+shuttleLegCount … end]               = walk from stop
+ */
+export type ShuttlePhaseBoundaries = {
+    walkToStopCount: number;
+    shuttleLegCount: number;
+};
+
+export type ShuttlePhase = 'walk-to-stop' | 'shuttle' | 'walk-from-stop';
+
+export type StepNavigatorState = {
+    currentStepIndex: number;
+    currentStep: Step | null;
+    nextStep: Step | null;
+    afterNextStep: Step | null;
+    distanceToNextTurn: number | null;
+    totalDistanceRemaining: number | null;
+    /** Estimated seconds remaining, computed from remaining distance + step durations. */
+    totalDurationSecondsRemaining: number | null;
+    arrived: boolean;
+    isOffRoute: boolean;
+    /** Current shuttle phase — null when not in shuttle mode. */
+    shuttlePhase: ShuttlePhase | null;
+    clearOffRoute: () => void;
+    advanceStep: () => void;
+    retreatStep: () => void;
+    reset: () => void;
+};
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
+/**
+ * Drives turn-by-turn navigation through a normalised Step[] array.
+ *
+ * - Auto-advances when the user is within STEP_ARRIVAL_THRESHOLD_M of step end.
+ * - Sets `isOffRoute` after OFF_ROUTE_CONSECUTIVE_REQUIRED consecutive GPS
+ *   readings that are all > OFF_ROUTE_THRESHOLD_M from the remaining polyline.
+ *   Using the per-step polyline avoids false positives on curved roads.
+ * - When `shuttlePhaseBoundaries` is provided, off-route detection is disabled
+ *   only during the shuttle ride segment (not during the walk legs).
+ * - Pass nothing / undefined for non-shuttle modes.
+ */
+export function useStepNavigator(
+    steps: Step[],
+    liveLocation: LiveLocation | null,
+    shuttlePhaseBoundaries?: ShuttlePhaseBoundaries,
+): StepNavigatorState {
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const [isOffRoute, setIsOffRoute] = useState(false);
+    const advancedRef = useRef<Set<number>>(new Set());
+    const prevStepsRef = useRef(steps);
+    const offRouteCountRef = useRef(0);
+
+    // Reset when the steps array reference changes (new route loaded).
+    useEffect(() => {
+        if (prevStepsRef.current !== steps) {
+            prevStepsRef.current = steps;
+            setCurrentStepIndex(0);
+            setIsOffRoute(false);
+            advancedRef.current = new Set();
+            offRouteCountRef.current = 0;
+        }
+    }, [steps]);
+
+    // ── Derive shuttle phase from current index ───────────────────────────
+    const shuttlePhase = useMemo((): ShuttlePhase | null => {
+        if (!shuttlePhaseBoundaries) return null;
+        const { walkToStopCount, shuttleLegCount } = shuttlePhaseBoundaries;
+        if (currentStepIndex < walkToStopCount) return 'walk-to-stop';
+        if (currentStepIndex < walkToStopCount + shuttleLegCount) return 'shuttle';
+        return 'walk-from-stop';
+    }, [currentStepIndex, shuttlePhaseBoundaries]);
+
+    // ── Decide whether off-route detection is suppressed right now ────────
+    // Suppressed only when actively aboard the shuttle, not during walk legs.
+    const offRouteDisabled = shuttlePhase === 'shuttle';
+
+    // Auto-advance + off-route detection on every GPS update.
+    useEffect(() => {
+        if (!liveLocation || !steps.length) return;
+
+        const step = steps[currentStepIndex];
+        if (!step) return;
+
+        const distToEnd = distanceMetres(
+            liveLocation.latitude, liveLocation.longitude,
+            step.endLocation.latitude, step.endLocation.longitude,
+        );
+
+        // ── Auto-advance ──────────────────────────────────────────────────
+        if (distToEnd <= STEP_ARRIVAL_THRESHOLD_M && !advancedRef.current.has(currentStepIndex)) {
+            advancedRef.current.add(currentStepIndex);
+            offRouteCountRef.current = 0;
+            setCurrentStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+            return;
+        }
+
+        // ── Off-route detection ───────────────────────────────────────────
+        if (offRouteDisabled || isOffRoute) return;
+
+        const distToRoute = distanceToRemainingRoute(
+            liveLocation.latitude, liveLocation.longitude,
+            steps,
+            currentStepIndex,
+        );
+
+        updateOffRouteCounter(distToRoute, offRouteCountRef, setIsOffRoute);
+    }, [liveLocation, currentStepIndex, steps, offRouteDisabled, isOffRoute]);
+
+    const distanceToNextTurn = useMemo(() => {
+        if (!liveLocation || !steps.length) return null;
+        const step = steps[currentStepIndex];
+        if (!step) return null;
+        return distanceMetres(
+            liveLocation.latitude, liveLocation.longitude,
+            step.endLocation.latitude, step.endLocation.longitude,
+        );
+    }, [liveLocation, currentStepIndex, steps]);
+
+    const totalDistanceRemaining = useMemo(() => {
+        if (!steps.length) return null;
+        let total = distanceToNextTurn ?? 0;
+        for (let i = currentStepIndex + 1; i < steps.length; i++) {
+            total += steps[i].distance;
+        }
+        return total;
+    }, [steps, currentStepIndex, distanceToNextTurn]);
+
+    /**
+     * Estimated seconds remaining: sum the remaining steps' durations,
+     * substituting the current step's duration proportionally based on
+     * how far through it the user is (distanceToNextTurn / step.distance).
+     */
+    const totalDurationSecondsRemaining = useMemo(() => {
+        if (!steps.length) return null;
+        const step = steps[currentStepIndex];
+        if (!step) return null;
+
+        // Fraction of current step remaining, clamped 0–1
+        const fraction = step.distance > 0
+            ? Math.min(1, Math.max(0, (distanceToNextTurn ?? 0) / step.distance))
+            : 0;
+        let total = step.duration * fraction;
+
+        for (let i = currentStepIndex + 1; i < steps.length; i++) {
+            total += steps[i].duration;
+        }
+        return total;
+    }, [steps, currentStepIndex, distanceToNextTurn]);
+
+    const arrived =
+        steps.length > 0 &&
+        currentStepIndex >= steps.length - 1 &&
+        distanceToNextTurn !== null &&
+        distanceToNextTurn <= STEP_ARRIVAL_THRESHOLD_M;
+
+    const clearOffRoute = useCallback(() => {
+        setIsOffRoute(false);
+        offRouteCountRef.current = 0;
+    }, []);
+
+    const advanceStep = useCallback(() => {
+        setCurrentStepIndex((prev) => Math.min(prev + 1, Math.max(steps.length - 1, 0)));
+    }, [steps.length]);
+
+    const retreatStep = useCallback(() => {
+        setCurrentStepIndex((prev) => Math.max(prev - 1, 0));
+    }, []);
+
+    const reset = useCallback(() => {
+        setCurrentStepIndex(0);
+        setIsOffRoute(false);
+        advancedRef.current = new Set();
+        offRouteCountRef.current = 0;
+    }, []);
+
+    return {
+        currentStepIndex,
+        currentStep: steps[currentStepIndex] ?? null,
+        nextStep: steps[currentStepIndex + 1] ?? null,
+        afterNextStep: steps[currentStepIndex + 2] ?? null,
+        distanceToNextTurn,
+        totalDistanceRemaining,
+        totalDurationSecondsRemaining,
+        arrived,
+        isOffRoute,
+        shuttlePhase,
+        clearOffRoute,
+        advanceStep,
+        retreatStep,
+        reset,
+    };
+}

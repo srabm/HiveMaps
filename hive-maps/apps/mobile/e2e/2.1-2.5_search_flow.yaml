@@ -1,0 +1,44 @@
+appId: com.anonymous.mobile
+---
+- tapOn: Search building or address
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 2000
+- inputText: V lib
+- tapOn: Vanier Library
+- tapOn:
+    point: 51%,68%
+- tapOn: Directions
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 1500
+- tapOn:
+    point: 79%,12%
+- tapOn: Choose starting point
+- inputText: JMSB
+- tapOn:
+    text: JMSB
+    index: 1
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 1500
+- tapOn:
+    point: 92%,12%
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 1500
+- tapOn:
+    point: 92%,12%
+- tapOn:
+    point: 51%,74%
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 5000
+- tapOn:
+    point: 92%,18%
+- stopApp

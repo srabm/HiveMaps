@@ -1,0 +1,36 @@
+appId: com.anonymous.mobile
+---
+- tapOn: "Search building or address"
+- inputText: "Hall Building"
+- tapOn: "Concordia University, Henry F. Hall (H) Building"
+
+- tapOn:
+    point: 50%,54%
+
+- tapOn: "Indoor"
+
+- extendedWaitUntil:
+    visible:
+      id: "poi-icon-elevator"
+    timeout: 10000
+
+- assertVisible:
+    id: "poi-icon-elevator"
+- assertVisible:
+    id: "poi-icon-escalator"
+
+- tapOn: "8th Floor"
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- assertVisible:
+    id: "poi-icon-elevator"
+- assertVisible:
+    id: "poi-icon-escalator"
+    
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 5000
+- stopApp
