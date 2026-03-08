@@ -16,7 +16,23 @@ data class RoomFeature(
     val label: String?,
     val type: String,
     val geometry: Any?
-)
+) {
+    companion object {
+        val poiTypes: Set<String> = setOf(
+            "bathroom",
+            "bathroom_men_acc",
+            "bathroom_women_acc",
+            "bathroom_unisex_acc",
+            "bathroom_private_acc",
+            "water_fountain",
+            "stairs",
+            "elevator",
+            "escalator",
+            "printer",
+            "ramp"
+        )
+    }
+}
 
 data class FloorDetails(
     val buildingCode: String,

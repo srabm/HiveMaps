@@ -1,10 +1,12 @@
 import type * as GeoJSON from 'geojson'
-import {useMemo, useState, useRef, useEffect, useCallback} from 'react'
-import {StyleSheet, Text, View} from 'react-native'
-import {MapboxGL} from '@/services/mapbox'
-import {RoomLabelLayer} from '@/components/indoor/room-label-layer'
-import DirectionBar from '@/components/directions-bars'
-import {createIndoorNodeSearchAdapter} from '@/services/maps/indoor-node-search-adapter'
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { MapboxGL } from '@/services/mapbox';
+import { RoomLabelLayer } from '@/components/indoor/room-label-layer';
+import { POIMarker } from '@/components/indoor/POIMarker';
+import { MaterialIcons } from '@expo/vector-icons';
+import DirectionBar from '@/components/directions-bars';
+import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
 import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
@@ -20,19 +22,27 @@ export type FloorPlanViewerProps = Readonly<{
 }>
 
 type RoomFeatureProperties = {
-    id?: string
-    roomId?: string
-    room_id?: string
-    code?: string
-    name?: string
-    label?: string
-    [key: string]: unknown
+  id?: string
+  roomId?: string
+  room_id?: string
+  code?: string
+  name?: string
+  label?: string
+  type?: string
+  [key: string]: unknown
 }
 
 type MapPressFeature = {
     id?: string | number
     properties?: RoomFeatureProperties
 }
+
+const POI_TYPES = [
+  'bathroom', 'bathroom_men', 'bathroom_women', 'bathroom_unisex',
+  'bathroom_unisex_acc', 'bathroom_men_acc', 'bathroom_women_acc',
+  'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
+  'escalator', 'printer', 'ramp'
+]
 
 const getRoomId = (feature: MapPressFeature): string | null => {
     const propertyId =
@@ -75,43 +85,62 @@ const collectCoordinates = (geometry: GeoJSON.Geometry | null | undefined): [num
             item.geometries.forEach(addGeometry)
             return
         }
-        addCoordinateList(item.coordinates)
+        addCoordinateList((item as any).coordinates)
     }
 
-    if (geometry.type === 'GeometryCollection') {
-        geometry.geometries.forEach(addGeometry)
-    } else {
-        addCoordinateList(geometry.coordinates)
-    }
+    addGeometry(geometry)
 
     return accumulator
 }
 
+const getGeometryCenter = (geometry: GeoJSON.Geometry | null | undefined): [number, number] => {
+  const coords = collectCoordinates(geometry)
+  if (coords.length === 0) return [-73.578, 45.496]
+
+  const bounds = coords.reduce(
+    (memo, [lng, lat]) => ({
+      minLng: Math.min(memo.minLng, lng),
+      maxLng: Math.max(memo.maxLng, lng),
+      minLat: Math.min(memo.minLat, lat),
+      maxLat: Math.max(memo.maxLat, lat),
+    }),
+    {
+      minLng: coords[0][0],
+      maxLng: coords[0][0],
+      minLat: coords[0][1],
+      maxLat: coords[0][1],
+    },
+  )
+
+  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+}
+
 const getCenterCoordinate = (
-    planGeometry?: GeoJSON.Geometry | null,
-    rooms?: GeoJSON.FeatureCollection | null,
-): [number, number] | undefined => {
-    const planCoordinates = collectCoordinates(planGeometry)
-    const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
-    const coordinates = [...planCoordinates, ...roomCoordinates]
-    if (coordinates.length === 0) return undefined
+  planGeometry?: GeoJSON.Geometry | null,
+  rooms?: GeoJSON.FeatureCollection | null,
+): [number, number] => {
+  const planCoordinates = collectCoordinates(planGeometry)
+  const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
+  const coordinates = [...planCoordinates, ...roomCoordinates]
+  
+  if (coordinates.length === 0) return [-73.578, 45.496]
 
-    const bounds = coordinates.reduce(
-        (memo, [lng, lat]) => ({
-            minLng: Math.min(memo.minLng, lng),
-            maxLng: Math.max(memo.maxLng, lng),
-            minLat: Math.min(memo.minLat, lat),
-            maxLat: Math.max(memo.maxLat, lat),
-        }),
-        {
-            minLng: coordinates[0][0],
-            maxLng: coordinates[0][0],
-            minLat: coordinates[0][1],
-            maxLat: coordinates[0][1],
-        },
-    )
+  const bounds = coordinates.reduce(
+    (memo, [lng, lat]) => ({
+      minLng: Math.min(memo.minLng, lng),
+      maxLng: Math.max(memo.maxLng, lng),
+      minLat: Math.min(memo.minLat, lat),
+      maxLat: Math.max(memo.maxLat, lat),
+    }),
+    {
+      minLng: coordinates[0][0],
+      maxLng: coordinates[0][0],
+      minLat: coordinates[0][1],
+      maxLat: coordinates[0][1],
+    },
+  )
 
-    return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
 }
 
 const convertCoordinatesToFeature = (coordinates: [number, number]) => {
@@ -137,6 +166,28 @@ export function FloorPlanViewer({
                                     buildingCode,
                                     floorId
                                 }: FloorPlanViewerProps) {
+      
+  const { roomCollectionForLabels, poiFeatures } = useMemo(() => {
+    if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
+
+    const labelRooms: GeoJSON.Feature[] = []
+    const pois: GeoJSON.Feature[] = []
+
+    rooms.features.forEach((feature) => {
+      const type = (feature.properties?.type as string | undefined)?.toLowerCase().trim()
+      if (type && POI_TYPES.includes(type)) {
+        pois.push(feature)
+      } else {
+        labelRooms.push(feature)
+      }
+    })
+
+    return {
+      roomCollectionForLabels: { type: 'FeatureCollection' as const, features: labelRooms },
+      poiFeatures: pois,
+    }
+  }, [rooms])
+  
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
     const cameraRef = useRef<MapboxGL.Camera>(null);
     const [fromQuery, setFromQuery] = useState('');
@@ -151,6 +202,7 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
+    
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -164,6 +216,7 @@ export function FloorPlanViewer({
             setFromQuery('');
         }
     }, [buildingCode, floorId]);
+
     const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string) => {
         try {
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId);
@@ -198,7 +251,7 @@ export function FloorPlanViewer({
         if (onDirectionsActiveChange) {
             onDirectionsActiveChange(!!indoorSteps);
         }
-    }, [indoorSteps]);
+    }, [indoorSteps, onDirectionsActiveChange]);
 
     const handleUserLocationUpdate = useCallback((loc: any) => {
         const coords = loc?.coords;
@@ -256,211 +309,245 @@ export function FloorPlanViewer({
         onPressRoom(roomId)
     }
 
-    return (
-        <View testID="indoor-floor-plan" style={styles.container}>
-            {planShape && rooms ? (
-                <MapboxGL.MapView style={StyleSheet.absoluteFill} logoEnabled={false} scaleBarEnabled={false}>
-                    <MapboxGL.Camera ref={cameraRef} centerCoordinate={centerCoordinate} zoomLevel={19}/>
+  return (
+    <View testID="indoor-floor-plan" style={styles.container}>
+      {planShape && rooms ? (
+        <MapboxGL.MapView 
+          style={StyleSheet.absoluteFill} 
+          logoEnabled={false} 
+          scaleBarEnabled={false}
+          styleURL={MapboxGL.StyleURL.Light} 
+        >
+       
+          <MapboxGL.Camera 
+            ref={cameraRef}
+            centerCoordinate={centerCoordinate} 
+            zoomLevel={18.5} 
+            animationDuration={600} 
+          />
 
-                    <MapboxGL.UserLocation
-                        visible={false}
-                        onUpdate={handleUserLocationUpdate}
-                    />
+          <MapboxGL.UserLocation
+            visible={false}
+            onUpdate={handleUserLocationUpdate}
+          />
 
-                    <MapboxGL.ShapeSource id="indoor-plan-source" shape={planShape}>
-                        <MapboxGL.FillLayer
-                            id="indoor-plan-fill"
-                            style={{
-                                fillColor: '#e5e7eb',
-                                fillOpacity: 0.8,
-                            }}
-                        />
-                        <MapboxGL.LineLayer
-                            id="indoor-plan-outline"
-                            style={{
-                                lineColor: '#374151',
-                                lineWidth: 1.5,
-                            }}
-                        />
-                    </MapboxGL.ShapeSource>
+          <MapboxGL.ShapeSource id="indoor-plan-source" shape={planShape}>
+            <MapboxGL.FillLayer
+              id="indoor-plan-fill"
+              style={{
+                fillColor: '#e5e7eb',
+                fillOpacity: 0.8,
+              }}
+            />
+            <MapboxGL.LineLayer
+              id="indoor-plan-outline"
+              style={{
+                lineColor: '#374151',
+                lineWidth: 1.5,
+              }}
+            />
+          </MapboxGL.ShapeSource>
 
-                    <MapboxGL.ShapeSource
-                        id="indoor-rooms-source"
-                        shape={rooms}
-                        onPress={handleRoomPress}
-                        testID="indoor-rooms-source"
-                    >
-                        <MapboxGL.FillLayer
-                            id="indoor-rooms-fill"
-                            style={{
-                                fillColor: '#f59e0b',
-                                fillOpacity: 0.25,
-                            }}
-                        />
-                        <MapboxGL.LineLayer
-                            id="indoor-rooms-outline"
-                            style={{
-                                lineColor: '#92400e',
-                                lineWidth: 1,
-                            }}
-                        />
-                    </MapboxGL.ShapeSource>
+          <MapboxGL.ShapeSource
+            id="indoor-rooms-source"
+            shape={rooms}
+            onPress={handleRoomPress}
+            testID="indoor-rooms-source"
+          >
+            <MapboxGL.FillLayer
+              id="indoor-rooms-fill"
+              style={{
+                fillColor: '#f59e0b',
+                fillOpacity: 0.25,
+              }}
+            />
+            <MapboxGL.LineLayer
+              id="indoor-rooms-outline"
+              style={{
+                lineColor: '#92400e',
+                lineWidth: 1,
+              }}
+            />
+          </MapboxGL.ShapeSource>
 
-                    {selectedRoomFeature && (
-                        <MapboxGL.ShapeSource id="indoor-room-selected-source" shape={selectedRoomFeature}>
-                            <MapboxGL.FillLayer
-                                id="indoor-room-selected-fill"
-                                style={{
-                                    fillColor: '#f97316',
-                                    fillOpacity: 0.55,
-                                }}
-                            />
-                            <MapboxGL.LineLayer
-                                id="indoor-room-selected-outline"
-                                style={{
-                                    lineColor: '#9a3412',
-                                    lineWidth: 2,
-                                }}
-                            />
-                        </MapboxGL.ShapeSource>
-                    )}
+          {selectedRoomFeature && (
+            <MapboxGL.ShapeSource id="indoor-room-selected-source" shape={selectedRoomFeature}>
+              <MapboxGL.FillLayer
+                id="indoor-room-selected-fill"
+                style={{
+                  fillColor: '#f97316',
+                  fillOpacity: 0.55,
+                }}
+              />
+              <MapboxGL.LineLayer
+                id="indoor-room-selected-outline"
+                style={{
+                  lineColor: '#9a3412',
+                  lineWidth: 2,
+                }}
+              />
+            </MapboxGL.ShapeSource>
+          )}
 
-                    {indoorSteps && <DirectionsLine    //DirectionLine to show indoor directions (edge by edge, node by node)
-                        endpointId='indoor-directions-endpoints'
-                        useIndoorData={true}
-                        IndoorDirections={indoorSteps}
-                        lineWidth={5}
-                        directions={{
-                            polyline: "",
-                            distanceMeters: 30,
-                            durationSeconds: 20,
-                            steps:[]
-                        }}
-                    />}
+          {indoorSteps && <DirectionsLine    
+            endpointId='indoor-directions-endpoints'
+            useIndoorData={true}
+            IndoorDirections={indoorSteps}
+            lineWidth={5}
+            directions={{
+                polyline: "",
+                distanceMeters: 30,
+                durationSeconds: 20,
+                steps:[]
+            }}
+          />}
 
-                    <MapboxGL.Images
-                        images={{
-                            bee: require('@/assets/images/bee.png')
-                        }}
-                    />
-                    
-                    {(currentNode || userLocation) && (
-                        <MapboxGL.ShapeSource 
-                            id="user-location-source" 
-                            shape={convertCoordinatesToFeature(
-                                currentNode 
-                                    ? [currentNode.longitude, currentNode.latitude] 
-                                    : userLocation!
-                            )}
-                        >
-                            <MapboxGL.SymbolLayer
-                                id="indoor-user-location-icon"
-                                aboveLayerID={indoorSteps ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
-                                style={{
-                                    iconImage: 'bee',
-                                    iconSize: 0.25,
-                                    iconAllowOverlap: true,
-                                    iconAnchor: 'center',
-                                }}
-                            />
-                        </MapboxGL.ShapeSource>
-                    )}
+          <MapboxGL.Images
+            images={{
+                bee: require('@/assets/images/bee.png')
+            }}
+          />
+          
+          {(currentNode || userLocation) && (
+            <MapboxGL.ShapeSource 
+              id="user-location-source" 
+              shape={convertCoordinatesToFeature(
+                currentNode 
+                  ? [currentNode.longitude, currentNode.latitude] 
+                  : userLocation!
+              )}
+            >
+              <MapboxGL.SymbolLayer
+                id="indoor-user-location-icon"
+                aboveLayerID={indoorSteps ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
+                style={{
+                  iconImage: 'bee',
+                  iconSize: 0.25,
+                  iconAllowOverlap: true,
+                  iconAnchor: 'center',
+                }}
+              />
+            </MapboxGL.ShapeSource>
+          )}
 
-                    <RoomLabelLayer rooms={rooms} selectedRoomId={selectedRoomId}/>
+          {poiFeatures.map((poi, index) => {
+            const coords = poi.geometry.type === 'Point' 
+              ? (poi.geometry as GeoJSON.Point).coordinates 
+              : getGeometryCenter(poi.geometry);
 
-                </MapboxGL.MapView>
-            ) : (
-                <Text style={styles.placeholderText}>Floor plan viewer wired</Text>
-            )}
+            const poiId = poi.properties?.id || `poi-fallback-${index}`;
+            const poiType = poi.properties?.type as string;
+            const poiLabel = poi.properties?.label as string | undefined;
 
-            {indoorSteps && <View style={styles.directionStepsContainer} pointerEvents="box-none">
-                <DirectionsModal  // To see the indoor directions
-                    visible={true}
-                    steps={indoorSteps}
-                    origin={fromQuery}
-                    destination={toQuery}
-                    onCurrentNodeChange={(node) => {
-                        setCurrentNode(node);
-                        const coordinates = [node.longitude, node.latitude];
-                        if (coordinates) cameraRef.current?.setCamera({
-                            centerCoordinate: coordinates,
-                            zoomLevel: 21,
-                            padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
-                            animationDuration: 500
-                        });
-                    }}
-                    onClose={() => {
-                        setToQuery('');
-                        setToNodeId(null);
-                    }}
-                />
-            </View>}
+            return (
+              <MapboxGL.MarkerView
+                key={`poi-${poiId}`}
+                id={`poi-${poiId}`}
+                coordinate={coords}
+              >
+                <POIMarker type={poiType} label={poiLabel} size={22} />
+              </MapboxGL.MarkerView>
+            );
+          })}
 
-            {!indoorSteps && <View style={styles.directionBarContainer} pointerEvents="box-none">
-                <DirectionBar
-                    mapsAdapter={nodeAdapter}
-                    fromValue={fromQuery}
-                    toValue={toQuery}
-                    onChangeFrom={setFromQuery}
-                    onChangeTo={setToQuery}
-                    onSelectFrom={(mapLocation, coordinates) => {
-                        setFromQuery(mapLocation.name);
-                        setFromNodeId(mapLocation.id);
-                        if (coordinates) cameraRef.current?.setCamera({
-                            centerCoordinate: coordinates,
-                            zoomLevel: 21,
-                            animationDuration: 500
-                        });
-                    }}
-                    onSelectTo={(mapLocation, coordinates) => {
-                        setToQuery(mapLocation.name);
-                        setToNodeId(mapLocation.id);
-                        if (coordinates) cameraRef.current?.setCamera({
-                            centerCoordinate: coordinates,
-                            zoomLevel: 21,
-                            animationDuration: 500
-                        });
-                    }}
-                    onClearFrom={() => {
-                        setFromQuery('');
-                        setFromNodeId(null);
-                    }}
-                    onClearTo={() => {
-                        setToQuery('');
-                        setToNodeId(null);
-                    }}
-                    onResetFrom={() => {
-                        setFromQuery('');
-                        setFromNodeId(null);
-                    }}
-                    onSwap={() => {
-                        const tempQuery = fromQuery;
-                        const tempNodeId = fromNodeId;
-                        setFromQuery(toQuery);
-                        setFromNodeId(toNodeId);
-                        setToQuery(tempQuery);
-                        setToNodeId(tempNodeId);
-                    }}
-                    onClose={() => {
-                        setFromQuery('');
-                        setFromNodeId(null);
-                        setToQuery('');
-                        setToNodeId(null);
-                    }}
-                    fromPlaceholder="From room (e.g. H8.835)"
-                    toPlaceholder="To room (e.g. H8.841)"
-                />
-            </View>}
+          <RoomLabelLayer rooms={roomCollectionForLabels} selectedRoomId={selectedRoomId}/>
+        </MapboxGL.MapView>
+      ) : (
+        <Text style={styles.placeholderText}>Floor plan viewer loading...</Text>
+      )}
 
-            {selectedRoomId && (
-                <View testID="indoor-room-info-card" style={styles.infoCard}>
-                    <Text testID="indoor-selected-room-label" style={styles.infoCardText}>
-                        {selectedRoomLabel ? `Selected room: ${selectedRoomLabel}` : `Selected room: ${selectedRoomId}`}
-                    </Text>
-                </View>
-            )}
+      {indoorSteps && (
+        <View style={styles.directionStepsContainer} pointerEvents="box-none">
+          <DirectionsModal  
+            visible={true}
+            steps={indoorSteps}
+            origin={fromQuery}
+            destination={toQuery}
+            onCurrentNodeChange={(node) => {
+                setCurrentNode(node);
+                const coordinates = [node.longitude, node.latitude];
+                if (coordinates) cameraRef.current?.setCamera({
+                    centerCoordinate: coordinates,
+                    zoomLevel: 21,
+                    padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
+                    animationDuration: 500
+                });
+            }}
+            onClose={() => {
+                setToQuery('');
+                setToNodeId(null);
+            }}
+          />
         </View>
-    )
+      )}
+
+      {!indoorSteps && (
+        <View style={styles.directionBarContainer} pointerEvents="box-none">
+          <DirectionBar
+            mapsAdapter={nodeAdapter}
+            fromValue={fromQuery}
+            toValue={toQuery}
+            onChangeFrom={setFromQuery}
+            onChangeTo={setToQuery}
+            onSelectFrom={(mapLocation, coordinates) => {
+              setFromQuery(mapLocation.name);
+              setFromNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({
+                centerCoordinate: coordinates,
+                zoomLevel: 21,
+                animationDuration: 500
+              });
+            }}
+            onSelectTo={(mapLocation, coordinates) => {
+              setToQuery(mapLocation.name);
+              setToNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({
+                centerCoordinate: coordinates,
+                zoomLevel: 21,
+                animationDuration: 500
+              });
+            }}
+            onClearFrom={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
+            onClearTo={() => {
+              setToQuery('');
+              setToNodeId(null);
+            }}
+            onResetFrom={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
+            onSwap={() => {
+              const tempQuery = fromQuery;
+              const tempNodeId = fromNodeId;
+              setFromQuery(toQuery);
+              setFromNodeId(toNodeId);
+              setToQuery(tempQuery);
+              setToNodeId(tempNodeId);
+            }}
+            onClose={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+              setToQuery('');
+              setToNodeId(null);
+            }}
+            fromPlaceholder="From room (e.g. H8.835)"
+            toPlaceholder="To room (e.g. H8.841)"
+          />
+        </View>
+      )}
+
+      {selectedRoomId && (
+        <View testID="indoor-room-info-card" style={styles.infoCard}>
+          <Text testID="indoor-selected-room-label" style={styles.infoCardText}>
+            {selectedRoomLabel ? `Selected room: ${selectedRoomLabel}` : `Selected room: ${selectedRoomId}`}
+          </Text>
+        </View>
+      )}
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
