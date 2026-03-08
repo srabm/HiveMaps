@@ -1,0 +1,93 @@
+appId: com.anonymous.mobile
+name: "US-4.2 Indoor Directions – Select Start & Destination"
+---
+- launchApp:
+    clearState: true
+
+- assertVisible: "SGW • Sir George Williams"
+
+- tapOn: "Loyola"
+- assertVisible: "Loyola • Loyola"
+
+- tapOn: "Search building or address"
+- inputText: "V Lib"
+- tapOn: "Vanier Library"
+
+- tapOn:
+    point: 50%, 50%
+
+- tapOn: "Indoor"
+
+- assertVisible: "1st Floor"
+
+- assertVisible: "From room"
+
+- tapOn: "From room"
+- inputText: "VE-1.193"
+
+- extendedWaitUntil:
+    visible: "VE-1.193"
+    timeout: 3000
+
+- tapOn: "VE-1.193"
+
+- assertVisible: "VE-1.193"
+
+- assertVisible: "To room"
+
+- tapOn: "To room"
+- inputText: "VE230"
+
+- extendedWaitUntil:
+    visible: "VE230"
+    timeout: 3000
+
+- tapOn: "VE230"
+
+- assertVisible: "VE230"
+
+
+- tapOn:
+    id: "swap-button"
+- assertNotVisible: "From room"
+
+- tapOn:
+    id: "clear-to"
+
+- tapOn:
+    id: "close-button"
+
+
+- tapOn: "2nd Floor"
+- assertVisible: "2nd Floor"
+
+- tapOn: "From room"
+- inputText: "VE225"
+- extendedWaitUntil:
+    visible: "VE225"
+    timeout: 3000
+- tapOn: "VE225"
+
+- tapOn: "To room"
+- inputText: "VE223"
+- extendedWaitUntil:
+    visible: "VE223"
+    timeout: 3000
+- tapOn: "VE223"
+
+- assertVisible: "VE225"
+- assertVisible: "VE223"
+
+
+- tapOn:
+    id: "close-button"
+
+- tapOn: "From room"
+- inputText: "ZZZNONEXISTENT"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "clear-from"
+
+- stopApp
