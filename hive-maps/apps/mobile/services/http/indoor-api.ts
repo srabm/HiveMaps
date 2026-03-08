@@ -3,7 +3,7 @@ import {getApiBaseUrl} from './campus-api';
 export type BuildingCode = string;
 export type FloorId = string;
 export type IndoorCampusId = string;
-export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN';
+export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN' | 'DEFAULT';
 
 export interface FloorSummary {
     id: FloorId;
@@ -33,7 +33,7 @@ export interface IndoorNodeResponse {
     latitude: number;
 }
 
-export interface DirectionResponse {
+export interface IndoorDirectionsResponse {
     direction: DirectionType;
     distance: number;
     description: string;
@@ -135,7 +135,7 @@ export async function fetchIndoorDirections(
     startNodeId: string,
     endNodeId: string,
     accessible = false,
-): Promise<DirectionResponse[]>{
+): Promise<IndoorDirectionsResponse[]>{
     const path = `/api/indoor-directions/building/${encodeURIComponent(buildingCode)}/from/${encodeURIComponent(startNodeId)}/to/${encodeURIComponent(endNodeId)}?accessible=${accessible}`;
-    return getIndoorJson<DirectionResponse[]>(path);
+    return getIndoorJson<IndoorDirectionsResponse[]>(path);
 }

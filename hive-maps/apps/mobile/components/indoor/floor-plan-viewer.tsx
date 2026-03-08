@@ -7,16 +7,19 @@ import { POIMarker } from '@/components/indoor/POIMarker';
 import { MaterialIcons } from '@expo/vector-icons';
 import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
-import { fetchNearestNode } from '@/services/http/indoor-api';
+import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse} from '@/services/http/indoor-api'
+import {DirectionsLine} from "@/components/ui/directions-line";
+import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 
-export type FloorPlanViewerProps = {
+export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
     rooms?: GeoJSON.FeatureCollection | null
     selectedRoomId?: string | null
     onPressRoom?: (roomId: string) => void
+    onDirectionsActiveChange?: (active: boolean) => void
     buildingCode: string
     floorId: string
-}
+}>
 
 type RoomFeatureProperties = {
   id?: string
@@ -161,11 +164,26 @@ const getCenterCoordinate = (
     return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
 }
 
+const convertCoordinatesToFeature = (coordinates: [number, number]) => {
+    return {
+        type: 'FeatureCollection' as const,
+        features: [
+            {
+                type: 'Feature' as const,
+                id: 'user-location',
+                geometry: {type: 'Point' as const, coordinates: coordinates},
+                properties: {},
+            },
+        ],
+    };
+}
+
 export function FloorPlanViewer({
                                     planGeometry,
                                     rooms,
                                     selectedRoomId,
                                     onPressRoom,
+                                    onDirectionsActiveChange,
                                     buildingCode,
                                     floorId
                                 }: FloorPlanViewerProps) {
@@ -197,13 +215,14 @@ export function FloorPlanViewer({
     const [toQuery, setToQuery] = useState('');
     const [fromNodeId, setFromNodeId] = useState<string | null>(null);
     const [toNodeId, setToNodeId] = useState<string | null>(null);
+    const [indoorSteps, setIndoorSteps] = useState<IndoorDirectionsResponse[] | null>(null);
+    const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+    const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
     const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
-
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -217,6 +236,16 @@ export function FloorPlanViewer({
             setFromQuery('');
         }
     }, [buildingCode, floorId]);
+    const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string) => {
+        try {
+            const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId);
+            setIndoorSteps(steps);
+        } catch (err) {
+            console.log('[IndoorDirections] No directions found:', err instanceof Error ? err.message : err);
+            setIndoorSteps(null);
+            setCurrentNode(null);
+        }
+    }, [buildingCode]);
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
@@ -227,6 +256,21 @@ export function FloorPlanViewer({
             resolveNearestNode(coords[0], coords[1]);
         }
     }, [buildingCode, floorId, resolveNearestNode]);
+
+    useEffect(() => {
+        if (!fromNodeId || !toNodeId) {
+            setIndoorSteps(null);
+            setCurrentNode(null);
+            return;
+        }
+        resolveDirections(fromNodeId, toNodeId);
+    }, [fromNodeId, toNodeId, resolveDirections]);
+
+    useEffect(() => {
+        if (onDirectionsActiveChange) {
+            onDirectionsActiveChange(!!indoorSteps);
+        }
+    }, [indoorSteps]);
 
     const handleUserLocationUpdate = useCallback((loc: any) => {
         const coords = loc?.coords;
@@ -239,6 +283,7 @@ export function FloorPlanViewer({
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
+        setUserLocation([longitude, latitude]);
     }, [resolveNearestNode]);
 
     const planShape = useMemo(() => {
@@ -282,7 +327,7 @@ export function FloorPlanViewer({
         if (!roomId || !onPressRoom) return
         onPressRoom(roomId)
     }
-  }, [rooms, selectedRoomId])
+}, [rooms, selectedRoomId])
 
   const selectedRoomLabel = useMemo(() => {
     if (!selectedRoomFeature?.features[0]) return null
@@ -309,6 +354,7 @@ export function FloorPlanViewer({
           scaleBarEnabled={false}
           styleURL={MapboxGL.StyleURL.Light} 
         >
+       
           <MapboxGL.Camera 
             ref={cameraRef}
             centerCoordinate={centerCoordinate} 
@@ -378,7 +424,48 @@ export function FloorPlanViewer({
               />
             </MapboxGL.ShapeSource>
           )}
+
+          {indoorSteps && <DirectionsLine    
+            endpointId='indoor-directions-endpoints'
+            useIndoorData={true}
+            IndoorDirections={indoorSteps}
+            lineWidth={5}
+            directions={{
+                polyline: "",
+                distanceMeters: 30,
+                durationSeconds: 20,
+                steps:[]
+            }}
+          />}
+
+          <MapboxGL.Images
+            images={{
+                bee: require('@/assets/images/bee.png')
+            }}
+          />
           
+          {(currentNode || userLocation) && (
+            <MapboxGL.ShapeSource 
+              id="user-location-source" 
+              shape={convertCoordinatesToFeature(
+                currentNode 
+                  ? [currentNode.longitude, currentNode.latitude] 
+                  : userLocation!
+              )}
+            >
+              <MapboxGL.SymbolLayer
+                id="indoor-user-location-icon"
+                aboveLayerID={indoorSteps ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
+                style={{
+                  iconImage: 'bee',
+                  iconSize: 0.25,
+                  iconAllowOverlap: true,
+                  iconAnchor: 'center',
+                }}
+              />
+            </MapboxGL.ShapeSource>
+          )}
+
           {poiFeatures.map((poi, index) => {
             const coords = poi.geometry.type === 'Point' 
               ? (poi.geometry as GeoJSON.Point).coordinates 
@@ -399,67 +486,94 @@ export function FloorPlanViewer({
             );
           })}
 
-          <RoomLabelLayer rooms={roomCollectionForLabels} selectedRoomId={selectedRoomId} />
+          <RoomLabelLayer rooms={roomCollectionForLabels} selectedRoomId={selectedRoomId}/>
         </MapboxGL.MapView>
       ) : (
         <Text style={styles.placeholderText}>Floor plan viewer loading...</Text>
       )}
 
-      <View style={styles.directionBarContainer} pointerEvents="box-none">
-          <DirectionBar
-              mapsAdapter={nodeAdapter}
-              fromValue={fromQuery}
-              toValue={toQuery}
-              onChangeFrom={setFromQuery}
-              onChangeTo={setToQuery}
-              onSelectFrom={(mapLocation, coordinates) => {
-                  setFromQuery(mapLocation.name);
-                  setFromNodeId(mapLocation.id);
-                  if (coordinates) cameraRef.current?.setCamera({
-                      centerCoordinate: coordinates,
-                      zoomLevel: 21,
-                      animationDuration: 500
-                  });
-              }}
-              onSelectTo={(mapLocation, coordinates) => {
-                  setToQuery(mapLocation.name);
-                  setToNodeId(mapLocation.id);
-                  if (coordinates) cameraRef.current?.setCamera({
-                      centerCoordinate: coordinates,
-                      zoomLevel: 21,
-                      animationDuration: 500
-                  });
-              }}
-              onClearFrom={() => {
-                  setFromQuery('');
-                  setFromNodeId(null);
-              }}
-              onClearTo={() => {
-                  setToQuery('');
-                  setToNodeId(null);
-              }}
-              onResetFrom={() => {
-                  setFromQuery('');
-                  setFromNodeId(null);
-              }}
-              onSwap={() => {
-                  const tempQuery = fromQuery;
-                  const tempNodeId = fromNodeId;
-                  setFromQuery(toQuery);
-                  setFromNodeId(toNodeId);
-                  setToQuery(tempQuery);
-                  setToNodeId(tempNodeId);
-              }}
-              onClose={() => {
-                  setFromQuery('');
-                  setFromNodeId(null);
-                  setToQuery('');
-                  setToNodeId(null);
-              }}
-              fromPlaceholder="From room (e.g. H8.835)"
-              toPlaceholder="To room (e.g. H8.841)"
+      {indoorSteps && (
+        <View style={styles.directionStepsContainer} pointerEvents="box-none">
+          <DirectionsModal  
+            visible={true}
+            steps={indoorSteps}
+            origin={fromQuery}
+            destination={toQuery}
+            onCurrentNodeChange={(node) => {
+                setCurrentNode(node);
+                const coordinates = [node.longitude, node.latitude];
+                if (coordinates) cameraRef.current?.setCamera({
+                    centerCoordinate: coordinates,
+                    zoomLevel: 21,
+                    padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
+                    animationDuration: 500
+                });
+            }}
+            onClose={() => {
+                setToQuery('');
+                setToNodeId(null);
+            }}
           />
-      </View>
+        </View>
+      )}
+
+      {!indoorSteps && (
+        <View style={styles.directionBarContainer} pointerEvents="box-none">
+          <DirectionBar
+            mapsAdapter={nodeAdapter}
+            fromValue={fromQuery}
+            toValue={toQuery}
+            onChangeFrom={setFromQuery}
+            onChangeTo={setToQuery}
+            onSelectFrom={(mapLocation, coordinates) => {
+              setFromQuery(mapLocation.name);
+              setFromNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({
+                centerCoordinate: coordinates,
+                zoomLevel: 21,
+                animationDuration: 500
+              });
+            }}
+            onSelectTo={(mapLocation, coordinates) => {
+              setToQuery(mapLocation.name);
+              setToNodeId(mapLocation.id);
+              if (coordinates) cameraRef.current?.setCamera({
+                centerCoordinate: coordinates,
+                zoomLevel: 21,
+                animationDuration: 500
+              });
+            }}
+            onClearFrom={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
+            onClearTo={() => {
+              setToQuery('');
+              setToNodeId(null);
+            }}
+            onResetFrom={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+            }}
+            onSwap={() => {
+              const tempQuery = fromQuery;
+              const tempNodeId = fromNodeId;
+              setFromQuery(toQuery);
+              setFromNodeId(toNodeId);
+              setToQuery(tempQuery);
+              setToNodeId(tempNodeId);
+            }}
+            onClose={() => {
+              setFromQuery('');
+              setFromNodeId(null);
+              setToQuery('');
+              setToNodeId(null);
+            }}
+            fromPlaceholder="From room (e.g. H8.835)"
+            toPlaceholder="To room (e.g. H8.841)"
+          />
+        </View>
+      )}
 
       {selectedRoomId && (
         <View testID="indoor-room-info-card" style={styles.infoCard}>
@@ -468,6 +582,9 @@ export function FloorPlanViewer({
           </Text>
         </View>
       )}
+    </View>
+  )
+}
         </View>
     )
 }
@@ -505,5 +622,12 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 1000,
-    }
+    },
+    directionStepsContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+    },
 })

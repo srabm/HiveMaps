@@ -95,6 +95,7 @@ export default function IndoorMapScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [directionsActive, setDirectionsActive] = useState(false);
   const unavailableFloorIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -345,6 +346,7 @@ export default function IndoorMapScreen() {
             rooms={floorDetails?.rooms}
             selectedRoomId={selectedRoomId}
             onPressRoom={setSelectedRoomId}
+            onDirectionsActiveChange={setDirectionsActive}
             buildingCode={buildingCode ?? ''}
             floorId={activeFloorId ?? ''}
           />
@@ -355,18 +357,18 @@ export default function IndoorMapScreen() {
             </View>
           ) : null}
 
-          <View style={styles.selectorOverlay} pointerEvents="box-none">
+          {!directionsActive && <View style={styles.selectorOverlay} pointerEvents="box-none">
             <FloorSelector
               floors={selectorFloors}
               activeFloorId={activeFloorId}
               onSelectFloor={handleSelectFloor}
               disabled={isLoadingFloors || isLoadingFloorDetails}
             />
-          </View>
+          </View>}
 
-          <View style={styles.indicatorOverlay} pointerEvents="box-none">
+          {!directionsActive && <View style={styles.indicatorOverlay} pointerEvents="box-none">
             <FloorIndicator buildingCode={buildingCode} floorLabel={currentFloorLabel} />
-          </View>
+          </View>}
 
           {isLoadingFloorDetails ? (
             <View style={styles.viewerLoadingOverlay} pointerEvents="none">
