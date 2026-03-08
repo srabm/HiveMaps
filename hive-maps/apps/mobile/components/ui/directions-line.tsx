@@ -2,6 +2,7 @@ import React, {useMemo} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {MapboxGL} from '@/services/mapbox';
 import type {DirectionsResponse} from '@/services/maps/directions-api-adapter';
+import { IndoorDirectionsResponse } from '@/services/http/indoor-api';
 
 type Position = [number, number];
 
@@ -9,11 +10,14 @@ interface DirectionsDisplayProps {
     directions: DirectionsResponse;
     sourceId?: string;
     layerId?: string;
+    endpointId?: string;
     lineColor?: string;
     lineWidth?: number;
     infoCardPosition?: 'top' | 'bottom';
     showInfoCard?: boolean;
     lineDasharray?: number[];
+    useIndoorData?:boolean;
+    IndoorDirections?: IndoorDirectionsResponse[];
 }
 
 /**
@@ -68,16 +72,30 @@ export function DirectionsLine({
                                    directions,
                                    sourceId = 'directions-source',
                                    layerId = 'directions-layer',
+                                   endpointId,
                                    lineColor = '#e5a712',
                                    lineWidth = 10,
                                    infoCardPosition = 'bottom',
                                    showInfoCard = true,
                                    lineDasharray,
+                                   useIndoorData = false,
+                                   IndoorDirections,
                                }: Readonly<DirectionsDisplayProps>) {
-    const coordinates = useMemo(
-        () => decodePolyline(directions.polyline),
-        [directions.polyline],
-    );
+
+
+    const coordinates = useMemo(() => {
+        if (useIndoorData && IndoorDirections) {
+            return IndoorDirections.flatMap((step) =>
+                step.nodes.map((node) => [node.longitude, node.latitude] as [number, number])
+            );
+        }
+
+        if (directions) {
+            return decodePolyline(directions.polyline);
+        }
+
+        return [];
+    }, [directions, IndoorDirections, useIndoorData]);
 
     const featureCollection = useMemo(
         () => {
@@ -151,7 +169,7 @@ export function DirectionsLine({
 
             <MapboxGL.ShapeSource id={`${sourceId}-endpoints`} shape={endpointsCollection}>
                 <MapboxGL.CircleLayer
-                    id={`${layerId}-endpoints`}
+                    id={endpointId || `${layerId}-endpoints`}
                     style={{
                         circleColor: lineColor,
                         circleRadius: 8,
