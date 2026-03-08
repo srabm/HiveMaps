@@ -162,7 +162,12 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                                 onChangeTo?.(text);
                             }}
                         />
-                        <TouchableOpacity testID="clear-to" onPress={onClearTo}>
+                        <TouchableOpacity
+                            testID="clear-to"
+                            accessibilityLabel="clear-to"
+                            accessible
+                            onPress={onClearTo}
+                        >
                             <Ionicons name="close" size={20} />
                         </TouchableOpacity>
                     </View>

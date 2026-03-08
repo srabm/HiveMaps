@@ -40,6 +40,8 @@ const MODE_META: Record<TransportModeLabel, {label: string; indicatorColor: stri
     Shuttle: {label: 'Shuttle', indicatorColor: '#f4b742'},
 };
 
+const modeAutomationId = (mode: TransportModeLabel) => `nav-mode-${mode.toLowerCase()}`;
+
 export const mapUiModeToTransportMode = (mode: TransportModeLabel) => {
     switch (mode) {
         case 'Drive':
@@ -564,10 +566,25 @@ export function NavigationBottom({
 
     return (
         <>
-            <View style={styles.navCard}>
+            <View
+                pointerEvents="box-none"
+                style={styles.navRoot}
+            >
+            <View
+                style={styles.navCard}
+            >
                 <View style={styles.navHeaderRow}>
-                    <Text style={styles.navHeaderText}>{selectedMode}</Text>
+                    <Text
+                        testID="nav-selected-mode"
+                        accessibilityLabel="nav-selected-mode"
+                        style={styles.navHeaderText}
+                    >
+                        {selectedMode}
+                    </Text>
                     <Pressable
+                        testID="nav-time-filter-button"
+                        accessibilityLabel="nav-time-filter-button"
+                        accessible
                         style={styles.departAtButton}
                         onPress={() => setTimePickerVisible(true)}
                     >
@@ -577,6 +594,7 @@ export function NavigationBottom({
 
                 <View style={styles.modeBarContainer}>
                     <Animated.View
+                        pointerEvents="none"
                         style={[
                             styles.modeIndicator,
                             {
@@ -589,6 +607,12 @@ export function NavigationBottom({
                     {MODES.map((mode, index) => (
                         <Pressable
                             key={mode}
+                            testID={modeAutomationId(mode)}
+                            accessibilityLabel={modeAutomationId(mode)}
+                            accessibilityRole="button"
+                            importantForAccessibility="yes"
+                            accessible
+                            hitSlop={6}
                             onPress={() => handleModeChange(mode)}
                             style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
                         >
@@ -612,7 +636,13 @@ export function NavigationBottom({
                         </View>
 
                         <View style={[styles.metricCell, styles.middleCell]}>
-                            <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                            <Text
+                                testID="nav-arrival-text"
+                                accessibilityLabel="nav-arrival-text"
+                                style={styles.arrivalText}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
                                 {displayedArrivalText}
                             </Text>
                             <View style={styles.distanceRow}>
@@ -694,6 +724,7 @@ export function NavigationBottom({
                     onClose={() => setShowScheduleModal(false)}
                 />
             </View>
+            </View>
 
             <TimePickerModal
                 visible={timePickerVisible}
@@ -707,11 +738,12 @@ export function NavigationBottom({
 }
 
 const styles = StyleSheet.create({
+    navRoot: {
+        width: '100%',
+    },
     navCard: {
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 20,
+        marginHorizontal: 12,
+        marginBottom: 20,
         padding: 14,
         borderRadius: 16,
         backgroundColor: '#FFFFFF',

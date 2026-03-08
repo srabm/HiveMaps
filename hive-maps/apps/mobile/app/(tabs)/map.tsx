@@ -1,6 +1,7 @@
 import { Href, useRouter } from 'expo-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -59,6 +60,7 @@ type SelectedBuilding = {
 
 export default function MapScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     
     const {
         campus,
@@ -151,6 +153,8 @@ export default function MapScreen() {
         timeFilter,
         timeFilterMode,
     });
+
+    const showNavigationBottom = !!(fromCoordinates && toCoordinates && routeValidation?.valid);
 
     // 2.4.2 — Validate campus-to-campus route when both endpoints are set
     useEffect(() => {
@@ -467,7 +471,7 @@ export default function MapScreen() {
                 <CampusBadge campus={campusMeta}/>
             </View>
 
-            <View style={styles.switchContainer}>
+            <View style={[styles.switchContainer, {bottom: insets.bottom + 40}]}>
                 <CampusSwitch options={campuses} value={campus} onChange={setCampus}/>
             </View>
 
@@ -577,8 +581,13 @@ export default function MapScreen() {
                 }
             </View>
 
-            {fromCoordinates && toCoordinates && routeValidation?.valid && (
-                <View style={styles.navigationBottomContainer}>
+            {showNavigationBottom && (
+                <View
+                    testID="navigation-bottom-container"
+                    accessibilityLabel="navigation-bottom-container"
+                    collapsable={false}
+                    style={[styles.navigationBottomContainer, {bottom: insets.bottom + 5}]}
+                >
                     <NavigationBottom
                         campuses={campusMetaById}
                         origin={{

@@ -1,0 +1,121 @@
+appId: com.anonymous.mobile
+---
+- assertVisible: "SGW • Sir George Williams"
+
+# Open direction bar with current location as origin.
+- tapOn:
+    id: "navigate-button"
+- assertVisible: "Your location"
+- assertVisible: "Choose destination"
+
+# Destination at Loyola (inter-campus route).
+- tapOn: "Choose destination"
+- inputText: Vanier Library
+- tapOn: "7141 Sherbrooke St W"
+
+- assertVisible:
+    id: "navigation-bottom-container"
+- assertVisible:
+    id: "nav-mode-drive"
+- assertVisible:
+    id: "nav-mode-shuttle"
+
+# AC: User can select shuttle mode.
+- tapOn:
+    id: "nav-mode-shuttle"
+- assertVisible:
+    id: "shuttle-schedule-section"
+- assertVisible:
+    id: "shuttle-schedule-title"
+
+# AC: Shuttle-specific information is shown.
+- assertVisible:
+    id: "shuttle-direction-label"
+
+- runFlow:
+    when:
+      visible:
+        id: "shuttle-see-full-schedule-button"
+    commands:
+      - tapOn:
+          id: "shuttle-see-full-schedule-button"
+      - assertVisible: "Shuttle Schedule"
+      - tapOn: "Close"
+
+# AC: No errors switching between shuttle and non-shuttle modes.
+- tapOn:
+    id: "nav-mode-drive"
+- assertVisible:
+    id: "nav-selected-mode"
+- assertNotVisible: "Directions Unavailable"
+- tapOn:
+    id: "nav-mode-transit"
+- assertVisible:
+    id: "nav-selected-mode"
+- assertNotVisible: "Directions Unavailable"
+- tapOn:
+    id: "nav-mode-shuttle"
+- assertVisible:
+    id: "shuttle-schedule-section"
+- assertNotVisible: "Directions Unavailable"
+
+# AC: Availability updates with time changes.
+- tapOn:
+    id: "nav-time-filter-button"
+- assertVisible:
+    id: "time-picker-mode-arrive"
+- tapOn:
+    id: "time-picker-mode-arrive"
+- swipe:
+    from:
+      text: "09"
+    direction: UP
+- tapOn:
+    id: "time-picker-confirm-button"
+- assertVisible:
+    id: "nav-arrival-text"
+
+# AC: When shuttle is unavailable, alternative route is suggested.
+- runFlow:
+    when:
+      visible:
+        id: "shuttle-check-transit-button"
+    commands:
+      - tapOn:
+          id: "shuttle-check-transit-button"
+      - tapOn:
+          id: "nav-mode-shuttle"
+
+# AC: Location-aware update using same-campus redirect.
+- tapOn: 
+- tapOn:
+    id: "navigate-button"
+# Destination at same location
+- tapOn: "Choose destination"
+- inputText: Henry F. Hall Building
+- tapOn: 1455 Blvd. De Maisonneuve Ouest
+- assertVisible: Origin and destination cannot be the same location.
+- tapOn: Dismiss
+- tapOn: 
+- tapOn:
+    id: "navigate-button"
+# Destination at same campus
+- tapOn: "Choose destination"
+- inputText: John Molson School of Business
+- tapOn: 1450 Guy St
+- repeat:
+    times: 20
+    commands:
+      - assertVisible:
+          id: "nav-mode-shuttle"
+- tapOn:
+    id: "nav-mode-shuttle"
+- assertVisible:
+    id: "shuttle-same-campus-redirect-button"
+- tapOn:
+    id: "shuttle-same-campus-redirect-button"
+- assertVisible:
+    id: "nav-mode-walk"
+- assertNotVisible: "Directions Unavailable"
+
+- stopApp
