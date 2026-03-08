@@ -85,16 +85,10 @@ const collectCoordinates = (geometry: GeoJSON.Geometry | null | undefined): [num
             item.geometries.forEach(addGeometry)
             return
         }
-        addCoordinateList(item.coordinates)
+        addCoordinateList((item as any).coordinates)
     }
-    addCoordinateList((item as any).coordinates)
-  }
 
-  if (geometry.type === 'GeometryCollection') {
-    geometry.geometries.forEach(addGeometry)
-  } else {
-    addCoordinateList((geometry as any).coordinates)
-  }
+    addGeometry(geometry)
 
     return accumulator
 }
@@ -146,22 +140,7 @@ const getCenterCoordinate = (
     },
   )
 
-    const bounds = coordinates.reduce(
-        (memo, [lng, lat]) => ({
-            minLng: Math.min(memo.minLng, lng),
-            maxLng: Math.max(memo.maxLng, lng),
-            minLat: Math.min(memo.minLat, lat),
-            maxLat: Math.max(memo.maxLat, lat),
-        }),
-        {
-            minLng: coordinates[0][0],
-            maxLng: coordinates[0][0],
-            minLat: coordinates[0][1],
-            maxLat: coordinates[0][1],
-        },
-    )
-
-    return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
 }
 
 const convertCoordinatesToFeature = (coordinates: [number, number]) => {
@@ -223,6 +202,7 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
+    
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -236,6 +216,7 @@ export function FloorPlanViewer({
             setFromQuery('');
         }
     }, [buildingCode, floorId]);
+
     const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string) => {
         try {
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId);
@@ -270,7 +251,7 @@ export function FloorPlanViewer({
         if (onDirectionsActiveChange) {
             onDirectionsActiveChange(!!indoorSteps);
         }
-    }, [indoorSteps]);
+    }, [indoorSteps, onDirectionsActiveChange]);
 
     const handleUserLocationUpdate = useCallback((loc: any) => {
         const coords = loc?.coords;
@@ -327,23 +308,6 @@ export function FloorPlanViewer({
         if (!roomId || !onPressRoom) return
         onPressRoom(roomId)
     }
-}, [rooms, selectedRoomId])
-
-  const selectedRoomLabel = useMemo(() => {
-    if (!selectedRoomFeature?.features[0]) return null
-    return getRoomLabel({
-      id: selectedRoomFeature.features[0].id as string | number,
-      properties: selectedRoomFeature.features[0].properties as RoomFeatureProperties,
-    })
-  }, [selectedRoomFeature])
-
-  const handleRoomPress = (event: any) => {
-    const feature = event?.features?.[0] as MapPressFeature | undefined
-    if (!feature) return
-    const roomId = getRoomId(feature)
-    if (!roomId || !onPressRoom) return
-    onPressRoom(roomId)
-  }
 
   return (
     <View testID="indoor-floor-plan" style={styles.container}>
@@ -584,9 +548,6 @@ export function FloorPlanViewer({
       )}
     </View>
   )
-}
-        </View>
-    )
 }
 
 const styles = StyleSheet.create({

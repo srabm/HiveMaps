@@ -25,13 +25,16 @@ jest.mock('@/services/mapbox', () => {
     return null;
   };
 
+  const MockCamera = React.forwardRef((_: any, ref: any) => {
+    if (ref) ref.current = {setCamera: jest.fn()};
+    return null;
+  });
+  MockCamera.displayName = 'MockCamera';
+
   return {
     MapboxGL: {
       MapView: ({children}: any) => React.createElement(View, null, children),
-      Camera: React.forwardRef((_: any, ref: any) => {
-        if (ref) ref.current = {setCamera: jest.fn()};
-        return null;
-      }),
+      Camera: MockCamera,
       UserLocation,
       ShapeSource,
       FillLayer: () => null,
@@ -63,15 +66,16 @@ jest.mock('@/components/directions-bars', () => {
 });
 
 jest.mock('@/components/indoor/indoor-directions-modal', () => {
-    const React = require('react');
-    const {View} = require('react-native');
-    return {
-        __esModule: true,
-        default: () => React.createElement(View, {testID: 'directions-modal'}),
-    };
+  const React = require('react');
+  const {View} = require('react-native');
+  return {
+    __esModule: true,
+    default: () => React.createElement(View, {testID: 'directions-modal'}),
+  };
 });
+
 jest.mock('@/components/ui/directions-line', () => ({
-    DirectionsLine: () => null,
+  DirectionsLine: () => null,
 }));
 
 jest.mock('@/services/maps/indoor-node-search-adapter', () => ({
@@ -98,8 +102,8 @@ jest.mock('@/components/search-bar', () => {
 
 const mockFetchNearestNode = jest.fn();
 jest.mock('@/services/http/indoor-api', () => ({
-    fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
-    fetchIndoorDirections: jest.fn().mockResolvedValue([]),
+  fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
+  fetchIndoorDirections: jest.fn().mockResolvedValue([]),
 }));
 
 // ─── fixtures ─────────────────────────────────────────────────────────────────
@@ -252,10 +256,10 @@ describe('FloorPlanViewer', () => {
     );
 
     act(() => {
-      latestRoomsPressHandler?.({features: [{id: 'H-101', properties: {label: 'H-101'}}]});
+      latestRoomsPressHandler?.({features: [{id: '123', properties: {label: 'H-101'}}]});
     });
 
-    expect(onPressRoom).toHaveBeenCalledWith('H-101');
+    expect(onPressRoom).toHaveBeenCalledWith('123');
   });
 
   it('calls onPressRoom using roomId property when feature.id is absent', () => {
@@ -327,7 +331,7 @@ describe('FloorPlanViewer', () => {
 
     expect(() => {
       act(() => {
-        latestRoomsPressHandler?.({features: [{id: 'H-101', properties: {}}]});
+        latestRoomsPressHandler?.({features: [{id: 123, properties: {}}]});
       });
     }).not.toThrow();
   });
@@ -357,7 +361,7 @@ describe('FloorPlanViewer', () => {
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={makeRooms()}
-        selectedRoomId="H-101"
+        selectedRoomId="123"
         buildingCode="H"
         floorId="8"
       />,
@@ -373,13 +377,13 @@ describe('FloorPlanViewer', () => {
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={roomsNoLabel}
-        selectedRoomId="H-101"
+        selectedRoomId="123"
         buildingCode="H"
         floorId="8"
       />,
     );
-    // Feature id 'H-101' is used as label fallback
-    expect(getByText('Selected room: H-101')).toBeTruthy();
+    // Feature id 123 is used as label fallback
+    expect(getByText('Selected room: 123')).toBeTruthy();
   });
 
   it('does not show info card when no room is selected', () => {
