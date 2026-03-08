@@ -96,31 +96,43 @@ export function useNavigationController() {
     setBuildingsError(null);
     setProgress({ total: 0, processed: 0, found: 0 });
 
-    getBuildingPointsByCampus(state.campus, mapboxMapsAdapter, (p, prog) => {
-      if (mounted) {
-        setPoints(p);
-        setProgress(prog);
-        setLoading(prog.processed < prog.total);
-      }
-    })
+  const allCampusIds = campuses.map(c => c.id) as CampusId[];
+  // NOTE: use campuses.map(c => c.id) — NOT Object.keys(campuses)
+  // because campuses is now a CampusMeta[] array (not a Record), per main's refactor
+
+  const pointsMap: Partial<Record<CampusId, BuildingPoint[]>> = {};
+  const mergePoints = () => (Object.values(pointsMap) as BuildingPoint[][]).flat();
+
+  const promises = allCampusIds.map((campusId) =>
+      getBuildingPointsByCampus(campusId, mapboxMapsAdapter, (p, prog) => {
+          if (!mounted) return;
+          pointsMap[campusId] = p;
+          setPoints(mergePoints());
+          setProgress(prog);
+          setLoading(prog.processed < prog.total);
+      })
       .then((p) => {
-        if (mounted) {
-          setPoints(p);
-          setLoading(false);
-        }
+          if (!mounted) return;
+          pointsMap[campusId] = p;
       })
       .catch((error) => {
-        if (!mounted) return;
-        console.error(`Failed to fetch buildings for ${state.campus}:`, error);
-        setPoints([]);
-        setLoading(false);
-        setBuildingsError('Could not load buildings from the backend.');
-      });
+          if (!mounted) return;
+          console.error(`Failed to fetch buildings for ${campusId}:`, error);
+          pointsMap[campusId] = [];
+          setBuildingsError('Could not load buildings from the backend.');
+      })
+  );
 
-    return () => {
-      mounted = false;
-    };
-  }, [campusMeta, state.campus, tokenAvailable]);
+  Promise.all(promises).then(() => {
+      if (!mounted) return;
+      setPoints(mergePoints());
+      setLoading(false);
+  });
+
+      return () => {
+        mounted = false;
+      };
+    }, [campusMeta, state.campus, tokenAvailable]);
 
   return {
     campus: state.campus,

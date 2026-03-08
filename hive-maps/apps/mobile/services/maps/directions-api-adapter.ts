@@ -36,6 +36,7 @@ export interface Step {
     duration: number;
     instruction: string;
     maneuver: string;
+    maneuverModifier?: string;
     startLocation: Coordinate;
     endLocation: Coordinate;
     polyline?: string;
@@ -55,9 +56,25 @@ export type DirectionsResponse = {
 
 // Cache for directions responses
 const directionsCache = new Map<string, DirectionsResponse>();
-const CACHE_STORAGE_KEY = 'directions_cache_v1';
+// v2: bumped from v1 because maneuver strings now encode type+modifier
+// (e.g. "turn-left" instead of bare "turn"). Old cached entries lack the
+// modifier and would show wrong icons, so we intentionally ignore them.
+const CACHE_STORAGE_KEY = 'directions_cache_v2';
 let cacheInitialized = false;
 const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+
+/**
+ * Wipe the in-memory and persisted directions cache.
+ * Call this after a data-format change that invalidates existing entries.
+ */
+export async function clearDirectionsCache(): Promise<void> {
+    directionsCache.clear();
+    try {
+        await AsyncStorage.removeItem(CACHE_STORAGE_KEY);
+    } catch (err) {
+        console.warn('[Cache] Failed to clear persisted cache', err);
+    }
+}
 
 /**
  * Initialize cache from AsyncStorage on app startup
@@ -72,7 +89,6 @@ export async function initializeDirectionsCache(): Promise<void> {
             Object.entries(parsed).forEach(([key, value]) => {
                 directionsCache.set(key, value);
             });
-            console.log(`[Cache] Loaded ${directionsCache.size} cached routes from storage`);
         }
     } catch (err) {
         console.warn('[Cache] Failed to load cache from storage', err);
@@ -164,7 +180,6 @@ function findRelevantTransitCache(request: DirectionsRequest): DirectionsRespons
 
     for (const [cachedKey, cachedResponse] of directionsCache.entries()) {
         if (isCacheRelevant(cachedKey, requestKey, request)) {
-            console.log(`[Cache HIT - Transit] Found relevant cache: ${cachedKey}`);
             return cachedResponse;
         }
     }
@@ -240,7 +255,8 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
         distance: step.distance,
         duration: Math.round(step.duration),
         instruction: step.maneuver.instruction,
-        maneuver: step.maneuver.type,
+        maneuver: step.maneuver.type ?? 'continue',
+        maneuverModifier: step.maneuver.modifier,
         startLocation: {
             latitude: step.intersections[0].location[1],
             longitude: step.intersections[0].location[0]
@@ -260,6 +276,66 @@ export function convertMapboxResponse(data: any): DirectionsResponse {
         steps
     };
 }
+
+/**
+ * Combine a Mapbox maneuver type and optional modifier into the canonical
+ * hyphenated string used by the MANEUVER_ICON map in step-by-step-panel.
+ *
+ * Mapbox modifier values: "left" | "right" | "slight left" | "slight right" |
+ *                         "sharp left" | "sharp right" | "uturn" | "straight"
+ */
+function resolveMapboxRoundaboutKey(mod: string): string {
+    if (mod === 'left') return 'roundabout-left';
+    if (mod === 'right') return 'roundabout-right';
+    return 'roundabout-left';
+}
+
+export function buildManeuverKey(type: string, modifier?: string): string {
+    if (!type) return 'continue';
+
+    // Normalise modifier: "slight left" -> "slight-left"
+    const mod = modifier ? modifier.trim().replaceAll(' ', '-') : '';
+
+    // Types that never need a modifier suffix
+    const standalone = new Set(['depart', 'arrive', 'merge', 'notification', 'use lane']);
+    if (standalone.has(type)) return type;
+
+    // "turn" always needs the modifier for correct icon
+    if (type === 'turn') {
+        return mod ? `turn-${mod}` : 'turn-right';
+    }
+
+    // Ramp types already carry direction in the type string
+    if (type === 'on ramp' || type === 'off ramp') return type;
+
+    // Roundabout family
+    const roundaboutTypes = new Set(['roundabout', 'rotary', 'roundabout turn', 'exit roundabout', 'exit rotary']);
+    if (roundaboutTypes.has(type)) return resolveMapboxRoundaboutKey(mod);
+
+    // Fork encodes left/right
+    if (type === 'fork') {
+        if (mod === 'left' || mod === 'slight-left') return 'fork-left';
+        return 'fork-right';
+    }
+
+    // End of road
+    if (type === 'end of road') {
+        if (mod === 'left') return 'u-turn-left';
+        return 'u-turn-right';
+    }
+
+    // continue / new name — add modifier only when it's a directional word
+    const directional = new Set(['left', 'right', 'slight-left', 'slight-right', 'sharp-left', 'sharp-right', 'uturn']);
+    if (directional.has(mod)) {
+        return `${type.replaceAll(' ', '-')}-${mod}`;
+    }
+
+    // Catch-all: just the type, spaces to hyphens
+    return type.replaceAll(' ', '-');
+}
+
+// Internal alias used by convertMapboxResponse
+const buildMapboxManeuver = buildManeuverKey;
 
 // Helper to convert TransportMode to Mapbox profile
 function getMapboxProfile(mode: TransportMode): string {
@@ -334,7 +410,6 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
 
     // Check exact cache match first
     if (directionsCache.has(cacheKey)) {
-        console.log(`[Cache HIT] ${cacheKey}`);
         return directionsCache.get(cacheKey)!;
     }
 
@@ -346,7 +421,6 @@ export async function getDirections(request: DirectionsRequest): Promise<Directi
         }
     }
 
-    console.log(`[Cache MISS] ${cacheKey}`);
     emitDirectionsEvent({type: 'request-started', cacheKey, request});
 
     let response: DirectionsResponse;
@@ -377,12 +451,6 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
     const profile = getMapboxProfile(request.transportMode);
     const coordinates = `${request.origin.longitude},${request.origin.latitude};${request.destination.longitude},${request.destination.latitude}`;
 
-    console.log(`[Mapbox API] Fetching directions for ${profile} mode`, {
-        origin: request.origin,
-        destination: request.destination,
-        timeFilter: request.timeFilter
-    });
-
     const params = new URLSearchParams({
         access_token: process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '',
         geometries: 'polyline',
@@ -403,7 +471,6 @@ async function getMapboxDirections(request: DirectionsRequest): Promise<Directio
 
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?${params.toString()}`;
 
-    console.log('[Mapbox API] Request URL', url);
 
     const response = await fetchWithTimeout(url);
 
