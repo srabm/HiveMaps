@@ -1,0 +1,87 @@
+appId: com.anonymous.mobile
+name: "US-4.2 Indoor Directions – Select Start & Destination"
+---
+- assertVisible: "SGW • Sir George Williams"
+
+- tapOn: "Loyola"
+- assertVisible: "Loyola • Loyola"
+
+- tapOn: "Search building or address"
+- inputText: "V Lib"
+- tapOn: "Vanier Library"
+
+- tapOn:
+    point: 50%, 50%
+
+- tapOn: "Indoor"
+
+- assertVisible: "1st Floor"
+
+- assertVisible: "From room (e.g. H8.835)"
+
+- tapOn: "From room (e.g. H8.835)"
+- inputText: "VL1.128"
+
+- extendedWaitUntil:
+    visible: "VL1.128"
+    timeout: 8000
+
+- tapOn:
+    text: VL1.128
+    index: 1
+
+- assertVisible: "To room (e.g. H8.841)"
+
+- tapOn: "To room (e.g. H8.841)"
+- inputText: "VL1.104"
+
+- extendedWaitUntil:
+    visible: "VL1.104"
+    timeout: 8000
+
+- tapOn:
+    text: VL1.104
+    index: 1
+
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 5000
+- tapOn: " Start"
+
+- tapOn: ✕
+- tapOn:
+    point: 92%,21%
+
+- tapOn: "2nd Floor"
+- assertVisible: "2nd Floor"
+
+- tapOn: "From room (e.g. H8.835)"
+- inputText: "VL240"
+- extendedWaitUntil:
+    visible: "VL240"
+    timeout: 8000
+
+- tapOn:
+    text: VL240
+    index: 1
+
+- tapOn: "To room (e.g. H8.841)"
+- inputText: "VL202-1"
+- extendedWaitUntil:
+    visible: "VL202-1"
+    timeout: 8000
+- tapOn:
+    text: VL202-1
+    index: 1
+
+
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 5000
+- tapOn: " Start"
+
+- tapOn: ✕
+- tapOn:
+    point: 92%,21%
+
+- stopApp
