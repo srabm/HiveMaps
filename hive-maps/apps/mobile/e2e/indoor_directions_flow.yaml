@@ -1,9 +1,6 @@
 appId: com.anonymous.mobile
 name: "US-4.2 Indoor Directions – Select Start & Destination"
 ---
-- launchApp:
-    clearState: true
-
 - assertVisible: "SGW • Sir George Williams"
 
 - tapOn: "Loyola"
@@ -20,74 +17,71 @@ name: "US-4.2 Indoor Directions – Select Start & Destination"
 
 - assertVisible: "1st Floor"
 
-- assertVisible: "From room"
+- assertVisible: "From room (e.g. H8.835)"
 
-- tapOn: "From room"
-- inputText: "VE-1.193"
-
-- extendedWaitUntil:
-    visible: "VE-1.193"
-    timeout: 3000
-
-- tapOn: "VE-1.193"
-
-- assertVisible: "VE-1.193"
-
-- assertVisible: "To room"
-
-- tapOn: "To room"
-- inputText: "VE230"
+- tapOn: "From room (e.g. H8.835)"
+- inputText: "VL1.128"
 
 - extendedWaitUntil:
-    visible: "VE230"
-    timeout: 3000
-
-- tapOn: "VE230"
-
-- assertVisible: "VE230"
-
+    visible: "VL1.128"
+    timeout: 8000
 
 - tapOn:
-    id: "swap-button"
-- assertNotVisible: "From room"
+    text: VL1.128
+    index: 1
+
+- assertVisible: "To room (e.g. H8.841)"
+
+- tapOn: "To room (e.g. H8.841)"
+- inputText: "VL1.104"
+
+- extendedWaitUntil:
+    visible: "VL1.104"
+    timeout: 8000
 
 - tapOn:
-    id: "clear-to"
+    text: VL1.104
+    index: 1
 
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 5000
+- tapOn: " Start"
+
+- tapOn: ✕
 - tapOn:
-    id: "close-button"
-
+    point: 92%,21%
 
 - tapOn: "2nd Floor"
 - assertVisible: "2nd Floor"
 
-- tapOn: "From room"
-- inputText: "VE225"
+- tapOn: "From room (e.g. H8.835)"
+- inputText: "VL240"
 - extendedWaitUntil:
-    visible: "VE225"
-    timeout: 3000
-- tapOn: "VE225"
-
-- tapOn: "To room"
-- inputText: "VE223"
-- extendedWaitUntil:
-    visible: "VE223"
-    timeout: 3000
-- tapOn: "VE223"
-
-- assertVisible: "VE225"
-- assertVisible: "VE223"
-
+    visible: "VL240"
+    timeout: 8000
 
 - tapOn:
-    id: "close-button"
+    text: VL240
+    index: 1
 
-- tapOn: "From room"
-- inputText: "ZZZNONEXISTENT"
-
-- waitForAnimationToEnd
-
+- tapOn: "To room (e.g. H8.841)"
+- inputText: "VL202-1"
+- extendedWaitUntil:
+    visible: "VL202-1"
+    timeout: 8000
 - tapOn:
-    id: "clear-from"
+    text: VL202-1
+    index: 1
+
+
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 5000
+- tapOn: " Start"
+
+- tapOn: ✕
+- tapOn:
+    point: 92%,21%
 
 - stopApp
