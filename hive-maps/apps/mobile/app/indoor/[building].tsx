@@ -35,7 +35,7 @@ function getRequestedFloorMatch(availableFloors: FloorSummary[], requestedFloor:
   return (
     availableFloors.find(
       (floor) => floor.id.toLowerCase() === requested || floor.label.toLowerCase() === requested,
-    ) ?? null
+    ) || null
   );
 }
 
@@ -49,9 +49,9 @@ function resolveDefaultFloor(
   if (requestedMatch) return { floorId: requestedMatch.id, matchedRequestedFloor: true };
 
   const sortedFloors = [...availableFloors].sort((a, b) => a.sortOrder - b.sortOrder);
-  const firstFloor = sortedFloors[0] ?? availableFloors[0];
+  const firstFloor = sortedFloors[0] || availableFloors[0];
   return {
-    floorId: firstFloor?.id ?? null,
+    floorId: firstFloor?.id || null,
     matchedRequestedFloor: false,
   };
 }
@@ -65,7 +65,7 @@ function getFallbackFloorId(
   const fallback = sortedFloors.find(
     (floor) => floor.id !== currentFloorId && !unavailableFloorIds.has(floor.id),
   );
-  return fallback?.id ?? null;
+  return fallback?.id || null;
 }
 
 export default function IndoorMapScreen() {
@@ -113,7 +113,6 @@ export default function IndoorMapScreen() {
 
     async function resolveBuildingSupport() {
       if (!buildingCode) {
-        if (isCancelled) return;
         setDidFailBuildingSupportLookup(false);
         setResolvedBuilding(null);
         setIsResolvingBuilding(false);
@@ -130,8 +129,9 @@ export default function IndoorMapScreen() {
           (candidate) => candidate.buildingCode.toUpperCase() === buildingCode,
         );
         const preferredCampus = campusParam?.toUpperCase();
-        const resolved =
-          matches.find((candidate) => candidate.campusId.toUpperCase() === preferredCampus) ?? matches[0] ?? null;
+        
+        let resolved = matches.find((candidate) => candidate.campusId.toUpperCase() === preferredCampus);
+        if (!resolved) resolved = matches[0] || null;
 
         setResolvedBuilding(resolved);
         setIsResolvingBuilding(false);
@@ -163,60 +163,64 @@ export default function IndoorMapScreen() {
   useEffect(() => {
     let isCancelled = false;
 
+    const clearIndoorData = () => {
+      unavailableFloorIdsRef.current = new Set();
+      setFloors([]);
+      setActiveFloorId(null);
+      setFloorDetails(null);
+      setSelectedRoomId(null);
+      setNoticeMessage(null);
+    };
+
+    const handleMissingBuilding = () => {
+      clearIndoorData();
+      setIsLoadingFloors(false);
+      
+      const shouldShowError = !buildingCode || !didFailBuildingSupportLookup;
+      if (shouldShowError) {
+        setErrorMessage('This building does not currently support indoor maps.');
+      }
+    };
+
+    const handleSuccessfulFetch = (availableFloors: FloorSummary[]) => {
+      setFloors(availableFloors);
+      if (availableFloors.length === 0) {
+        setActiveFloorId(null);
+        setFloorDetails(null);
+        return;
+      }
+
+      const { floorId, matchedRequestedFloor } = resolveDefaultFloor(availableFloors, requestedFloor);
+      setActiveFloorId(floorId);
+
+      const showNotice = requestedFloor && !matchedRequestedFloor && floorId;
+      if (showNotice) {
+        const fallbackLabel = availableFloors.find((candidate) => candidate.id === floorId)?.label || floorId;
+        setNoticeMessage(`Floor ${requestedFloor} is unavailable. Showing ${fallbackLabel}.`);
+      }
+    };
+
     async function loadIndoorData() {
       if (isResolvingBuilding) {
-        if (isCancelled) return;
         setIsLoadingFloors(true);
         return;
       }
 
       if (!buildingCode || !resolvedBuilding) {
-        if (isCancelled) return;
-        unavailableFloorIdsRef.current = new Set();
-        setFloors([]);
-        setActiveFloorId(null);
-        setFloorDetails(null);
-        setSelectedRoomId(null);
-        setNoticeMessage(null);
-        setIsLoadingFloors(false);
-        if (!buildingCode) {
-          setErrorMessage('This building does not currently support indoor maps.');
-          return;
-        }
-        if (didFailBuildingSupportLookup) {
-          return;
-        }
-        setErrorMessage('This building does not currently support indoor maps.');
+        handleMissingBuilding();
         return;
       }
 
       setIsLoadingFloors(true);
       setIsLoadingFloorDetails(false);
-      unavailableFloorIdsRef.current = new Set();
+      clearIndoorData();
       setErrorMessage(null);
-      setNoticeMessage(null);
-      setActiveFloorId(null);
-      setFloorDetails(null);
-      setSelectedRoomId(null);
+
       try {
         const campusId = resolvedBuilding.campusId as IndoorCampusId;
         const availableFloors = await fetchBuildingFloors(campusId, buildingCode);
         if (isCancelled) return;
-        setFloors(availableFloors);
-
-        if (availableFloors.length === 0) {
-          setActiveFloorId(null);
-          setFloorDetails(null);
-          return;
-        }
-
-        const { floorId, matchedRequestedFloor } = resolveDefaultFloor(availableFloors, requestedFloor);
-        setActiveFloorId(floorId);
-
-        if (requestedFloor && !matchedRequestedFloor && floorId) {
-          const fallbackLabel = availableFloors.find((candidate) => candidate.id === floorId)?.label ?? floorId;
-          setNoticeMessage(`Floor ${requestedFloor} is unavailable. Showing ${fallbackLabel}.`);
-        }
+        handleSuccessfulFetch(availableFloors);
       } catch (error) {
         if (isCancelled) return;
         console.error('Failed to fetch indoor floor list:', error);
@@ -236,6 +240,22 @@ export default function IndoorMapScreen() {
   useEffect(() => {
     let isCancelled = false;
 
+    const handleMissingFloorDetails = () => {
+      if (!activeFloorId) return;
+      unavailableFloorIdsRef.current.add(activeFloorId);
+      const fallbackFloorId = getFallbackFloorId(floors, activeFloorId, unavailableFloorIdsRef.current);
+
+      const canFallback = fallbackFloorId && fallbackFloorId !== activeFloorId;
+      if (canFallback) {
+        const fallbackLabel = floors.find((candidate) => candidate.id === fallbackFloorId)?.label || fallbackFloorId;
+        setNoticeMessage(`Floor ${activeFloorId} is unavailable. Switched to ${fallbackLabel}.`);
+        setActiveFloorId(fallbackFloorId);
+      } else {
+        setFloorDetails(null);
+        setErrorMessage(`Floor ${activeFloorId} is unavailable.`);
+      }
+    };
+
     async function loadFloorDetails() {
       if (!buildingCode || !resolvedBuilding || !activeFloorId) {
         setFloorDetails(null);
@@ -246,29 +266,17 @@ export default function IndoorMapScreen() {
       setErrorMessage(null);
       setFloorDetails(null);
       setSelectedRoomId(null);
+      
       try {
         const campusId = resolvedBuilding.campusId as IndoorCampusId;
         const details = await fetchFloorDetails(campusId, buildingCode, activeFloorId);
         if (isCancelled) return;
+        
         if (!details) {
-          unavailableFloorIdsRef.current.add(activeFloorId);
-          const fallbackFloorId = getFallbackFloorId(
-            floors,
-            activeFloorId,
-            unavailableFloorIdsRef.current,
-          );
-
-          if (fallbackFloorId && fallbackFloorId !== activeFloorId) {
-            const fallbackLabel = floors.find((candidate) => candidate.id === fallbackFloorId)?.label ?? fallbackFloorId;
-            setNoticeMessage(`Floor ${activeFloorId} is unavailable. Switched to ${fallbackLabel}.`);
-            setActiveFloorId(fallbackFloorId);
-            return;
-          }
-
-          setFloorDetails(null);
-          setErrorMessage(`Floor ${activeFloorId} is unavailable.`);
+          handleMissingFloorDetails();
           return;
         }
+        
         unavailableFloorIdsRef.current.delete(activeFloorId);
         setFloorDetails(details);
       } catch (error) {
@@ -286,18 +294,28 @@ export default function IndoorMapScreen() {
     };
   }, [activeFloorId, buildingCode, floors, reloadToken, resolvedBuilding]);
 
-  const buildingTitle = buildingCode ? `${buildingCode} Building - Indoor Map` : 'Indoor Map';
-  const isInitialLoading = isLoadingFloors && floors.length === 0;
-  const hasNoFloors = !isLoadingFloors && !errorMessage && floors.length === 0;
-  const activeFloor = useMemo(
-    () => floors.find((floorItem) => floorItem.id === activeFloorId) ?? null,
-    [floors, activeFloorId],
-  );
+  let buildingTitle = 'Indoor Map';
+  if (buildingCode) {
+    buildingTitle = `${buildingCode} Building - Indoor Map`;
+  }
+
+  const activeFloor = useMemo(() => {
+    const found = floors.find((floorItem) => floorItem.id === activeFloorId);
+    if (found) return found;
+    return null;
+  }, [floors, activeFloorId]);
+
   const selectorFloors = useMemo(
     () => [...floors].sort((a, b) => b.sortOrder - a.sortOrder),
     [floors],
   );
-  const currentFloorLabel = floorDetails?.floor?.label ?? activeFloor?.label ?? activeFloorId;
+
+  let currentFloorLabel = activeFloorId;
+  if (floorDetails?.floor?.label) {
+    currentFloorLabel = floorDetails.floor.label;
+  } else if (activeFloor?.label) {
+    currentFloorLabel = activeFloor.label;
+  }
 
   const handleRetry = () => {
     setErrorMessage(null);
@@ -312,9 +330,83 @@ export default function IndoorMapScreen() {
     setActiveFloorId(nextFloorId);
   };
 
+  const renderMainContent = () => {
+    if (isLoadingFloors && floors.length === 0) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#9d1e30" />
+          <Text style={{ marginTop: 10 }}>Loading floor plans...</Text>
+        </View>
+      );
+    }
+
+    if (errorMessage) {
+      return (
+        <View style={styles.messageContainer}>
+          <ThemedText style={styles.messageText}>{errorMessage}</ThemedText>
+          <Pressable style={styles.retryButton} onPress={handleRetry}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    if (floors.length === 0) {
+      return (
+        <View style={styles.messageContainer}>
+          <ThemedText style={styles.messageText}>No floors are available for this building yet.</ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.rendererRegion}>
+        <FloorPlanViewer
+          planGeometry={floorDetails?.planGeometry}
+          rooms={floorDetails?.rooms}
+          selectedRoomId={selectedRoomId}
+          onPressRoom={setSelectedRoomId}
+          onDirectionsActiveChange={setDirectionsActive}
+          buildingCode={buildingCode || ''}
+          floorId={activeFloorId || ''}
+        />
+
+        {!!noticeMessage && (
+          <View style={styles.noticeBanner}>
+            <Text style={styles.noticeText}>{noticeMessage}</Text>
+          </View>
+        )}
+
+        {!directionsActive && (
+          <View style={styles.selectorOverlay} pointerEvents="box-none">
+            <FloorSelector
+              floors={selectorFloors}
+              activeFloorId={activeFloorId}
+              onSelectFloor={handleSelectFloor}
+              disabled={isLoadingFloors || isLoadingFloorDetails}
+            />
+          </View>
+        )}
+
+        {!directionsActive && (
+          <View style={styles.indicatorOverlay} pointerEvents="box-none">
+            <FloorIndicator buildingCode={buildingCode} floorLabel={currentFloorLabel} />
+          </View>
+        )}
+
+        {isLoadingFloorDetails && (
+          <View style={styles.viewerLoadingOverlay} pointerEvents="none">
+            <ActivityIndicator size="small" color="#9d1e30" />
+            <Text style={styles.viewerLoadingText}>Loading selected floor...</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <ThemedView style={styles.container}>
-      {Stack?.Screen ? <Stack.Screen options={{ headerShown: false }} /> : null}
+      {!!Stack?.Screen && <Stack.Screen options={{ headerShown: false }} />}
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -323,61 +415,7 @@ export default function IndoorMapScreen() {
         <ThemedText type="subtitle">{buildingTitle}</ThemedText>
       </View>
 
-      {isInitialLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#9d1e30" />
-          <Text style={{ marginTop: 10 }}>Loading floor plans...</Text>
-        </View>
-      ) : errorMessage ? (
-        <View style={styles.messageContainer}>
-          <ThemedText style={styles.messageText}>{errorMessage}</ThemedText>
-          <Pressable style={styles.retryButton} onPress={handleRetry}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : hasNoFloors ? (
-        <View style={styles.messageContainer}>
-          <ThemedText style={styles.messageText}>No floors are available for this building yet.</ThemedText>
-        </View>
-      ) : (
-        <View style={styles.rendererRegion}>
-          <FloorPlanViewer
-            planGeometry={floorDetails?.planGeometry}
-            rooms={floorDetails?.rooms}
-            selectedRoomId={selectedRoomId}
-            onPressRoom={setSelectedRoomId}
-            onDirectionsActiveChange={setDirectionsActive}
-            buildingCode={buildingCode ?? ''}
-            floorId={activeFloorId ?? ''}
-          />
-
-          {noticeMessage ? (
-            <View style={styles.noticeBanner}>
-              <Text style={styles.noticeText}>{noticeMessage}</Text>
-            </View>
-          ) : null}
-
-          {!directionsActive && <View style={styles.selectorOverlay} pointerEvents="box-none">
-            <FloorSelector
-              floors={selectorFloors}
-              activeFloorId={activeFloorId}
-              onSelectFloor={handleSelectFloor}
-              disabled={isLoadingFloors || isLoadingFloorDetails}
-            />
-          </View>}
-
-          {!directionsActive && <View style={styles.indicatorOverlay} pointerEvents="box-none">
-            <FloorIndicator buildingCode={buildingCode} floorLabel={currentFloorLabel} />
-          </View>}
-
-          {isLoadingFloorDetails ? (
-            <View style={styles.viewerLoadingOverlay} pointerEvents="none">
-              <ActivityIndicator size="small" color="#9d1e30" />
-              <Text style={styles.viewerLoadingText}>Loading selected floor...</Text>
-            </View>
-          ) : null}
-        </View>
-      )}
+      {renderMainContent()}
     </ThemedView>
   );
 }
