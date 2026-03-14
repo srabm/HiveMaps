@@ -14,7 +14,6 @@ import {
   FloorSummary,
   FloorDetailsResponse,
   normalizeIndoorBuildingCode,
-  type IndoorCampusId,
   type SupportedIndoorBuilding,
 } from '@/services/http/indoor-api';
 
@@ -217,7 +216,7 @@ export default function IndoorMapScreen() {
       setErrorMessage(null);
 
       try {
-        const campusId = resolvedBuilding.campusId as IndoorCampusId;
+        const campusId = resolvedBuilding.campusId;
         const availableFloors = await fetchBuildingFloors(campusId, buildingCode);
         if (isCancelled) return;
         handleSuccessfulFetch(availableFloors);
@@ -268,7 +267,7 @@ export default function IndoorMapScreen() {
       setSelectedRoomId(null);
       
       try {
-        const campusId = resolvedBuilding.campusId as IndoorCampusId;
+        const campusId = resolvedBuilding.campusId;
         const details = await fetchFloorDetails(campusId, buildingCode, activeFloorId);
         if (isCancelled) return;
         
