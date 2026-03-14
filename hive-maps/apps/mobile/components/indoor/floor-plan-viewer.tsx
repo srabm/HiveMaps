@@ -10,7 +10,7 @@ import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-searc
 import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
-import AccessibilityToggle from './accessibilty-toggle';
+import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
 
 export type FloorPlanViewerProps = Readonly<{
