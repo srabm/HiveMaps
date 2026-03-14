@@ -179,7 +179,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('H9.ROOM.38', 'Room', true, '9', 'H', -73.57907183468342, 45.49743959966147),
 ('H9.ROOM.31', 'Room', true, '9', 'H', -73.57903763651849, 45.497423614850206),
 ('H9.ROOM.28', 'Room', true, '9', 'H', -73.57899639755489, 45.497402928617134),
-('H9.ROOM.27', 'Room', true, '9', 'H', -73.57901684939863, 45.4974130366638),
+('H9.ROOM.27_1', 'Room', true, '9', 'H', -73.57901684939863, 45.4974130366638),
 ('H9.ROOM.27_2', 'Room', true, '9', 'H', -73.57893202453853, 45.49744524135847),
 ('H9.ROOM.24', 'Room', true, '9', 'H', -73.57889514416458, 45.49750330379065),
 ('H9.961-21', 'Room', true, '9', 'H', -73.57900243252517, 45.4976396444891),
@@ -195,7 +195,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('H9.983', 'Room', true, '9', 'H', -73.57910301536322, 45.49743698999363),
 ('H9.ROOM.41', 'Room', true, '9', 'H', -73.57911843806507, 45.49729218623702),
 ('H9.ROOM.55', 'Room', true, '9', 'H', -73.57928775250913, 45.49727949238345),
-('H9.ROOM.57', 'Room', true, '9', 'H', -73.57934743165971, 45.49722942215541),
+('H9.ROOM.57_1', 'Room', true, '9', 'H', -73.57934743165971, 45.49722942215541),
 ('H9.ROOM.52', 'Room', true, '9', 'H', -73.57928674668075, 45.4972085007793),
 ('H9.ROOM.50', 'Room', true, '9', 'H', -73.57923679053785, 45.497260686669215),
 ('H9.ROOM.43', 'Room', true, '9', 'H', -73.57915230095387, 45.49721837378923),
@@ -729,8 +729,8 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('H9_E92', 'E92', true, 'H9.J15', 'H9.J14', 'H', 4.32356752607464),
 ('H9_E93', 'E93', true, 'H9.ROOM.28', 'H9.J15', 'H', 3.251959068456607),
 ('H9_E94', 'E94', true, 'H9.J15', 'H9.ROOM.28', 'H', 3.251959068456607),
-('H9_E95', 'E95', true, 'H9.ROOM.27', 'H9.J15', 'H', 1.4382461162606297),
-('H9_E96', 'E96', true, 'H9.J15', 'H9.ROOM.27', 'H', 1.4382461162606297),
+('H9_E95', 'E95', true, 'H9.ROOM.27_1', 'H9.J15', 'H', 1.4382461162606297),
+('H9_E96', 'E96', true, 'H9.J15', 'H9.ROOM.27_1', 'H', 1.4382461162606297),
 ('H9_E97', 'E97', true, 'H9.ROOM.30', 'H9.J15', 'H', 3.7429477730632787),
 ('H9_E98', 'E98', true, 'H9.J15', 'H9.ROOM.30', 'H', 3.7429477730632787),
 ('H9_E99', 'E99', true, 'H9.ROOM.31', 'H9.J15', 'H', 1.1375013258557458),
@@ -899,8 +899,8 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('H9_E262', 'E262', true, 'H9.ROOM.49_2', 'H9.J37', 'H', 2.480630047994543),
 ('H9_E263', 'E263', true, 'H9.J38', 'H9.J37', 'H', 4.035832892337691),
 ('H9_E264', 'E264', true, 'H9.J37', 'H9.J38', 'H', 4.035832892337691),
-('H9_E265', 'E265', true, 'H9.ROOM.57', 'H9.J38', 'H', 1.2713189377409975),
-('H9_E266', 'E266', true, 'H9.J38', 'H9.ROOM.57', 'H', 1.2713189377409975),
+('H9_E265', 'E265', true, 'H9.ROOM.57_1', 'H9.J38', 'H', 1.2713189377409975),
+('H9_E266', 'E266', true, 'H9.J38', 'H9.ROOM.57_1', 'H', 1.2713189377409975),
 ('H9_E267', 'E267', true, 'H9.J38', 'H9.ROOM.57_2', 'H', 2.436833200297263),
 ('H9_E268', 'E268', true, 'H9.ROOM.57_2', 'H9.J38', 'H', 2.436833200297263),
 ('H9_E269', 'E269', true, 'H9.ROOM.55', 'H9.J39', 'H', 2.5811843822230505),
@@ -933,3 +933,47 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('H9_E296', 'E296', true, 'H9.J42', 'H9.J35', 'H', 7.276664201416841),
 ('H9_E297', 'E297', true, 'H9.J42', 'H9.J44', 'H', 5.166516686311854),
 ('H9_E298', 'E298', true, 'H9.J44', 'H9.J42', 'H', 5.166516686311854);
+
+
+
+
+-- VIRTUAL NODES --
+
+INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat, is_virtual) VALUES
+
+-- HALL BUILDING (H) --
+('H8.801', 'Room', true, '8', 'H', -73.5788166384271, 45.495088071078385, true),
+('H8.840', 'Room', true, '8', 'H', -73.5788166384271, 45.495088071078385, true),
+('H9.ROOM.49', 'Room', true, '8', 'H', -73.5788166384271, 45.495088071078385, true),
+('H9.ROOM.27', 'Room', true, '8', 'H', -73.5788166384271, 45.495088071078385, true),
+('H9.ROOM.57', 'Room', true, '8', 'H', -73.5788166384271, 45.495088071078385, true);
+
+INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
+
+--HALL BUILDING (H)  -
+('H8_VE1', 'VE1', true, 'H8.801_1', 'H8.801', 'H', 0.0),
+('H8_VE2', 'VE2', true, 'H8.801', 'H8.801_1', 'H', 0.0),
+('H8_VE3', 'VE3', true, 'H8.801_2', 'H8.801', 'H', 0.0),
+('H8_VE4', 'VE4', true, 'H8.801', 'H8.801_2', 'H', 0.0),
+
+('H8_VE5', 'VE3', true, 'H8.840_2', 'H8.840', 'H', 0.0),
+('H8_VE6', 'VE4', true, 'H8.840', 'H8.840_2', 'H', 0.0),
+('H8_VE7', 'VE1', true, 'H8.840_1', 'H8.840', 'H', 0.0),
+('H8_VE8', 'VE2', true, 'H8.840', 'H8.840_1', 'H', 0.0),
+
+('H8_VE9', 'VE3', true, 'H9.ROOM.49_2', 'H9.ROOM.49', 'H', 0.0),
+('H8_VE10', 'VE4', true, 'H9.ROOM.49', 'H9.ROOM.49_2', 'H', 0.0),
+('H8_VE11', 'VE3', true, 'H9.ROOM.49_1', 'H9.ROOM.49', 'H', 0.0),
+('H8_VE12', 'VE4', true, 'H9.ROOM.49', 'H9.ROOM.49_1', 'H', 0.0),
+
+('H8_VE13', 'VE1', true, 'H9.ROOM.27_1', 'H9.ROOM.27', 'H', 0.0),
+('H8_VE14', 'VE2', true, 'H9.ROOM.27', 'H9.ROOM.27_1', 'H', 0.0),
+('H8_VE15', 'VE3', true, 'H9.ROOM.27_2', 'H9.ROOM.27', 'H', 0.0),
+('H8_VE16', 'VE4', true, 'H9.ROOM.27', 'H9.ROOM.27_2', 'H', 0.0),
+
+('H8_VE17', 'VE3', true, 'H9.ROOM.57_3', 'H9.ROOM.57', 'H', 0.0),
+('H8_VE18', 'VE4', true, 'H9.ROOM.57', 'H9.ROOM.57_3', 'H', 0.0),
+('H8_VE19', 'VE1', true, 'H9.ROOM.57_1', 'H9.ROOM.57', 'H', 0.0),
+('H8_VE20', 'VE2', true, 'H9.ROOM.57', 'H9.ROOM.57_1', 'H', 0.0),
+('H8_VE21', 'VE3', true, 'H9.ROOM.57_2', 'H9.ROOM.57', 'H', 0.0),
+('H8_VE22', 'VE4', true, 'H9.ROOM.57', 'H9.ROOM.57_2', 'H', 0.0);

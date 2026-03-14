@@ -7,7 +7,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VE1_J1', 'Junction', true, '1', 'VE', -73.63864773369828, 45.45874035100001),
 
 -- VANIER EXTENSION (VE) FLOOR 2 --
-('VE2.228-4_1', 'Room', true, '2', 'VE', -73.63838010454029, 45.4588045720822),
+('VE2.228-4_1', 'Junction', true, '2', 'VE', -73.63838010454029, 45.4588045720822),
 ('VE2.228-7', 'Room', true, '2', 'VE', -73.6383941936755, 45.45876338933619),
 ('VE2.228-3', 'Room', true, '2', 'VE', -73.63839754823148, 45.4587862163477),
 ('VE2.228-2', 'Room', true, '2', 'VE', -73.63841834647867, 45.45875868273473),
@@ -58,7 +58,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VE2_J13', 'Junction', true, '2', 'VE', -73.63887100927244, 45.458877156012655),
 ('VE2_J14', 'Junction', true, '2', 'VE', -73.63883779916803, 45.458867272169115),
 ('VE2_J15', 'Junction', true, '2', 'VE', -73.63880962089766, 45.45885997695011),
-('VE2.228-4_2', 'Room', true, '2', 'VE', -73.63841058487532, 45.4588270942568),
+('VE2.228-4_2', 'Junction', true, '2', 'VE', -73.63841058487532, 45.4588270942568),
 ('VE2.226-1', 'Room', true, '2', 'VE', -73.63850551773325, 45.45877200531491),
 ('VE2.226-2', 'Room', true, '2', 'VE', -73.63853268963683, 45.4587873017646),
 ('VE2.226-3', 'Room', true, '2', 'VE', -73.63854879150563, 45.45879742095211),
@@ -270,3 +270,20 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('VE2-E174', 'VE2-E174', true, 'VE2_J31', 'VE2.230', 'VE', 3.1574643973502994),
 ('VE2-E175', 'VE2-E175', true, 'VE2.229', 'VE2_J31', 'VE', 4.794980771610993),
 ('VE2-E176', 'VE2-E176', true, 'VE2_J31', 'VE2.229', 'VE', 4.794980771610993);
+
+
+-- VIRTUAL NODES --
+
+INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat, is_virtual) VALUES
+
+-- VE BUILDING  FLOOR 2 --
+('VE2.228-4', 'Room', true, '2', 'VE', -73.5788166384271, 45.495088071078385, true);
+
+
+INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
+
+--VE BUILDING  FLOOR 2--
+('VE2_VE1', 'VE1', true, 'VE2.228-4_1', 'VE2.228-4', 'VE', 0.0),
+('VE2_VE2', 'VE2', true, 'VE2.228-4', 'VE2.228-4_1', 'VE', 0.0),
+('VE2_VE3', 'VE3', true, 'VE2.228-4_2', 'VE2.228-4', 'VE', 0.0),
+('VE2_VE4', 'VE4', true, 'VE2.228-4', 'VE2.228-4_2', 'VE', 0.0);

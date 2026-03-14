@@ -121,7 +121,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 
 -- Vanier Library BUILDING (VL) FLOOR 2 --
 ('VL2.ELEVATOR_5', 'Elevator', true, '2', 'VL', -73.63865308463575, 45.45923469031796),
-('VL2.297-1_1', 'Room', true, '2', 'VL', -73.63863766193391, 45.459248797956874), 
+('VL2.297-1_1', 'Junction', true, '2', 'VL', -73.63863766193391, 45.459248797956874),
 ('VL2.240', 'Room', true, '2', 'VL', -73.63860312849285, 45.459254195091404),
 ('VL2.296', 'Room', true, '2', 'VL', -73.638566583395, 45.45927958883013),
 ('VL2.201-1', 'Room', true, '2', 'VL', -73.6386524140835, 45.459218715474286),
@@ -132,7 +132,7 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VL2.203-2', 'Room', true, '2', 'VL', -73.63866180181505, 45.458989204489434),
 ('VL2.203-3', 'Room', true, '2', 'VL', -73.63872885704042, 45.45899296654319),
 ('VL2.204', 'Room', true, '2', 'VL', -73.6387784779072, 45.45901036603861),
-('VL2.297-1_2', 'Room', true, '2', 'VL', -73.63871477544309, 45.459198466550156),
+('VL2.297-1_2', 'Junction', true, '2', 'VL', -73.63871477544309, 45.459198466550156),
 ('VL2.2594', 'Room', true, '2', 'VL', -73.63869398832323, 45.45894123648308),
 ('VL2.295', 'Room', true, '2', 'VL', -73.63788932561876, 45.459139271869894),
 ('VL2.202-1', 'Room', true, '2', 'VL', -73.63791078329088, 45.45910259193014),
@@ -603,3 +603,21 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('E108', 'E108', true, 'VL_J1', 'VL2.297-1_1', 'VL', 3.6813989133804443),
 ('E109', 'E109', true, 'VL2.203-3', 'VL_J3', 'VL', 2.6763225515055797),
 ('E110', 'E110', true, 'VL_J3', 'VL2.203-3', 'VL', 2.6763225515055797);
+
+
+
+-- VIRTUAL NODES --
+
+INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat, is_virtual) VALUES
+
+-- VL BUILDING  FLOOR 2 --
+('VL2.297-1', 'Room', true, '2', 'VL', -73.5788166384271, 45.495088071078385, true);
+
+
+INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
+
+--VL BUILDING  FLOOR 2--
+('VL2_VE1', 'VE1', true, 'VL2.297-1_1', 'VL2.297-1', 'VL', 0.0),
+('VL2_VE2', 'VE2', true, 'VL2.297-1', 'VL2.297-1_1', 'VL', 0.0),
+('VL2_VE3', 'VE3', true, 'VL2.297-1_2', 'VL2.297-1', 'VL', 0.0),
+('VL2_VE4', 'VE4', true, 'VL2.297-1', 'VL2.297-1_2', 'VL', 0.0);
