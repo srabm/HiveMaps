@@ -349,6 +349,7 @@ export default function IndoorMapScreen() {
             onDirectionsActiveChange={setDirectionsActive}
             buildingCode={buildingCode ?? ''}
             floorId={activeFloorId ?? ''}
+            onError={setNoticeMessage}
           />
 
           {noticeMessage ? (

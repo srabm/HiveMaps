@@ -7,7 +7,7 @@ import { POIMarker } from '@/components/indoor/POIMarker';
 import { MaterialIcons } from '@expo/vector-icons';
 import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
-import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse} from '@/services/http/indoor-api'
+import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, NoDirectionsFoundException} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
@@ -21,6 +21,7 @@ export type FloorPlanViewerProps = Readonly<{
     onDirectionsActiveChange?: (active: boolean) => void
     buildingCode: string
     floorId: string
+    onError?: (message: string) => void
 }>
 
 type RoomFeatureProperties = {
@@ -166,7 +167,8 @@ export function FloorPlanViewer({
                                     onPressRoom,
                                     onDirectionsActiveChange,
                                     buildingCode,
-                                    floorId
+                                    floorId,
+                                    onError
                                 }: FloorPlanViewerProps) {
       
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => {
@@ -220,16 +222,21 @@ export function FloorPlanViewer({
         }
     }, [buildingCode, floorId]);
 
-    const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string, accessible: boolean) => {
+    const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string, accessible: boolean, fromText: string, toText: string) => {
         try {
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId, accessible);
             setIndoorSteps(steps);
         } catch (err) {
             console.log('[IndoorDirections] No directions found:', err instanceof Error ? err.message : err);
+
+            if (err instanceof NoDirectionsFoundException) {
+              onError?.(`A${accessible ? "n accessible" : ""} path from ${fromText} to ${toText} could not be found.`);
+            }
+
             setIndoorSteps(null);
             setCurrentNode(null);
         }
-    }, [buildingCode]);
+    }, [buildingCode, onError]);
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
@@ -247,7 +254,7 @@ export function FloorPlanViewer({
             setCurrentNode(null);
             return;
         }
-        resolveDirections(fromNodeId, toNodeId, accessible);
+        resolveDirections(fromNodeId, toNodeId, accessible, fromQuery, toQuery);
     }, [fromNodeId, toNodeId, accessible, resolveDirections]);
 
     useEffect(() => {
@@ -394,6 +401,7 @@ export function FloorPlanViewer({
 
           {indoorSteps && <DirectionsLine    
             endpointId='indoor-directions-endpoints'
+            lineColor = {accessible ? '#2196F3' : undefined }
             useIndoorData={true}
             IndoorDirections={indoorSteps}
             lineWidth={5}
