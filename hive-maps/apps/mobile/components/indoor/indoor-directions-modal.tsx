@@ -1,7 +1,7 @@
 import { IndoorDirectionsResponse, IndoorNodeResponse } from "@/services/http/indoor-api";
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder, DimensionValue,} from "react-native";
-
+// the indoor direction modal to show step-by-step direction
 const AMBER       = "#E5A712";
 const AMBER_LIGHT = "#FDF3E0";
 const BG          = "#FFFFFF";
