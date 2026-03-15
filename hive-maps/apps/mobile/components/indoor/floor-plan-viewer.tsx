@@ -305,6 +305,16 @@ export function FloorPlanViewer({
         const feature = event?.features?.[0] as MapPressFeature | undefined
         if (!feature) return
         const roomId = getRoomId(feature)
+        console.log(feature.properties?.description);
+
+        if (!fromQuery) {
+            setFromNodeId(feature.properties?.nodeID as string);
+            setFromQuery(feature.properties?.nodeID as string);
+        }
+        else if (!toQuery){
+        setToQuery(feature.properties?.nodeID as string);
+        setToNodeId(feature.properties?.nodeID as string);}
+
         if (!roomId || !onPressRoom) return
         onPressRoom(roomId)
     }

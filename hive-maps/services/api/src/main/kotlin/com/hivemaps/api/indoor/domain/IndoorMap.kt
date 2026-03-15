@@ -15,7 +15,8 @@ data class RoomFeature(
     val id: String,
     val label: String?,
     val type: String,
-    val geometry: Any?
+    val geometry: Any?,
+    val nodeID: String?
 ) {
     companion object {
         val poiTypes: Set<String> = setOf(
@@ -49,7 +50,8 @@ data class FloorDetails(
                 "properties" to mapOf(
                     "id" to room.id,
                     "label" to room.label,
-                    "type" to room.type
+                    "type" to room.type,
+                    "nodeID" to room.nodeID
                 )
             )
         }
