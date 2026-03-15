@@ -181,6 +181,7 @@ export function FloorPlanViewer({
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
     const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
+    
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
@@ -192,6 +193,7 @@ export function FloorPlanViewer({
             setFromNodeId(node.id);
             setFromQuery('Current Location');
         } catch (err) {
+            console.warn('[NearestNode] No matching node found:', err);
             setFromNodeId(null);
             setFromQuery('');
         }
@@ -202,6 +204,7 @@ export function FloorPlanViewer({
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId);
             setIndoorSteps(steps);
         } catch (err) {
+            console.warn('[IndoorDirections] No directions found:', err);
             setIndoorSteps(null);
             setCurrentNode(null);
         }
@@ -570,4 +573,4 @@ const styles = StyleSheet.create({
         right: 0,
         zIndex: 1000,
     },
-})
+});
