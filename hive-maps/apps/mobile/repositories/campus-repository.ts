@@ -1,7 +1,7 @@
 import type { MapsProviderPort } from '@/services/maps/maps-provider';
 import { fetchBuildings, fetchCampuses, searchPlaceByAddress, fetchPlaceDetails } from '@/services/http/campus-api';
 import { mergeBuildingCache, loadBuildingCache, loadDetailsCache, mergeDetailsCache } from '@/storage/campus-storage';
-import type { Building, CampusId, CampusMeta } from '@/types/campus';
+import type { Building, CampusMeta } from '@/types/campus';
 
 export type BuildingPoint = {
   id: string;
@@ -26,7 +26,7 @@ export async function loadCampusesFromApi(): Promise<CampusMeta[]> {
 }
 
 export async function getBuildingPointsByCampus(
-  campus: CampusId,
+  campus: string,
   mapsProvider: MapsProviderPort,
   onProgress?: (points: BuildingPoint[], progress: BuildingPointsProgress) => void,
 ): Promise<BuildingPoint[]> {

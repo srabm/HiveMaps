@@ -8,7 +8,7 @@ import {
 } from '@/repositories/campus-repository';
 import { mapboxMapsAdapter } from '@/services/mapbox';
 import { useAppState } from '@/state/app-state';
-import type { CampusId, CampusMeta, CampusMetaById } from '@/types/campus';
+import type { CampusMeta, CampusMetaById } from '@/types/campus';
 
 const DEFAULT_CAMPUS_ID = 'SGW';
 const CAMPUS_METADATA_RETRY_DELAY_MS = 5000;
@@ -96,11 +96,11 @@ export function useNavigationController() {
     setBuildingsError(null);
     setProgress({ total: 0, processed: 0, found: 0 });
 
-  const allCampusIds = campuses.map(c => c.id) as CampusId[];
+  const allCampusIds = campuses.map(c => c.id);
   // NOTE: use campuses.map(c => c.id) — NOT Object.keys(campuses)
   // because campuses is now a CampusMeta[] array (not a Record), per main's refactor
 
-  const pointsMap: Partial<Record<CampusId, BuildingPoint[]>> = {};
+  const pointsMap: Partial<Record<string, BuildingPoint[]>> = {};
   const mergePoints = () => (Object.values(pointsMap) as BuildingPoint[][]).flat();
 
   const promises = allCampusIds.map((campusId) =>

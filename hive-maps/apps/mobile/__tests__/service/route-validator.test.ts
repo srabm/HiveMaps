@@ -160,4 +160,17 @@ describe('validateCampusRoute', () => {
             },
         });
     });
+
+    it('uses default empty object for buildingCampusByCode when omitted', () => {
+        const result = validateCampusRoute({
+            origin: {type: 'building', code: 'H'},
+            destination: {type: 'building', code: 'CC'},
+        }, campuses); 
+
+        expect(result).toEqual({
+            valid: false,
+            error: 'UNKNOWN_ORIGIN',
+            message: 'Building "H" not found.',
+        });
+    });
 });

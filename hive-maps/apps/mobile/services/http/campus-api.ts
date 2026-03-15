@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 
-import type { Building, CampusId, CampusMeta } from '@/types/campus';
+import type { Building, CampusMeta } from '@/types/campus';
 
 export type CampusResponse = CampusMeta;
 
@@ -38,7 +38,7 @@ async function getJson<T>(path: string): Promise<T> {
 
 export async function fetchCampuses(): Promise<CampusResponse[]> {
   const campuses = await getJson<Array<{
-    id: CampusId;
+    id: string;
     label: string;
     name: string;
     center: { lon: number; lat: number };
@@ -54,9 +54,9 @@ export async function fetchCampuses(): Promise<CampusResponse[]> {
   }));
 }
 
-export async function fetchBuildings(campus: CampusId): Promise<BuildingResponse[]> {
+export async function fetchBuildings(campus: string): Promise<BuildingResponse[]> {
   const buildings = await getJson<Array<{
-    campus: CampusId;
+    campus: string;
     code: string;
     name: string;
     location?: any;
