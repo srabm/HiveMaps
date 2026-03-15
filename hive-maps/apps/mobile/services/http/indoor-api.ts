@@ -2,6 +2,13 @@ import {getApiBaseUrl} from './campus-api';
 
 export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN' | 'DEFAULT';
 
+export const POI_TYPES = [
+  'bathroom', 'bathroom_men', 'bathroom_women', 'bathroom_unisex',
+  'bathroom_unisex_acc', 'bathroom_men_acc', 'bathroom_women_acc',
+  'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
+  'escalator', 'printer', 'ramp'
+];
+
 export interface FloorSummary {
     id: string;
     label: string;
