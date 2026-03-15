@@ -1,4 +1,4 @@
-import type { CampusId, CampusMetaById } from '@/types/campus';
+import type { CampusMetaById } from '@/types/campus';
 
 export type RouteEndpoint = 
     | {type: 'building'; code: string}
@@ -10,8 +10,8 @@ export interface CampusRouteRequest {
 }
 
 export interface ValidatedCampusRoute {
-    originCampus: CampusId;
-    destinationCampus: CampusId;
+    originCampus: string;
+    destinationCampus: string;
     isInterCampus: boolean;
     originCode?: string;
     destinationCode?: string;
@@ -28,8 +28,8 @@ const CAMPUS_RADIUS_KM = 0.8;
 
 export function getCampusForBuilding(
     code: string,
-    buildingCampusByCode: Record<string, CampusId>,
-): CampusId | null {
+    buildingCampusByCode: Record<string, string>,
+): string | null {
     return buildingCampusByCode[code.toUpperCase()] ?? null;
 }
 
@@ -47,8 +47,8 @@ export function getNearestCampus(
     longitude: number,
     latitude: number,
     campuses: CampusMetaById,
-): CampusId | null {
-    let best: {id: CampusId; dist: number} | null = null;
+): string | null {
+    let best: {id: string; dist: number} | null = null;
     for (const campus of Object.values(campuses)) {
         const dist = haversineKM(longitude, latitude, campus.center[0], campus.center[1]);
         if (dist <= CAMPUS_RADIUS_KM && (!best || dist < best.dist)) {
@@ -59,7 +59,7 @@ export function getNearestCampus(
 }
 
 type ResolvedEndpoint = {
-    campus: CampusId;
+    campus: string;
     code: string;
 };
 
@@ -70,7 +70,7 @@ type EndpointResolution =
 function resolveOriginEndpoint(
     origin: RouteEndpoint,
     campuses: CampusMetaById,
-    buildingCampusByCode: Record<string, CampusId>,
+    buildingCampusByCode: Record<string, string>,
 ): EndpointResolution {
     if (origin.type === 'building') {
         const originCode = origin.code.toUpperCase();
@@ -108,7 +108,7 @@ function resolveOriginEndpoint(
 function resolveDestinationEndpoint(
     destination: RouteEndpoint,
     campuses: CampusMetaById,
-    buildingCampusByCode: Record<string, CampusId>,
+    buildingCampusByCode: Record<string, string>,
 ): EndpointResolution {
     if (destination.type === 'building') {
         const destinationCode = destination.code.toUpperCase();
@@ -146,7 +146,7 @@ function resolveDestinationEndpoint(
 export function validateCampusRoute(
     request: CampusRouteRequest,
     campuses: CampusMetaById,
-    buildingCampusByCode: Record<string, CampusId> = {},
+    buildingCampusByCode: Record<string, string> = {},
 ): ValidationResult {
     const {origin, destination} = request;
 

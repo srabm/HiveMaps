@@ -2,12 +2,12 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import type { CampusId, CampusMeta } from '@/types/campus';
+import type { CampusMeta } from '@/types/campus';
 
 type Props = {
   options: CampusMeta[];
-  value: CampusId | null;
-  onChange: (campus: CampusId) => void;
+  value: string | null;
+  onChange: (campus: string) => void;
 };
 
 export function CampusSwitch({ options, value, onChange }: Readonly<Props>) {
