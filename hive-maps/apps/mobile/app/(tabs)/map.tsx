@@ -35,7 +35,6 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
-import type { CampusId } from '@/types/campus';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -94,7 +93,7 @@ type BuildingDetails = {
 
 type SelectedBuilding = {
     code?: string;
-    campus?: CampusId;
+    campus?: string;
     name?: string;
     addresses?: string[];
     coordinates?: Coordinates;

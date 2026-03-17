@@ -1,9 +1,8 @@
-import type {CampusId} from '@/types/campus';
 import type {Coordinate} from '@/services/maps/directions-api-adapter';
 
 export type ShuttleStop = {
     id: 'SGW' | 'LOY';
-    campusId: CampusId;
+    campusId: string;
     label: string;
     name: string;
     address: string;
