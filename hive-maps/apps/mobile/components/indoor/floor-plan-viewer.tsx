@@ -488,6 +488,7 @@ export function FloorPlanViewer({
                 setToQuery('');
                 setToNodeId(null);
             }}
+            preStartLabel={accessible ? "Navigate" : undefined}
           />
         </View>
       )}

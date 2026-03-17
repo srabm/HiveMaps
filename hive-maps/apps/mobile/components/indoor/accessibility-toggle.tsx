@@ -26,7 +26,7 @@ const AccessibilityToggle: React.FC<AccessibilityToggleProps> = ({
     >
       <MaterialCommunityIcons
         name="wheelchair-accessibility"
-        size={16}
+        size={24}
         color="#9d1e30"
       />
 
