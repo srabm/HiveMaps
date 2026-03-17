@@ -7,9 +7,11 @@ import { POIMarker } from '@/components/indoor/POIMarker';
 import { MaterialIcons } from '@expo/vector-icons';
 import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
-import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse} from '@/services/http/indoor-api'
+import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, NoDirectionsFoundException} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
+import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
+import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
 
 export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
@@ -19,6 +21,7 @@ export type FloorPlanViewerProps = Readonly<{
     onDirectionsActiveChange?: (active: boolean) => void
     buildingCode: string
     floorId: string
+    onError?: (message: string) => void
 }>
 
 type RoomFeatureProperties = {
@@ -164,7 +167,8 @@ export function FloorPlanViewer({
                                     onPressRoom,
                                     onDirectionsActiveChange,
                                     buildingCode,
-                                    floorId
+                                    floorId,
+                                    onError
                                 }: FloorPlanViewerProps) {
       
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => {
@@ -188,6 +192,7 @@ export function FloorPlanViewer({
     }
   }, [rooms])
   
+    const { accessible, setAccessible } = useIndoorNavigationState();
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
     const cameraRef = useRef<MapboxGL.Camera>(null);
     const [fromQuery, setFromQuery] = useState('');
@@ -217,16 +222,21 @@ export function FloorPlanViewer({
         }
     }, [buildingCode, floorId]);
 
-    const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string) => {
+    const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string, accessible: boolean, fromText: string, toText: string) => {
         try {
-            const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId);
+            const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId, accessible);
             setIndoorSteps(steps);
         } catch (err) {
             console.log('[IndoorDirections] No directions found:', err instanceof Error ? err.message : err);
+
+            if (err instanceof NoDirectionsFoundException) {
+              onError?.(`A${accessible ? "n accessible" : ""} path from ${fromText} to ${toText} could not be found.`);
+            }
+
             setIndoorSteps(null);
             setCurrentNode(null);
         }
-    }, [buildingCode]);
+    }, [buildingCode, onError]);
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
@@ -244,8 +254,8 @@ export function FloorPlanViewer({
             setCurrentNode(null);
             return;
         }
-        resolveDirections(fromNodeId, toNodeId);
-    }, [fromNodeId, toNodeId, resolveDirections]);
+        resolveDirections(fromNodeId, toNodeId, accessible, fromQuery, toQuery);
+    }, [fromNodeId, toNodeId, accessible, resolveDirections]);
 
     useEffect(() => {
         if (onDirectionsActiveChange) {
@@ -391,6 +401,7 @@ export function FloorPlanViewer({
 
           {indoorSteps && <DirectionsLine    
             endpointId='indoor-directions-endpoints'
+            lineColor = {accessible ? '#2196F3' : undefined }
             useIndoorData={true}
             IndoorDirections={indoorSteps}
             lineWidth={5}
@@ -477,6 +488,7 @@ export function FloorPlanViewer({
                 setToQuery('');
                 setToNodeId(null);
             }}
+            preStartLabel={accessible ? "Navigate" : undefined}
           />
         </View>
       )}
@@ -536,6 +548,12 @@ export function FloorPlanViewer({
             fromPlaceholder="From room (e.g. H8.835)"
             toPlaceholder="To room (e.g. H8.841)"
           />
+          <View style={styles.accessibilityToggleContainer}>
+            <AccessibilityToggle
+              enabled={accessible}
+              onToggle={setAccessible}
+            />
+          </View>
         </View>
       )}
 
@@ -589,6 +607,12 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
+        zIndex: 1000,
+    },
+    accessibilityToggleContainer: {
+        position: 'relative',
+        marginTop: 10,
+        marginLeft: 10,
         zIndex: 1000,
     },
 })

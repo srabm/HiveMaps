@@ -130,7 +130,7 @@ export default function IndoorMapScreen() {
         const preferredCampus = campusParam?.toUpperCase();
         
         let resolved = matches.find((candidate) => candidate.campusId.toUpperCase() === preferredCampus);
-        if (!resolved) resolved = matches[0] || null;
+        resolved ??= matches[0] || null;
 
         setResolvedBuilding(resolved);
         setIsResolvingBuilding(false);
@@ -368,6 +368,7 @@ export default function IndoorMapScreen() {
           onDirectionsActiveChange={setDirectionsActive}
           buildingCode={buildingCode || ''}
           floorId={activeFloorId || ''}
+          onError={setNoticeMessage}
         />
 
         {!!noticeMessage && (
