@@ -305,15 +305,20 @@ export function FloorPlanViewer({
         const feature = event?.features?.[0] as MapPressFeature | undefined
         if (!feature) return
         const roomId = getRoomId(feature)
-        console.log(feature.properties?.description);
+
+        const nodeId = feature.properties?.nodeID;
+
+        if (!nodeId || typeof nodeId !== "string" || nodeId.trim() === "") {
+            return;
+        }
 
         if (!fromQuery) {
-            setFromNodeId(feature.properties?.nodeID as string);
-            setFromQuery(feature.properties?.nodeID as string);
+            setFromNodeId(nodeId);
+            setFromQuery(nodeId);
+        } else if (!toQuery) {
+            setToQuery(nodeId);
+            setToNodeId(nodeId);
         }
-        else if (!toQuery){
-        setToQuery(feature.properties?.nodeID as string);
-        setToNodeId(feature.properties?.nodeID as string);}
 
         if (!roomId || !onPressRoom) return
         onPressRoom(roomId)
