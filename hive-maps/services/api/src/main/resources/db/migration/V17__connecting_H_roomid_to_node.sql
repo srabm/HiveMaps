@@ -1,4 +1,4 @@
-
+ALTER TABLE room ADD COLUMN nodeID TEXT NOT NULL DEFAULT '';
 -- FLOOR 8
 UPDATE room SET nodeID = 'H8.803' WHERE id = 'H-8-H801';
 UPDATE room SET nodeID = 'H8.803' WHERE id = 'H-8-H803';
