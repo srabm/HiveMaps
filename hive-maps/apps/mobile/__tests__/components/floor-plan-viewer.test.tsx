@@ -847,4 +847,108 @@ describe('FloorPlanViewer', () => {
       expect(mockFetchNearestNode).toHaveBeenCalledWith('MB', '8', -73.5798, 45.4902);
     });
   });
+  it('sets toQuery via room press when fromQuery is already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('node-to');
+  });
+  it('does not set toQuery when nodeID is missing on room press with fromQuery already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not set toQuery when nodeID is empty string on room press with fromQuery already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not overwrite toQuery on third room press when both are already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-2' } }],
+      });
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-extra', roomId: 'room-3' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('node-to');
+  });
 });

@@ -317,6 +317,8 @@ export function FloorPlanViewer({
         const roomId = getRoomId(feature)
 
         const nodeId = feature.properties?.nodeID;
+        if (!roomId || !onPressRoom) return
+        onPressRoom(roomId)
 
         if (!nodeId || typeof nodeId !== "string" || nodeId.trim() === "") {
             return;
@@ -329,9 +331,6 @@ export function FloorPlanViewer({
             setToQuery(nodeId);
             setToNodeId(nodeId);
         }
-
-        if (!roomId || !onPressRoom) return
-        onPressRoom(roomId)
     }
 
   return (
