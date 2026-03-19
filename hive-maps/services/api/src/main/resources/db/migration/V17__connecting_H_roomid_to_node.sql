@@ -32,7 +32,7 @@ UPDATE room SET nodeID = 'H8.835' WHERE id = 'H-8-H835';
 UPDATE room SET nodeID = 'H8.837' WHERE id = 'H-8-H837';
 UPDATE room SET nodeID = 'H8.838' WHERE id = 'H-8-H838';
 UPDATE room SET nodeID = 'H8.838' WHERE id = 'H-8-H838.01';
-UPDATE room SET nodeID = 'H8.840_2' WHERE id = 'H-8-H840';
+UPDATE room SET nodeID = 'H8.840' WHERE id = 'H-8-H840';
 UPDATE room SET nodeID = 'H8.841' WHERE id = 'H-8-H841';
 UPDATE room SET nodeID = 'H8.842' WHERE id = 'H-8-H842';
 UPDATE room SET nodeID = 'H8.843' WHERE id = 'H-8-H843';
