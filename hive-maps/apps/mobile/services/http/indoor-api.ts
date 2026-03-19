@@ -8,6 +8,12 @@ export const POI_TYPES = [
   'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
   'escalator', 'printer', 'ramp'
 ];
+export class NoDirectionsFoundException extends Error {
+    constructor(message?: string) {
+        super(message);
+        this.name = 'NoDirectionsFoundException';
+    }
+}
 
 export interface FloorSummary {
     id: string;
@@ -69,9 +75,14 @@ async function getIndoorJson<T>(path: string): Promise<T> {
     try {
         const response = await fetch(url, controller ? {signal: controller.signal} : undefined);
         if (!response.ok) {
-            const error = new Error(`Indoor API request failed (${response.status})`) as HttpStatusError;
-            error.status = response.status;
-            throw error;
+            if (response.status === 422) {
+                throw new NoDirectionsFoundException();
+            }
+            else {
+                const error = new Error(`Indoor API request failed (${response.status})`) as HttpStatusError;
+                error.status = response.status;
+                throw error;
+            }
         }
         return (await response.json()) as T;
     } finally {

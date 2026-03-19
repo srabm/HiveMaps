@@ -1,0 +1,41 @@
+appId: com.anonymous.mobile
+name: "US-4.5 Indoor Directions - Accessible Directions"
+---
+- tapOn: "Search building or address"
+- inputText: "Hall Building"
+- extendedWaitUntil:
+    visible: "Concordia University, Henry F. Hall (H) Building"
+    timeout: 8000
+- tapOn: "Concordia University, Henry F. Hall (H) Building"
+- tapOn:
+    point: 50%,54%
+- tapOn: "Indoor"
+- tapOn: "Floor 8th Floor"
+- assertVisible:
+    id: "accessibility-toggle"
+- tapOn:
+    id: "accessibility-toggle"
+- assertVisible: "From room (e.g. H8.835)"
+- tapOn: "From room (e.g. H8.835)"
+- inputText: "H8.835"
+- extendedWaitUntil:
+    visible: "H8.835"
+    timeout: 8000
+- tapOn:
+    text: "H8.835"
+    index: 1
+- assertVisible: "To room (e.g. H8.841)"
+- tapOn: "To room (e.g. H8.841)"
+- inputText: "H8.841"
+- extendedWaitUntil:
+    visible: "H8.841"
+    timeout: 8000
+- tapOn:
+    text: "H8.841"
+    index: 1
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 5000
+- tapOn: " Start"
+- tapOn: "✕"
+- stopApp

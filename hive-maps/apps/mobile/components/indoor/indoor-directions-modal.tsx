@@ -35,6 +35,7 @@ export interface DirectionsModalProps {
     onClose: () => void;
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
+    preStartLabel?: string;
 }
 
 /**
@@ -56,6 +57,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                                                              onClose,
                                                              onCurrentNodeChange,
                                                              beeImageSource,
+                                                             preStartLabel = "Walk",
                                                          }) => {
 
     if (steps.length > 0) {
@@ -280,7 +282,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                 ) : (
                     <View style={styles.preStartContainer}>
                 <View style={styles.preStartHeader}>
-                    <Text style={styles.preStartLabel}>Walk</Text>
+                    <Text style={styles.preStartLabel}>{preStartLabel}</Text>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.75}>
                         <Text style={styles.closeBtnText}>✕</Text>
                     </TouchableOpacity>
