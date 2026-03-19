@@ -951,4 +951,81 @@ describe('FloorPlanViewer', () => {
 
     expect(latestDirectionBarProps.toValue).toBe('node-to');
   });
+
+  it('sets fromQuery via room press when fromQuery is not already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    )
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-from');
+  });
+
+  it('does not set fromQuery when nodeID is empty string on room press with fromQuery not already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('');
+  });
+
+  it('does not overwrite fromQuery on third room press when both are already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-3' } }],
+      });
+    });
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-extra', roomId: 'room-3' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-from');
+  });
+
 });
