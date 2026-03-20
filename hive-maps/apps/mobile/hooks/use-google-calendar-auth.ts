@@ -22,6 +22,68 @@ type AuthStatus = 'idle' | 'loading' | 'prompting' | 'connecting' | 'connected' 
 
 GoogleSignin.configure(getGoogleCalendarAuthConfig().configureOptions);
 
+type GoogleTokens = {
+  accessToken: string;
+  idToken?: string | null;
+};
+
+type GoogleUserData = {
+  scopes: string[];
+  user: {
+    email?: string | null;
+    name?: string | null;
+  };
+};
+
+function buildGoogleCalendarSession(data: GoogleUserData, tokens: GoogleTokens): GoogleCalendarSession {
+  return {
+    accessToken: tokens.accessToken,
+    idToken: tokens.idToken,
+    scope: data.scopes.join(' '),
+    obtainedAt: Date.now(),
+    email: data.user.email,
+    name: data.user.name,
+  };
+}
+
+function getErrorStatus(currentSession: GoogleCalendarSession | null): AuthStatus {
+  return currentSession ? 'connected' : 'error';
+}
+
+function getGoogleSignInErrorMessage(signInError: unknown) {
+  const code =
+    typeof signInError === 'object' && signInError && 'code' in signInError
+      ? String(signInError.code)
+      : '';
+  const message = signInError instanceof Error ? signInError.message : '';
+  const normalizedError = `${code} ${message}`.toUpperCase();
+
+  if (code === statusCodes.SIGN_IN_CANCELLED) {
+    return PERMISSION_DENIED_MESSAGE;
+  }
+
+  if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+    return 'Google Play Services is not available on this device.';
+  }
+
+  if (code === statusCodes.IN_PROGRESS) {
+    return 'Google sign-in is already in progress.';
+  }
+
+  const isMisconfiguredError =
+    normalizedError.includes('DEVELOPER_ERROR') ||
+    normalizedError.includes('SIGN_IN_FAILED') ||
+    normalizedError.includes('NON-RECOVERABLE');
+
+  if (isMisconfiguredError) {
+    return GOOGLE_SIGN_IN_MISCONFIGURED_MESSAGE;
+  }
+
+  return signInError instanceof Error
+    ? signInError.message
+    : 'Google sign-in failed while securing your session.';
+}
+
 export function useGoogleCalendarAuth() {
   const [session, setSession] = useState<GoogleCalendarSession | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -44,14 +106,7 @@ export function useGoogleCalendarAuth() {
           const tokens = await GoogleSignin.getTokens();
           if (!mounted) return;
 
-          const nextSession: GoogleCalendarSession = {
-            accessToken: tokens.accessToken,
-            idToken: tokens.idToken,
-            scope: silentSignIn.data.scopes.join(' '),
-            obtainedAt: Date.now(),
-            email: silentSignIn.data.user.email,
-            name: silentSignIn.data.user.name,
-          };
+          const nextSession = buildGoogleCalendarSession(silentSignIn.data, tokens);
 
           await saveGoogleCalendarSession(nextSession);
           if (!mounted) return;
@@ -81,7 +136,7 @@ export function useGoogleCalendarAuth() {
 
     if (!authConfig.isConfigured) {
       setError(authConfig.errorMessage ?? MISSING_GOOGLE_CLIENT_ID_MESSAGE);
-      setStatus(session ? 'connected' : 'error');
+      setStatus(getErrorStatus(session));
       return;
     }
 
@@ -95,52 +150,19 @@ export function useGoogleCalendarAuth() {
       const signInResult = await GoogleSignin.signIn();
       if (signInResult.type === 'cancelled') {
         setError(PERMISSION_DENIED_MESSAGE);
-        setStatus(session ? 'connected' : 'error');
+        setStatus(getErrorStatus(session));
         return;
       }
 
       const tokens = await GoogleSignin.getTokens();
-      const nextSession: GoogleCalendarSession = {
-        accessToken: tokens.accessToken,
-        idToken: tokens.idToken,
-        scope: signInResult.data.scopes.join(' '),
-        obtainedAt: Date.now(),
-        email: signInResult.data.user.email,
-        name: signInResult.data.user.name,
-      };
+      const nextSession = buildGoogleCalendarSession(signInResult.data, tokens);
 
       await saveGoogleCalendarSession(nextSession);
       setSession(nextSession);
       setStatus('connected');
     } catch (signInError: unknown) {
-      const code =
-        typeof signInError === 'object' && signInError && 'code' in signInError
-          ? String(signInError.code)
-          : '';
-      const message = signInError instanceof Error ? signInError.message : '';
-      const normalizedError = `${code} ${message}`.toUpperCase();
-
-      if (code === statusCodes.SIGN_IN_CANCELLED) {
-        setError(PERMISSION_DENIED_MESSAGE);
-      } else if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services is not available on this device.');
-      } else if (code === statusCodes.IN_PROGRESS) {
-        setError('Google sign-in is already in progress.');
-      } else if (
-        normalizedError.includes('DEVELOPER_ERROR') ||
-        normalizedError.includes('SIGN_IN_FAILED') ||
-        normalizedError.includes('NON-RECOVERABLE')
-      ) {
-        setError(GOOGLE_SIGN_IN_MISCONFIGURED_MESSAGE);
-      } else {
-        setError(
-          signInError instanceof Error
-            ? signInError.message
-            : 'Google sign-in failed while securing your session.'
-        );
-      }
-
-      setStatus(session ? 'connected' : 'error');
+      setError(getGoogleSignInErrorMessage(signInError));
+      setStatus(getErrorStatus(session));
     }
   };
 

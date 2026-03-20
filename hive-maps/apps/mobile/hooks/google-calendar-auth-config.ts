@@ -31,11 +31,15 @@ export function getGoogleCalendarAuthConfig(env: EnvSource = process.env) {
   const isAndroidClientIdValid = hasAndroidClientId && isValidGoogleClientId(androidClientId);
   const isWebClientIdValid = hasWebClientId && isValidGoogleClientId(webClientId);
   const isValid = isAndroidClientIdValid && isWebClientIdValid;
-  const errorMessage = !hasClientIds
-    ? MISSING_GOOGLE_CLIENT_ID_MESSAGE
-    : !isValid
-      ? INVALID_GOOGLE_CLIENT_ID_MESSAGE
-      : null;
+  const missingClientIds = !hasClientIds;
+  const hasInvalidClientIds = hasClientIds && !isValid;
+
+  let errorMessage: string | null = null;
+  if (missingClientIds) {
+    errorMessage = MISSING_GOOGLE_CLIENT_ID_MESSAGE;
+  } else if (hasInvalidClientIds) {
+    errorMessage = INVALID_GOOGLE_CLIENT_ID_MESSAGE;
+  }
 
   return {
     androidClientId,

@@ -29,6 +29,10 @@ export default function AccountScreen() {
   const { connect, disconnect, error, isConfigured, isReady, session, status } = useGoogleCalendarAuth();
 
   const isBusy = status === 'loading' || status === 'connecting' || status === 'prompting';
+  const isDisconnected = !session;
+  const helperMessage = session
+    ? 'Google Calendar successfully linked. Hive Maps can now use your schedule.'
+    : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.';
 
   return (
     <ThemedView style={styles.screen}>
@@ -47,13 +51,9 @@ export default function AccountScreen() {
           <ThemedText style={styles.statusText}>Status: {getStatusLabel(status)}</ThemedText>
           {session?.email ? <ThemedText>{session.email}</ThemedText> : null}
           {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
-          <ThemedText style={styles.helperText}>
-            {session
-              ? 'Google Calendar successfully linked. Hive Maps can now use your schedule.'
-              : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.'}
-          </ThemedText>
+          <ThemedText style={styles.helperText}>{helperMessage}</ThemedText>
 
-          {!session ? (
+          {isDisconnected ? (
             <Pressable
               accessibilityRole="button"
               disabled={isBusy || !isConfigured || !isReady}
