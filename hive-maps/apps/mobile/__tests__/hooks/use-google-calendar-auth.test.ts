@@ -74,10 +74,26 @@ const mockRevokeAccess = GoogleSignin.revokeAccess as jest.MockedFunction<
 >;
 const mockSignOut = GoogleSignin.signOut as jest.MockedFunction<typeof GoogleSignin.signOut>;
 
+type SignInResponse = Awaited<ReturnType<typeof GoogleSignin.signIn>>;
+type SignInSilentlyResponse = Awaited<ReturnType<typeof GoogleSignin.signInSilently>>;
+type SignInSuccessResponse = Extract<SignInResponse, { type: 'success' }>;
+type NoSavedCredentialFoundResponse = Extract<SignInSilentlyResponse, { type: 'noSavedCredentialFound' }>;
+type GoogleUser = SignInSuccessResponse['data'];
+type GetTokensResponse = Awaited<ReturnType<typeof GoogleSignin.getTokens>>;
+
+const debugSummary = {
+  envVars: ['EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID', 'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'],
+  hasAndroidClientId: true,
+  hasWebClientId: true,
+  isValid: true,
+  maskedAndroidClientId: 'android....googleusercontent.com',
+  maskedWebClientId: 'web....googleusercontent.com',
+};
+
 const configuredAuthConfig = {
   androidClientId: 'android.apps.googleusercontent.com',
   webClientId: 'web.apps.googleusercontent.com',
-  debugSummary: {},
+  debugSummary,
   errorMessage: null,
   isConfigured: true,
   configureOptions: {
@@ -85,6 +101,43 @@ const configuredAuthConfig = {
     webClientId: 'web.apps.googleusercontent.com',
   },
 };
+
+function makeUser(): GoogleUser {
+  return {
+    user: {
+      id: 'user-123',
+      name: 'Student',
+      email: 'student@example.edu',
+      photo: null,
+      familyName: 'Example',
+      givenName: 'Student',
+    },
+    scopes: ['email', 'profile'],
+    idToken: 'id-token',
+    serverAuthCode: null,
+  };
+}
+
+function makeSignInSuccessResponse(): SignInSuccessResponse {
+  return {
+    type: 'success',
+    data: makeUser(),
+  };
+}
+
+function makeNoSavedCredentialFoundResponse(): NoSavedCredentialFoundResponse {
+  return {
+    type: 'noSavedCredentialFound',
+    data: null,
+  };
+}
+
+function makeTokens(): GetTokensResponse {
+  return {
+    accessToken: 'access-token',
+    idToken: 'id-token',
+  };
+}
 
 describe('useGoogleCalendarAuth', () => {
   beforeEach(() => {
@@ -95,31 +148,16 @@ describe('useGoogleCalendarAuth', () => {
     mockSaveGoogleCalendarSession.mockResolvedValue(undefined);
     mockClearGoogleCalendarSession.mockResolvedValue(undefined);
 
-    mockSignInSilently.mockResolvedValue({ type: 'cancelled' });
+    mockSignInSilently.mockResolvedValue(makeNoSavedCredentialFoundResponse());
     mockHasPlayServices.mockResolvedValue(true);
-    mockSignIn.mockResolvedValue({
-      type: 'success',
-      data: {
-        scopes: ['email', 'profile'],
-        user: { email: 'student@example.edu', name: 'Student' },
-      },
-    });
-    mockGetTokens.mockResolvedValue({
-      accessToken: 'access-token',
-      idToken: 'id-token',
-    });
-    mockRevokeAccess.mockResolvedValue(undefined);
-    mockSignOut.mockResolvedValue(undefined);
+    mockSignIn.mockResolvedValue(makeSignInSuccessResponse());
+    mockGetTokens.mockResolvedValue(makeTokens());
+    mockRevokeAccess.mockResolvedValue(null);
+    mockSignOut.mockResolvedValue(null);
   });
 
   it('restores a silently signed-in session on mount', async () => {
-    mockSignInSilently.mockResolvedValue({
-      type: 'success',
-      data: {
-        scopes: ['email', 'profile'],
-        user: { email: 'student@example.edu', name: 'Student' },
-      },
-    });
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
 
     const { result } = renderHook(() => useGoogleCalendarAuth());
 
@@ -192,13 +230,7 @@ describe('useGoogleCalendarAuth', () => {
   });
 
   it('clears the local session on disconnect even when revoke access fails', async () => {
-    mockSignInSilently.mockResolvedValue({
-      type: 'success',
-      data: {
-        scopes: ['email', 'profile'],
-        user: { email: 'student@example.edu', name: 'Student' },
-      },
-    });
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
     mockRevokeAccess.mockRejectedValueOnce(new Error('network'));
 
     const { result } = renderHook(() => useGoogleCalendarAuth());
