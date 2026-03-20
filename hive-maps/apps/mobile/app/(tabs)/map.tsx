@@ -690,9 +690,16 @@ export default function MapScreen() {
                 )}
             </MapboxGL.MapView>
 
-             {!isNavigating && (
+              {!isNavigating && (
                   <View style={styles.topBar}>
                       <CampusBadge campus={campusMeta}/>
+                      <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push('/account' as Href)}
+                          style={[styles.accountButton, {backgroundColor: theme.background}]}
+                      >
+                          <Text style={[styles.accountButtonText, {color: theme.text}]}>Menu</Text>
+                      </Pressable>
                   </View>
               )}
 
@@ -1029,6 +1036,20 @@ const styles = StyleSheet.create({
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
+    },
+    accountButton: {
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    accountButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     switchContainer: {
         position: 'absolute',
