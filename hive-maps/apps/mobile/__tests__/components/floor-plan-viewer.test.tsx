@@ -1028,4 +1028,43 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.fromValue).toBe('node-from');
   });
 
+  it('sets fromQuery to resolved id when fromQuery is empty when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-resolved'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-resolved');
+  });
+
+  it('sets toQuery to resolved id when toQuery is empty when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-resolved'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+    expect(latestDirectionBarProps.toValue).toBe('node-resolved');
+  });
+
 });

@@ -207,7 +207,7 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-    
+    const pressedRoomLocation = useRef<[number, number] | null>(null);
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -277,6 +277,8 @@ export function FloorPlanViewer({
         setUserLocation([longitude, latitude]);
     }, [resolveNearestNode]);
 
+
+
     const planShape = useMemo(() => {
         if (!planGeometry) return null
         return {
@@ -311,37 +313,76 @@ export function FloorPlanViewer({
         })
     }, [selectedRoomFeature])
 
-    const handleRoomPress = (event: any) => {
-        const feature = event?.features?.[0] as MapPressFeature | undefined
-        if (!feature) return
-        const roomId = getRoomId(feature)
+    const findNearestIndoorNode = async(longitude: number, latitude: number) :Promise<string> => {
 
-        const nodeId = feature.properties?.nodeID;
-        if (!roomId || !onPressRoom) return
-        onPressRoom(roomId)
-
-        if (!nodeId || typeof nodeId !== "string" || nodeId.trim() === "") {
-            return;
+        try {
+            const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
+            console.log('[NearestNode] Response ←', node);
+            return node.id;
+        } catch (err) {
+            console.log('[NearestNode] No matching node found:', err instanceof Error ? err.message : err);
+            return "";
         }
 
-        if (!fromQuery) {
-            setFromNodeId(nodeId);
-            setFromQuery(nodeId);
-        } else if (!toQuery) {
-            setToQuery(nodeId);
-            setToNodeId(nodeId);
-        }
     }
+    const handleRoomPress = async (event: any) => {
+        const feature = event?.features?.[0] as MapPressFeature | undefined;
+        if (!feature) return;
 
+        const roomId = getRoomId(feature);
+        if (!roomId || !onPressRoom) return;
+
+        onPressRoom(roomId);
+
+        let nodeId = feature.properties?.nodeID;
+
+        if (!nodeId || typeof nodeId !== "string") return;
+
+        if (nodeId.trim() === "") {
+            let latitude: number | undefined;
+            let longitude: number | undefined;
+
+            if (event?.coordinates) {
+                ({ latitude, longitude } = event.coordinates);
+            }
+            else if (event?.geometry?.type === "Point") {
+                [longitude, latitude] = event.geometry.coordinates;
+            }
+
+            if (
+                typeof latitude !== "number" ||
+                typeof longitude !== "number"
+            ) {
+                console.error("Invalid coordinates");
+                return;
+            }
+            try {
+                const g = await findNearestIndoorNode(longitude, latitude);
+                nodeId = g;
+                console.log(g);
+            } catch (err) {
+                console.error("Nearest node failed:", err);
+                return;
+            }
+        }
+        if (!fromQuery) {
+            setFromNodeId(String(nodeId));
+            setFromQuery(String(nodeId));
+        } else if (!toQuery) {
+            setToQuery(String(nodeId));
+            setToNodeId(String(nodeId));
+        }
+    };
   return (
     <View testID="indoor-floor-plan" style={styles.container}>
       {planShape && rooms ? (
-        <MapboxGL.MapView 
-          style={StyleSheet.absoluteFill} 
-          logoEnabled={false} 
-          scaleBarEnabled={false}
-          styleURL={MapboxGL.StyleURL.Light} 
-        >
+          <MapboxGL.MapView
+              style={StyleSheet.absoluteFill}
+              logoEnabled={false}
+              scaleBarEnabled={false}
+              styleURL={MapboxGL.StyleURL.Light}
+          >
+
        
           <MapboxGL.Camera 
             ref={cameraRef}

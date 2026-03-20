@@ -346,10 +346,11 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB2-E134', 'E134', true, 'LB2.STAIRS_2', 'LB2_J12', 'LB', 12.006079101961026),
 ('LB2-E135', 'E135', false, 'LB2_J20', 'LB2.STAIRS_1', 'LB', 13.532089912240197),
 ('LB2-E136', 'E136', true, 'LB2.STAIRS_1', 'LB2_J20', 'LB', 13.532089912240197),
-('LB2-E137', 'E137', true, 'LB2.STAIRS_1', 'LB3.STAIRS_1', 'LB', 0.0),
-('LB2-E138', 'E138', true, 'LB2.STAIRS_2', 'LB3.STAIRS_2', 'LB', 0.0),
-('LB2-E139', 'E139', true, 'LB3.STAIRS_1', 'LB2.STAIRS_1', 'LB', 0.0),
-('LB2-E140', 'E140', true, 'LB3.STAIRS_2', 'LB2.STAIRS_2', 'LB', 0.0),
+('LB2-E137', 'E137', false, 'LB2.STAIRS_1', 'LB3.STAIRS_1', 'LB', 0.0),
+('LB2-E138', 'E138', false, 'LB2.STAIRS_2', 'LB3.STAIRS_2', 'LB', 0.0),
+('LB2-E139', 'E139', false, 'LB3.STAIRS_1', 'LB2.STAIRS_1', 'LB', 0.0),
+('LB2-E140', 'E140', false, 'LB3.STAIRS_2', 'LB2.STAIRS_2', 'LB', 0.0),
+('LB2-E141', 'E141', true, 'LB2.ELEVATORS', 'LB3.ELEVATORS', 'LB', 0.0),
 
 -- Webster Library BUILDING (LB) FLOOR 3 --
 ('LB3-E1', 'E1', true, 'LB3.316', 'LB3_J2', 'LB', 2.107919789941514),
@@ -560,10 +561,12 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB3-E206', 'E206', true, 'LB3_J20', 'LB3.385_2', 'LB', 14.846951456025195),
 ('LB3-E207', 'E207', true, 'LB3_J3', 'LB3.J1', 'LB', 17.604967282808353),
 ('LB3-E208', 'E208', true, 'LB3.J1', 'LB3_J3', 'LB', 17.604967282808353),
-('LB3-E209', 'E209', true, 'LB3.STAIRS_1', 'LB4.STAIRS_1', 'LB', 0.0),
-('LB3-E210', 'E210', true, 'LB3.STAIRS_2', 'LB4.STAIRS_2', 'LB', 0.0),
-('LB3-E211', 'E211', true, 'LB4.STAIRS_1', 'LB3.STAIRS_1', 'LB', 0.0),
-('LB3-E212', 'E212', true, 'LB4.STAIRS_2', 'LB3.STAIRS_2', 'LB', 0.0),
+('LB3-E209', 'E209', false, 'LB3.STAIRS_1', 'LB4.STAIRS_1', 'LB', 0.0),
+('LB3-E210', 'E210', false, 'LB3.STAIRS_2', 'LB4.STAIRS_2', 'LB', 0.0),
+('LB3-E211', 'E211', false, 'LB4.STAIRS_1', 'LB3.STAIRS_1', 'LB', 0.0),
+('LB3-E212', 'E212', false, 'LB4.STAIRS_2', 'LB3.STAIRS_2', 'LB', 0.0),
+('LB3-E213', 'E213', true, 'LB3.ELEVATORS', 'LB2.ELEVATORS', 'LB', 0.0),
+('LB3-E214', 'E214', true, 'LB3.ELEVATORS', 'LB4.ELEVATORS', 'LB', 0.0),
 
 -- Webster Library BUILDING (LB) FLOOR 4 --
 ('LB4-E1', 'E1', true, 'LB4_J12', 'LB4_J11', 'LB', 3.921349168616476),
@@ -718,10 +721,12 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB4-E150', 'E150', true, 'LB4.437', 'LB4_J22', 'LB', 4.3625276683155585),
 ('LB4-E151', 'E151', true, 'LB4.461_2', 'LB4_J26', 'LB', 4.754422314765754),
 ('LB4-E152', 'E152', true, 'LB4_J26', 'LB4.461_2', 'LB', 4.754422314765754),
-('LB4-E153', 'E153', true, 'LB4.STAIRS_1', 'LB5.STAIRS_1', 'LB', 0.0),
-('LB4-E154', 'E154', true, 'LB4.STAIRS_2', 'LB5.STAIRS_2', 'LB', 0.0),
-('LB4-E155', 'E155', true, 'LB5.STAIRS_1', 'LB4.STAIRS_1', 'LB', 0.0),
-('LB4-E156', 'E156', true, 'LB5.STAIRS_2', 'LB4.STAIRS_2', 'LB', 0.0),
+('LB4-E153', 'E153', false, 'LB4.STAIRS_1', 'LB5.STAIRS_1', 'LB', 0.0),
+('LB4-E154', 'E154', false, 'LB4.STAIRS_2', 'LB5.STAIRS_2', 'LB', 0.0),
+('LB4-E155', 'E155', false, 'LB5.STAIRS_1', 'LB4.STAIRS_1', 'LB', 0.0),
+('LB4-E156', 'E156', false, 'LB5.STAIRS_2', 'LB4.STAIRS_2', 'LB', 0.0),
+('LB4-E157', 'E157', true, 'LB4.ELEVATORS', 'LB3.ELEVATORS', 'LB', 0.0),
+('LB4-E158', 'E158', true, 'LB4.ELEVATORS', 'LB5.ELEVATORS', 'LB', 0.0),
 
 -- Webster Library BUILDING (LB) FLOOR 5 --
 ('LB5-E1', 'E1', true, 'LB5_J1', 'LB5_J2', 'LB', 10.250834238829528),
@@ -867,7 +872,8 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('LB5-E141', 'E141', true, 'LB5.547_1', 'LB5_J17', 'LB', 9.986470723298284),
 ('LB5-E142', 'E142', true, 'LB5_J17', 'LB5.547_1', 'LB', 9.986470723298284),
 ('LB5-E143', 'E143', true, 'LB5.547_2', 'LB5_J22', 'LB', 3.742239556314173),
-('LB5-E144', 'E144', true, 'LB5_J22', 'LB5.547_2', 'LB', 3.742239556314173);
+('LB5-E144', 'E144', true, 'LB5_J22', 'LB5.547_2', 'LB', 3.742239556314173),
+('LB5-E145', 'E145', true, 'LB5.ELEVATORS', 'LB4.ELEVATORS', 'LB', 0.0);
 
 
 -- VIRTUAL NODES --

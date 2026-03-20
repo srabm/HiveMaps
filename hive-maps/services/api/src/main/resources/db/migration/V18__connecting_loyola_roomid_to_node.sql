@@ -3,15 +3,15 @@ UPDATE room SET nodeID = 'CC1.100' WHERE id = 'CC-100';
 UPDATE room SET nodeID = 'CC1.101' WHERE id = 'CC-101';
 UPDATE room SET nodeID = 'CC1.102' WHERE id = 'CC-BATHROOM-102';
 UPDATE room SET nodeID = 'CC1.104' WHERE id = 'CC-BATHROOM-104';
-UPDATE room SET nodeID = 'CC1.107' WHERE id = 'CC-BATHROOM-104-02'; -- avoid duplicate CC1.104
+UPDATE room SET nodeID = 'CC1.104' WHERE id = 'CC-BATHROOM-104-02'; -- avoid duplicate CC1.104
 UPDATE room SET nodeID = 'CC1.106' WHERE id = 'CC-106';
 UPDATE room SET nodeID = 'CC1.107' WHERE id = 'CC-107';
 UPDATE room SET nodeID = 'CC1.109' WHERE id = 'CC-109';
 UPDATE room SET nodeID = 'CC1.110' WHERE id = 'CC-110';
 UPDATE room SET nodeID = 'CC1.111' WHERE id = 'CC-111';
 UPDATE room SET nodeID = 'CC1.112' WHERE id = 'CC-112';
-UPDATE room SET nodeID = 'CC1.115' WHERE id = 'CC-112-1'; -- avoid duplicate CC1.112
-UPDATE room SET nodeID = 'CC1.116' WHERE id = 'CC-112-2'; -- avoid duplicate CC1.112
+UPDATE room SET nodeID = 'CC1.112' WHERE id = 'CC-112-1'; -- avoid duplicate CC1.112
+UPDATE room SET nodeID = 'CC1.112' WHERE id = 'CC-112-2'; -- avoid duplicate CC1.112
 UPDATE room SET nodeID = 'CC1.115' WHERE id = 'CC-115';
 UPDATE room SET nodeID = 'CC1.116' WHERE id = 'CC-116';
 UPDATE room SET nodeID = 'CC1.117' WHERE id = 'CC-117';
