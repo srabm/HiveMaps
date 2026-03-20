@@ -335,8 +335,9 @@ export function FloorPlanViewer({
         onPressRoom(roomId);
 
         let nodeId = feature.properties?.nodeID;
+        console.log("nodeID :"+ nodeId);
+        if (typeof nodeId !== "string") return;
 
-        if (!nodeId || typeof nodeId !== "string") return;
 
         if (nodeId.trim() === "") {
             let latitude: number | undefined;

@@ -1,28 +1,19 @@
 -- MB FLOOR 1
 UPDATE room SET nodeID = 'MB1.115' WHERE id = 'MB-1.115';
 UPDATE room SET nodeID = 'MB1.130' WHERE id = 'MB-1.130';
-UPDATE room SET nodeID = 'MB1.130' WHERE id = 'MB-1.132'; -- closest available, avoid duplicate MB1.134
 UPDATE room SET nodeID = 'MB1.134' WHERE id = 'MB-1.134';
 UPDATE room SET nodeID = 'MB1.210' WHERE id = 'MB-1.210';
 UPDATE room SET nodeID = 'MB1.294' WHERE id = 'MB-1.294';
-UPDATE room SET nodeID = 'MB1.309' WHERE id = 'MB-1.299'; -- MB1.299 does not exist, use closest
 UPDATE room SET nodeID = 'MB1.301' WHERE id = 'MB-1.301';
 UPDATE room SET nodeID = 'MB1.309' WHERE id = 'MB-1.309';
 UPDATE room SET nodeID = 'MB1.310' WHERE id = 'MB-1.310';
 UPDATE room SET nodeID = 'MB1.335' WHERE id = 'MB-1.335';
 UPDATE room SET nodeID = 'MB1.349' WHERE id = 'MB-1.349';
-UPDATE room SET nodeID = 'MB1.310' WHERE id = 'MB-1.394'; -- avoid duplicate MB1.301
 UPDATE room SET nodeID = 'MB1.WASHROOMS' WHERE id = 'MB-1.410';
-UPDATE room SET nodeID = 'MB1.115' WHERE id = 'MB-1.424'; -- avoid duplicate MB1.130
-UPDATE room SET nodeID = 'MB1.494' WHERE id = 'MB-1.426';
-UPDATE room SET nodeID = 'MB1.434' WHERE id = 'MB-1.432'; -- avoid duplicate MB1.WASHROOMS
 UPDATE room SET nodeID = 'MB1.434' WHERE id = 'MB-1.434';
 UPDATE room SET nodeID = 'MB1.436' WHERE id = 'MB-1.436';
-UPDATE room SET nodeID = 'MB1.115' WHERE id = 'MB-1.437'; -- avoid duplicate MB1.494
 UPDATE room SET nodeID = 'MB1.494' WHERE id = 'MB-1.494';
 UPDATE room SET nodeID = 'MB1.ESCALATOR' WHERE id = 'MB-1-ESCALATOR-1';
-UPDATE room SET nodeID = 'MB1.335' WHERE id = 'MB-1-STAIRS-1'; -- avoid duplicate MB1.349
-UPDATE room SET nodeID = 'MB1.436' WHERE id = 'MB-1-WATER-1'; -- avoid duplicate MB1.WASHROOMS
 UPDATE room SET nodeID = 'MB1.ESCALATOR' WHERE id = 'MB-1-ELEVATOR-1';
 UPDATE room SET nodeID = 'MB1.ESCALATOR' WHERE id = 'MB-1-ELEVATOR-2';
 
@@ -32,7 +23,6 @@ UPDATE room SET nodeID = 'MBS2.115' WHERE id = 'MB-S2.115';
 UPDATE room SET nodeID = 'MBS2.135' WHERE id = 'MB-S2.135';
 UPDATE room SET nodeID = 'MBS2.145' WHERE id = 'MB-S2.145';
 UPDATE room SET nodeID = 'MBS2.210' WHERE id = 'MB-S2.210';
-UPDATE room SET nodeID = 'MBS2.312' WHERE id = 'MB-S2.212';
 UPDATE room SET nodeID = 'MBS2.320' WHERE id = 'MB-S2.230';
 UPDATE room SET nodeID = 'MBS2.245' WHERE id = 'MB-S2.245';
 UPDATE room SET nodeID = 'MBS2.273' WHERE id = 'MB-S2.273';
@@ -41,20 +31,15 @@ UPDATE room SET nodeID = 'MBS2.279' WHERE id = 'MB-S2.279';
 UPDATE room SET nodeID = 'MBS2.285' WHERE id = 'MB-S2.285';
 UPDATE room SET nodeID = 'MBS2.294' WHERE id = 'MB-S2.294';
 UPDATE room SET nodeID = 'MBS2.330' WHERE id = 'MB-S2.330';
-UPDATE room SET nodeID = 'MBS2.320' WHERE id = 'MB-S2.345'; -- avoid duplicate MBS2.ELEVATOR
 UPDATE room SET nodeID = 'MBS2.401' WHERE id = 'MB-S2.401';
 UPDATE room SET nodeID = 'MBS2.WASHROOM' WHERE id = 'MB-S2.410';
-UPDATE room SET nodeID = 'MBS2.437' WHERE id = 'MB-S2.418'; -- avoid duplicate MBS2.WASHROOM
-UPDATE room SET nodeID = 'MBS2.428' WHERE id = 'MB-S2.420'; -- avoid duplicate MBS2.WASHROOM
 UPDATE room SET nodeID = 'MBS2.428' WHERE id = 'MB-S2.428';
 UPDATE room SET nodeID = 'MBS2.435' WHERE id = 'MB-S2.435';
 UPDATE room SET nodeID = 'MBS2.437' WHERE id = 'MB-S2.437';
-UPDATE room SET nodeID = 'MBS2.312' WHERE id = 'MB-S2.440'; -- avoid duplicate MBS2.ELEVATOR
 UPDATE room SET nodeID = 'MBS2.445' WHERE id = 'MB-S2.445';
 UPDATE room SET nodeID = 'MBS2.455' WHERE id = 'MB-S2.455';
 UPDATE room SET nodeID = 'MBS2.465' WHERE id = 'MB-S2.465';
 UPDATE room SET nodeID = 'MBS2.494' WHERE id = 'MB-S2.494';
 UPDATE room SET nodeID = 'MBS2.ESCALATOR' WHERE id = 'MB-S2-ESCALATOR-1';
 UPDATE room SET nodeID = 'MBS2.ELEVATOR' WHERE id = 'MB-S2-ELEVATOR-1';
-UPDATE room SET nodeID = 'MBS2.ELEVATOR' WHERE id = 'MB-S2-ELEVATOR-2'; -- avoid duplicate MBS2.ELEVATOR
-UPDATE room SET nodeID = 'MBS2.115' WHERE id = 'MB-S2-FOUNTAIN-1'; -- avoid duplicate MBS2.WASHROOM
+UPDATE room SET nodeID = 'MBS2.ELEVATOR' WHERE id = 'MB-S2-ELEVATOR-2';

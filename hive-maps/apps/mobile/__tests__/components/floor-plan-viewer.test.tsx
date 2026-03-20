@@ -1067,4 +1067,25 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.toValue).toBe('node-resolved');
   });
 
+  //  mockFetchNearestNode.mockRejectedValue(new Error('No nodes found'));
+  it('sets toQuery to resolved id when toQuery is null string when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(new Error('No nodes found'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+    expect(latestDirectionBarProps.toValue).toBe("undefined");
+  });
 });
