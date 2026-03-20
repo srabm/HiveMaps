@@ -324,6 +324,7 @@ export function FloorPlanViewer({
             return "";
         }
 
+
     }
     const handleRoomPress = async (event: any) => {
         const feature = event?.features?.[0] as MapPressFeature | undefined;
@@ -357,14 +358,9 @@ export function FloorPlanViewer({
                 console.error("Invalid coordinates");
                 return;
             }
-            try {
                 const g = await findNearestIndoorNode(longitude, latitude);
                 nodeId = g;
                 console.log(g);
-            } catch (err) {
-                console.error("Nearest node failed:", err);
-                return;
-            }
         }
         if (!fromQuery) {
             setFromNodeId(String(nodeId));
