@@ -104,4 +104,50 @@ describe('AccountScreen', () => {
     fireEvent.press(getByText('Disconnect'));
     expect(disconnect).toHaveBeenCalledTimes(1);
   });
+
+  it('renders the loading and prompting status labels while connect is unavailable', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: false,
+      isReady: true,
+      session: null,
+      status: 'loading',
+    });
+
+    const { getByText, rerender } = render(<AccountScreen />);
+
+    expect(getByText('Status: Checking connection...')).toBeTruthy();
+
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: false,
+      session: null,
+      status: 'prompting',
+    });
+
+    rerender(<AccountScreen />);
+
+    expect(getByText('Status: Waiting for Google consent...')).toBeTruthy();
+  });
+
+  it('renders the connecting status label', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      session: null,
+      status: 'connecting',
+    });
+
+    const { getByText } = render(<AccountScreen />);
+
+    expect(getByText('Status: Securing session...')).toBeTruthy();
+  });
 });

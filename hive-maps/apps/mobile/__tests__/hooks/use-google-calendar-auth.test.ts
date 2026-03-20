@@ -214,6 +214,105 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.error).toMatch(/misconfigured/i);
   });
 
+  it('maps a cancelled interactive sign-in to a permission error', async () => {
+    mockSignIn.mockRejectedValueOnce({
+      code: 'SIGN_IN_CANCELLED',
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    expect(mockGetTokens).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toMatch(/permission was denied/i);
+  });
+
+  it('returns to idle when silent sign-in throws during startup', async () => {
+    mockSignInSilently.mockRejectedValueOnce(new Error('silent sign-in failed'));
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    expect(mockClearGoogleCalendarSession).toHaveBeenCalledTimes(1);
+    expect(result.current.session).toBeNull();
+  });
+
+  it('keeps an existing session connected when play services are unavailable', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockHasPlayServices.mockRejectedValueOnce({
+      code: 'PLAY_SERVICES_NOT_AVAILABLE',
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    expect(result.current.status).toBe('connected');
+    expect(result.current.error).toBe('Google Play Services is not available on this device.');
+  });
+
+  it('keeps an existing session connected when the interactive sign-in result is cancelled', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockSignIn.mockResolvedValueOnce({
+      type: 'cancelled',
+      data: null,
+    } as SignInResponse);
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    expect(mockGetTokens).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('connected');
+    expect(result.current.error).toMatch(/permission was denied/i);
+  });
+
+  it('surfaces the in-progress message for overlapping sign-in attempts', async () => {
+    mockSignIn.mockRejectedValueOnce({
+      code: 'IN_PROGRESS',
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('Google sign-in is already in progress.');
+  });
+
+  it('falls back to a generic error for non-Error sign-in failures', async () => {
+    mockSignIn.mockRejectedValueOnce('unexpected failure');
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('Google sign-in failed while securing your session.');
+  });
+
   it('stores the session after a successful interactive sign-in', async () => {
     const { result } = renderHook(() => useGoogleCalendarAuth());
 
@@ -245,5 +344,21 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.session).toBeNull();
     expect(result.current.error).toBeNull();
+  });
+
+  it('signs out cleanly when revoke access succeeds', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    expect(mockRevokeAccess).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('idle');
   });
 });
