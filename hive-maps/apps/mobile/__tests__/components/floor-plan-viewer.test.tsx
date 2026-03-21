@@ -102,8 +102,8 @@ jest.mock('@/components/search-bar', () => {
 
 const mockFetchNearestNode = jest.fn();
 jest.mock('@/services/http/indoor-api', () => ({
+  ...jest.requireActual('@/services/http/indoor-api'),
   fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
-  fetchIndoorDirections: jest.fn().mockResolvedValue([]),
 }));
 
 // ─── fixtures ─────────────────────────────────────────────────────────────────
