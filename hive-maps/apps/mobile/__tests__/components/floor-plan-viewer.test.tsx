@@ -1,7 +1,7 @@
 import React from 'react';
 import {render, act, waitFor} from '@testing-library/react-native';
 import type * as GeoJSON from 'geojson';
-import {FloorPlanViewer} from '@/components/indoor/floor-plan-viewer';
+import {FloorPlanViewer, buildFloorTraversalList} from '@/components/indoor/floor-plan-viewer';
 
 // ─── captured handlers ────────────────────────────────────────────────────────
 let latestRoomsPressHandler: ((event: any) => void) | undefined;
@@ -189,6 +189,20 @@ const makeNodeResponse = (id = 'node-1') => ({
   building: 'H',
   longitude: -73.5798,
   latitude: 45.4902,
+});
+
+describe('buildFloorTraversalList', () => {
+  it('builds ascending floors inclusively', () => {
+    expect(buildFloorTraversalList(1, 8)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('builds descending floors inclusively', () => {
+    expect(buildFloorTraversalList(8, 5)).toEqual([8, 7, 6, 5]);
+  });
+
+  it('returns the same floor when start and end match', () => {
+    expect(buildFloorTraversalList(3, 3)).toEqual([3]);
+  });
 });
 
 // ─── suite ────────────────────────────────────────────────────────────────────

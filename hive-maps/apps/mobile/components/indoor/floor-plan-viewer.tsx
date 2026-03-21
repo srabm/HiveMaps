@@ -160,6 +160,31 @@ const convertCoordinatesToFeature = (coordinates: [number, number]) => {
     };
 }
 
+export const buildFloorTraversalList = (startFloor: number, endFloor: number): number[] => {
+    const step = startFloor <= endFloor ? 1 : -1
+    const floors: number[] = []
+
+    for (let floor = startFloor; step > 0 ? floor <= endFloor : floor >= endFloor; floor += step) {
+        floors.push(floor)
+    }
+
+    return floors
+}
+
+const extractFloorFromNodeId = (nodeId: string | null, buildingCode: string): number | null => {
+    if (!nodeId) return null
+
+    const normalizedBuildingCode = buildingCode.trim().toUpperCase()
+    const normalizedNodeId = nodeId.trim().toUpperCase()
+    if (!normalizedNodeId.startsWith(normalizedBuildingCode)) return null
+
+    const remainder = normalizedNodeId.slice(normalizedBuildingCode.length)
+    const floorToken = remainder.split('.')[0]
+    if (!/^-?\d+$/.test(floorToken)) return null
+
+    return Number(floorToken)
+}
+
 export function FloorPlanViewer({
                                     planGeometry,
                                     rooms,
@@ -203,6 +228,12 @@ export function FloorPlanViewer({
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
     const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode), [buildingCode]);
+    const floorsToTraverse = useMemo(() => {
+        const startFloor = extractFloorFromNodeId(fromNodeId, buildingCode)
+        const endFloor = extractFloorFromNodeId(toNodeId, buildingCode)
+        if (startFloor === null || endFloor === null) return []
+        return buildFloorTraversalList(startFloor, endFloor)
+    }, [fromNodeId, toNodeId, buildingCode])
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
@@ -262,6 +293,12 @@ export function FloorPlanViewer({
             onDirectionsActiveChange(!!indoorSteps);
         }
     }, [indoorSteps, onDirectionsActiveChange]);
+
+    useEffect(() => {
+        if (floorsToTraverse.length > 0) {
+            console.log('[IndoorDirections] Floors to traverse \u2192', floorsToTraverse)
+        }
+    }, [floorsToTraverse])
 
     const handleUserLocationUpdate = useCallback((loc: any) => {
         const coords = loc?.coords;
