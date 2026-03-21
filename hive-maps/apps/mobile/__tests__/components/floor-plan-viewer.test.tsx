@@ -494,10 +494,10 @@ describe('FloorPlanViewer', () => {
   });
 
   // ── createIndoorNodeSearchAdapter called with correct args ─────────────────
-  it('creates the node search adapter with the correct buildingCode and floorId', () => {
+  it('creates the node search adapter with the correct buildingCode', () => {
     const {createIndoorNodeSearchAdapter} = require('@/services/maps/indoor-node-search-adapter');
     render(<FloorPlanViewer buildingCode="MB" floorId="2"/>);
-    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('MB', '2');
+    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('MB');
   });
 
   it('re-creates the node search adapter when buildingCode changes', () => {
@@ -507,8 +507,8 @@ describe('FloorPlanViewer', () => {
     const {rerender} = render(<FloorPlanViewer buildingCode="H" floorId="8"/>);
     rerender(<FloorPlanViewer buildingCode="MB" floorId="8"/>);
 
-    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('H', '8');
-    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('MB', '8');
+    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('H');
+    expect(createIndoorNodeSearchAdapter).toHaveBeenCalledWith('MB');
   });
 
   // ── direction bar rendered ────────────────────────────────────────────────
