@@ -6,7 +6,7 @@ import { RoomLabelLayer } from '@/components/indoor/room-label-layer';
 import { POIMarker } from '@/components/indoor/POIMarker';
 import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
-import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, POI_TYPES, NoDirectionsFoundException} from '@/services/http/indoor-api'
+import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, POI_TYPES} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
@@ -141,6 +141,7 @@ const convertCoordinatesToFeature = (coordinates: [number, number]) => {
     };
 }
 
+const POI_TYPES_SET = new Set(POI_TYPES);
 function separateRoomFeatures(rooms?: GeoJSON.FeatureCollection | null) {
   if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
 
@@ -149,7 +150,7 @@ function separateRoomFeatures(rooms?: GeoJSON.FeatureCollection | null) {
 
   rooms.features.forEach((feature) => {
     const type = (feature.properties?.type as string | undefined)?.toLowerCase().trim()
-    if (type && POI_TYPES.includes(type)) {
+    if (type && POI_TYPES_SET.has(type)) {
       pois.push(feature)
     } else {
       labelRooms.push(feature)

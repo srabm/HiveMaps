@@ -354,6 +354,9 @@ describe('goBack', () => {
 
         await waitFor(() => {
             expect(getByText('Step 2')).toBeTruthy();
+            expect(onCurrentNodeChange).toHaveBeenCalledWith(
+                expect.objectContaining({ id: 'node-2' })
+            );
         });
 
         await act(async () => { fireEvent.press(getByText('Back')); });
