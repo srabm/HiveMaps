@@ -7,6 +7,7 @@ import {FloorPlanViewer, buildFloorTraversalList} from '@/components/indoor/floo
 let latestRoomsPressHandler: ((event: any) => void) | undefined;
 let latestUserLocationUpdate: ((loc: any) => void) | undefined;
 let latestDirectionBarProps: Record<string, any> = {};
+let latestDirectionsModalProps: Record<string, any> = {};
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
 jest.mock('@/services/mapbox', () => {
@@ -70,7 +71,10 @@ jest.mock('@/components/indoor/indoor-directions-modal', () => {
   const {View} = require('react-native');
   return {
     __esModule: true,
-    default: () => React.createElement(View, {testID: 'directions-modal'}),
+    default: (props: any) => {
+      latestDirectionsModalProps = props;
+      return React.createElement(View, {testID: 'directions-modal'});
+    },
   };
 });
 
@@ -211,6 +215,7 @@ describe('FloorPlanViewer', () => {
     latestRoomsPressHandler = undefined;
     latestUserLocationUpdate = undefined;
     latestDirectionBarProps = {};
+    latestDirectionsModalProps = {};
     mockFetchNearestNode.mockReset();
   });
 
@@ -607,6 +612,43 @@ describe('FloorPlanViewer', () => {
     });
 
     expect(latestDirectionBarProps.toValue).toBe('Room B');
+  });
+
+  it('forwards step node floor changes from turn-by-turn modal', async () => {
+    const onStepFloorChange = jest.fn();
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'Room A', id: 'H1.101'}, undefined);
+      latestDirectionBarProps.onSelectTo({name: 'Room B', id: 'H8.841'}, undefined);
+    });
+
+    await waitFor(() => {
+      expect(latestDirectionsModalProps.onCurrentNodeChange).toBeDefined();
+    });
+
+    act(() => {
+      latestDirectionsModalProps.onCurrentNodeChange({
+        id: 'H3.110',
+        label: 'Node',
+        wheelchairAccessible: false,
+        floor: '3',
+        building: 'H',
+        longitude: -73.58,
+        latitude: 45.49,
+      });
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('3');
   });
 
   it('onClearFrom resets fromQuery to empty string', () => {

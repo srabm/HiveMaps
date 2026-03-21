@@ -136,11 +136,23 @@ describe('DirectionsModal', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    it('calls onCurrentNodeChange with the first node of the first step on mount', () => {
+    it('does not call onCurrentNodeChange before Start is pressed', () => {
         const onCurrentNodeChange = jest.fn();
         const steps = [makeStep('Go straight', 'STRAIGHT', 5, [makeNode('start-node')])];
         renderModal({steps, onCurrentNodeChange});
-        expect(onCurrentNodeChange).toHaveBeenCalledWith(expect.objectContaining({id: 'start-node'}));
+        expect(onCurrentNodeChange).not.toHaveBeenCalled();
+    });
+
+    it('calls onCurrentNodeChange with the first node when Start is pressed', async () => {
+        const onCurrentNodeChange = jest.fn();
+        const steps = [makeStep('Go straight', 'STRAIGHT', 5, [makeNode('start-node')])];
+        const {getByText} = renderModal({steps, onCurrentNodeChange});
+
+        fireEvent.press(getByText('Start'));
+
+        await waitFor(() => {
+            expect(onCurrentNodeChange).toHaveBeenCalledWith(expect.objectContaining({id: 'start-node'}));
+        });
     });
 
     it('calls onCurrentNodeChange with the next step node when advancing', async () => {

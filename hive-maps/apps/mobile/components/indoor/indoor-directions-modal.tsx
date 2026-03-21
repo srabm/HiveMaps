@@ -94,12 +94,13 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
 
     useEffect(() => {
         if (!visible) return;
-        if (!steps[currentIndex]) return;  // ← add this line
+        if (!hasStarted) return;
+        if (!steps[currentIndex]) return;
         const node = getFirstNode(steps[currentIndex]);
         if (node && onCurrentNodeChange) {
             onCurrentNodeChange(node);
         }
-    }, [currentIndex, visible]);
+    }, [currentIndex, hasStarted, onCurrentNodeChange, steps, visible]);
 
     // Open / close sheet
     useEffect(() => {

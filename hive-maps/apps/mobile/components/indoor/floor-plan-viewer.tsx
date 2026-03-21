@@ -19,6 +19,7 @@ export type FloorPlanViewerProps = Readonly<{
     selectedRoomId?: string | null
     onPressRoom?: (roomId: string) => void
     onDirectionsActiveChange?: (active: boolean) => void
+    onStepFloorChange?: (floor: string) => void
     buildingCode: string
     floorId: string
     onError?: (message: string) => void
@@ -191,6 +192,7 @@ export function FloorPlanViewer({
                                     selectedRoomId,
                                     onPressRoom,
                                     onDirectionsActiveChange,
+                                    onStepFloorChange,
                                     buildingCode,
                                     floorId,
                                     onError
@@ -271,13 +273,14 @@ export function FloorPlanViewer({
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
+        if (indoorSteps) return;
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
         if (coords) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(coords[0], coords[1]);
         }
-    }, [buildingCode, floorId, resolveNearestNode]);
+    }, [buildingCode, floorId, indoorSteps, resolveNearestNode]);
 
     useEffect(() => {
         if (!fromNodeId || !toNodeId) {
@@ -307,12 +310,12 @@ export function FloorPlanViewer({
         const latitude: number = coords.latitude;
         userCoordsRef.current = [longitude, latitude];
         // Only trigger nearest-node once per floor load
-        if (!nearestNodeResolvedRef.current) {
+        if (!nearestNodeResolvedRef.current && !indoorSteps) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
         setUserLocation([longitude, latitude]);
-    }, [resolveNearestNode]);
+    }, [indoorSteps, resolveNearestNode]);
 
     const planShape = useMemo(() => {
         if (!planGeometry) return null
@@ -513,6 +516,7 @@ export function FloorPlanViewer({
             destination={toQuery}
             onCurrentNodeChange={(node) => {
                 setCurrentNode(node);
+                if (node.floor) onStepFloorChange?.(node.floor);
                 const coordinates = [node.longitude, node.latitude];
                 if (coordinates) cameraRef.current?.setCamera({
                     centerCoordinate: coordinates,
