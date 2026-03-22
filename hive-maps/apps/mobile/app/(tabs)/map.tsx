@@ -123,6 +123,7 @@ type NavigationOverlayProps = {
     shuttlePhaseBoundaries?: ShuttlePhaseBoundaries;
     onRecalculated: (newDirections: DirectionsResponse) => void;
     onExit: () => void;
+    onArrived: () => void;
 };
 
 function NavigationOverlay({
@@ -135,6 +136,7 @@ function NavigationOverlay({
     shuttlePhaseBoundaries,
     onRecalculated,
     onExit,
+    onArrived,
 }: Readonly<NavigationOverlayProps>) {
     const { location } = useLiveLocation(true);
     const stepNav = useStepNavigator(steps, location, shuttlePhaseBoundaries);
@@ -224,6 +226,7 @@ function NavigationOverlay({
             isRecalculating={isRecalculating}
             shuttlePhase={stepNav.shuttlePhase}
             onExit={() => { onExit(); stepNav.reset(); }}
+            onArrived={() => { onArrived(); stepNav.reset(); }}
         />
     );
 }
@@ -521,6 +524,21 @@ export default function MapScreen() {
         setActiveSteps([]);
         setActiveShuttlePhaseBoundaries(undefined);
         setActiveShuttleLegs(null);
+    }, [toCoordinates, campusMetaById, setCampus]);
+
+    // Mid-route "End" — stop navigating but restore the pre-filled search state
+    // so the user lands back on the NavigationBottom with their origin/destination intact.
+    const handleNavigationExitMidRoute = useCallback(() => {
+        setIsNavigating(false);
+        if (toCoordinates) {
+            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1], campusMetaById);
+            if (nearest) setCampus(nearest);
+        }
+        setSeeDirectionBar(true);
+        setActiveSteps([]);
+        setActiveShuttlePhaseBoundaries(undefined);
+        setActiveShuttleLegs(null);
+        // from, fromCoordinates, to, toCoordinates, directions — intentionally preserved
     }, [toCoordinates, campusMetaById, setCampus]);
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
@@ -864,7 +882,8 @@ export default function MapScreen() {
                         setDirections(newDirections);
                         setActiveSteps(newDirections.steps ?? []);
                     }}
-                    onExit={handleNavigationExit}
+                    onExit={handleNavigationExitMidRoute}
+                    onArrived={handleNavigationExit}
                 />
             )}
 
