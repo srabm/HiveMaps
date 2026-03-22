@@ -177,6 +177,23 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.session).toBeNull();
   });
 
+  it('preserves a stored session when silent sign-in fails with a transient error', async () => {
+    mockLoadGoogleCalendarSession.mockResolvedValue({
+      accessToken: 'stored-token',
+      email: 'student@example.edu',
+      obtainedAt: 123,
+    });
+    mockSignInSilently.mockRejectedValueOnce(new Error('network unavailable'));
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    expect(mockClearGoogleCalendarSession).not.toHaveBeenCalled();
+    expect(result.current.session?.email).toBe('student@example.edu');
+    expect(result.current.error).toBe('network unavailable');
+  });
+
   it('surfaces a configuration error before attempting sign-in', async () => {
     mockGetGoogleCalendarAuthConfig.mockReturnValue({
       ...configuredAuthConfig,
@@ -232,15 +249,16 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.error).toMatch(/permission was denied/i);
   });
 
-  it('returns to idle when silent sign-in throws during startup', async () => {
+  it('returns to idle when silent sign-in throws during startup without a stored session', async () => {
     mockSignInSilently.mockRejectedValueOnce(new Error('silent sign-in failed'));
 
     const { result } = renderHook(() => useGoogleCalendarAuth());
 
     await waitFor(() => expect(result.current.status).toBe('idle'));
 
-    expect(mockClearGoogleCalendarSession).toHaveBeenCalledTimes(1);
+    expect(mockClearGoogleCalendarSession).not.toHaveBeenCalled();
     expect(result.current.session).toBeNull();
+    expect(result.current.error).toBe('silent sign-in failed');
   });
 
   it('keeps an existing session connected when play services are unavailable', async () => {
@@ -341,6 +359,7 @@ describe('useGoogleCalendarAuth', () => {
     });
 
     expect(mockClearGoogleCalendarSession).toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe('idle');
     expect(result.current.session).toBeNull();
     expect(result.current.error).toBeNull();

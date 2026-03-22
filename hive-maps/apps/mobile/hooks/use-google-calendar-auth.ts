@@ -50,6 +50,17 @@ function getErrorStatus(currentSession: GoogleCalendarSession | null): AuthStatu
   return currentSession ? 'connected' : 'error';
 }
 
+function shouldClearSessionForSilentSignInFailure(signInError: unknown) {
+  const code =
+    typeof signInError === 'object' && signInError && 'code' in signInError
+      ? String(signInError.code)
+      : '';
+  const message = signInError instanceof Error ? signInError.message : '';
+  const normalizedError = `${code} ${message}`.toUpperCase();
+
+  return normalizedError.includes('SIGN_IN_REQUIRED') || normalizedError.includes('NO_SAVED_CREDENTIAL');
+}
+
 function getGoogleSignInErrorMessage(signInError: unknown) {
   const code =
     typeof signInError === 'object' && signInError && 'code' in signInError
@@ -97,6 +108,7 @@ export function useGoogleCalendarAuth() {
       if (!mounted) return;
 
       setSession(storedSession);
+      setError(null);
 
       try {
         const silentSignIn = await GoogleSignin.signInSilently();
@@ -115,8 +127,21 @@ export function useGoogleCalendarAuth() {
           setStatus('connected');
           return;
         }
-      } catch {
+      } catch (signInError: unknown) {
         if (!mounted) return;
+
+        if (shouldClearSessionForSilentSignInFailure(signInError)) {
+          await clearGoogleCalendarSession();
+          if (!mounted) return;
+
+          setSession(null);
+          setStatus('idle');
+          return;
+        }
+
+        setError(getGoogleSignInErrorMessage(signInError));
+        setStatus(storedSession ? 'connected' : 'idle');
+        return;
       }
 
       await clearGoogleCalendarSession();
@@ -169,9 +194,14 @@ export function useGoogleCalendarAuth() {
   const disconnect = async () => {
     try {
       await GoogleSignin.revokeAccess();
+    } catch {
+      /* ignore revoke failures and continue clearing the native session */
+    }
+
+    try {
       await GoogleSignin.signOut();
     } catch {
-      /* ignore revoke failures and clear the local session anyway */
+      /* ignore sign-out failures and clear the local session anyway */
     }
 
     await clearGoogleCalendarSession();

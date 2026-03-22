@@ -30,6 +30,9 @@ describe('AccountScreen', () => {
 
     expect(getByText('Connect Google Calendar')).toBeTruthy();
     expect(getByText('Status: Not connected')).toBeTruthy();
+    expect(
+      getByText('Google Calendar is not connected. Link your account to let Hive Maps use your schedule.')
+    ).toBeTruthy();
   });
 
   it('starts the Google connection flow from the button', () => {
@@ -133,6 +136,26 @@ describe('AccountScreen', () => {
     rerender(<AccountScreen />);
 
     expect(getByText('Status: Waiting for Google consent...')).toBeTruthy();
+  });
+
+  it('shows setup guidance when Google Sign-In is not configured', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: false,
+      isReady: true,
+      session: null,
+      status: 'idle',
+    });
+
+    const { getByText } = render(<AccountScreen />);
+
+    expect(
+      getByText(
+        'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.'
+      )
+    ).toBeTruthy();
   });
 
   it('renders the connecting status label', () => {

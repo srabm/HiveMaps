@@ -698,7 +698,7 @@ export default function MapScreen() {
                           onPress={() => router.push('/account' as Href)}
                           style={[styles.accountButton, {backgroundColor: theme.background}]}
                       >
-                          <Text style={[styles.accountButtonText, {color: theme.text}]}>Menu</Text>
+                          <Text style={[styles.accountButtonText, {color: theme.text}]}>Calendar</Text>
                       </Pressable>
                   </View>
               )}

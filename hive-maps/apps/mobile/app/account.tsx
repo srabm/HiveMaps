@@ -32,7 +32,9 @@ export default function AccountScreen() {
   const isDisconnected = !session;
   const helperMessage = session
     ? 'Google Calendar successfully linked. Hive Maps can now use your schedule.'
-    : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.';
+    : isConfigured
+      ? 'Google Calendar is not connected. Link your account to let Hive Maps use your schedule.'
+      : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.';
 
   return (
     <ThemedView style={styles.screen}>
