@@ -1114,7 +1114,8 @@ describe('FloorPlanViewer', () => {
         '[NearestNode] No matching node found:',
         'No nodes',
     );
-
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
     consoleLogSpy.mockRestore();
   });
 
@@ -1167,6 +1168,8 @@ describe('FloorPlanViewer', () => {
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Invalid coordinates');
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
 
     consoleErrorSpy.mockRestore();
   });
