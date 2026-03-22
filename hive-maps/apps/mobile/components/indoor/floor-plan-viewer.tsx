@@ -207,7 +207,6 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-    const pressedRoomLocation = useRef<[number, number] | null>(null);
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
@@ -337,7 +336,9 @@ export function FloorPlanViewer({
 
         let nodeId = feature.properties?.nodeID;
         console.log("nodeID :"+ nodeId);
-        if (typeof nodeId !== "string") return;
+        if (typeof nodeId !== "string") {
+            return;
+        }
 
 
         if (nodeId.trim() === "") {
