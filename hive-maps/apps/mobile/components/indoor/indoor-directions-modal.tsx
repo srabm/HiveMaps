@@ -1,6 +1,6 @@
 import { IndoorDirectionsResponse, IndoorNodeResponse } from "@/services/http/indoor-api";
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder, DimensionValue,} from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions, Image, PanResponder} from "react-native";
 // the indoor direction modal to show step-by-step direction
 const AMBER       = "#E5A712";
 const AMBER_LIGHT = "#FDF3E0";
@@ -66,6 +66,49 @@ function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null
     return step.nodes[0];
 }
 
+function getDestinationLabel(steps: IndoorDirectionsResponse[], destination?: string): string {
+    if (destination) return destination;
+    const last = steps.at(-1);
+    return last?.nodes?.at(-1)?.id ?? "Destination";
+}
+
+function getRemainingDistance(steps: IndoorDirectionsResponse[], currentIndex: number): number {
+    return Math.round(steps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0));
+}
+
+function getThenLabel(nextStep: IndoorDirectionsResponse | null): string {
+    if (!nextStep) {
+        return "Then: You have arrived at your destination";
+    }
+
+    const distanceLabel = nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : "";
+    return `Then: ${nextStep.description}${distanceLabel}`;
+}
+
+function renderExpandedSteps(
+    steps: IndoorDirectionsResponse[],
+    currentIndex: number,
+) {
+    return steps.map((step, idx) => (
+        <View key={`step-${currentIndex + 1}-${idx}`} style={styles.stepRow}>
+            <View style={styles.iconWrap}>
+                <Image
+                    source={getDirectionImage(step.direction)}
+                    style={styles.directionImage}
+                    resizeMode="contain"
+                />
+            </View>
+            <View style={styles.stepTextWrap}>
+                <Text style={styles.stepTitle}>{step.description}</Text>
+                {step.distance > 0 ? <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text> : null}
+                {step.nodes[0]?.floor ? (
+                    <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} - {step.nodes[0].building}</Text>
+                ) : null}
+            </View>
+        </View>
+    ));
+}
+
 const DirectionsModal: React.FC<DirectionsModalProps> = ({
     visible,
     steps,
@@ -81,6 +124,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight] = useState(DEFAULT_HEIGHT);
     const [hasStarted, setHasStarted] = useState<boolean>(false);
+    const [hasArrived, setHasArrived] = useState(false);
 
     const [showAllSteps, setShowAllSteps] = useState(false);
 
@@ -93,20 +137,12 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     const isFirst = currentIndex === 0;
     const isLast = currentIndex >= augmentedSteps.length - 1;
     const totalSteps = augmentedSteps.length;
-    const destLabel = destination ?? (() => {
-        const last = augmentedSteps[augmentedSteps.length - 1];
-        return last?.nodes?.[last.nodes.length - 1]?.id ?? "Destination";
-    })();
+    const destLabel = getDestinationLabel(augmentedSteps, destination);
     const currentStep = augmentedSteps[currentIndex] ?? null;
     const nextStep = augmentedSteps[currentIndex + 1] ?? null;
-    const remainingDistance = Math.round(
-        augmentedSteps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0),
-    );
+    const remainingDistance = getRemainingDistance(augmentedSteps, currentIndex);
     const remainingMinutes = Math.max(1, Math.ceil((remainingDistance / 4000) * 60));
-    const nextStepDistanceLabel = nextStep && nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : "";
-    const thenLabel = nextStep
-        ? `Then: ${nextStep.description}${nextStepDistanceLabel}`
-        : "Then: You have arrived at your destination";
+    const thenLabel = getThenLabel(nextStep);
 
     useEffect(() => {
         if (!visible) return;
@@ -121,6 +157,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
         if (visible) {
             setCurrentIndex(0);
             setSheetHeight(DEFAULT_HEIGHT);
+            setHasArrived(false);
             setShowAllSteps(false);
             fadeAnim.setValue(1);
             Animated.timing(sheetAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
@@ -137,6 +174,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     useEffect(() => {
         if (!visible) {
             setHasStarted(false);
+            setHasArrived(false);
             setShowAllSteps(false);
         }
     }, [visible]);
@@ -179,6 +217,146 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
         });
     };
 
+    const handleArrived = () => {
+        setHasArrived(true);
+        setShowAllSteps(false);
+    };
+
+    const renderStartedContent = () => (
+        <View>
+            {hasArrived ? (
+                <View style={styles.arrivedContent}>
+                    <Text style={styles.arrivedText}>You have arrived!</Text>
+                </View>
+            ) : (
+                <>
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.headerDest} numberOfLines={1}>{destLabel}</Text>
+                    <Text style={styles.progressLabel}>Step {Math.min(currentIndex + 1, totalSteps)} of {totalSteps}</Text>
+                </View>
+            </View>
+
+            <View style={styles.navRow}>
+                <TouchableOpacity
+                    style={[styles.navBtnBack, isFirst && styles.navBtnDisabled]}
+                    onPress={goBack}
+                    activeOpacity={isFirst ? 1 : 0.82}
+                    disabled={isFirst}
+                >
+                    <Text style={[styles.navBtnTextBack, isFirst && styles.navBtnTextDisabled]}>Back</Text>
+                </TouchableOpacity>
+
+                {isLast ? (
+                    <TouchableOpacity style={[styles.navBtnNext, styles.navBtnArrived]} onPress={handleArrived} activeOpacity={0.82}>
+                        <Text style={styles.navBtnTextNext}>Arrived</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity style={styles.navBtnNext} onPress={goForward} activeOpacity={0.82}>
+                        <Text style={styles.navBtnTextNext}>Next</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {currentStep ? (
+                <Animated.View style={[styles.stepRow, styles.currentStepRow, { opacity: fadeAnim }]}>
+                    <View style={styles.iconWrap}>
+                        <Image
+                            source={getDirectionImage(currentStep.direction)}
+                            style={styles.directionImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+                    <View style={styles.stepTextWrap}>
+                        <Text style={styles.stepTitle}>{currentStep.description}</Text>
+                        {currentStep.distance > 0 ? <Text style={styles.stepSub}>{currentStep.distance.toFixed(1)} m</Text> : null}
+                        {currentStep.nodes[0]?.floor ? (
+                            <Text style={styles.stepFloor}>Floor {currentStep.nodes[0].floor} - {currentStep.nodes[0].building}</Text>
+                        ) : null}
+                    </View>
+                    <View style={styles.currentBadge}>
+                        <Text style={styles.currentBadgeText}>Current Step</Text>
+                    </View>
+                </Animated.View>
+            ) : null}
+
+            {isLast ? null : (
+                <TouchableOpacity style={styles.thenRow} onPress={() => setShowAllSteps((prev) => !prev)} activeOpacity={0.82}>
+                    <Text style={styles.thenText} numberOfLines={1}>
+                        {thenLabel}
+                    </Text>
+                    <Text style={styles.thenChevron}>{showAllSteps ? "^" : "v"}</Text>
+                </TouchableOpacity>
+            )}
+
+            {showAllSteps ? (
+                <ScrollView
+                    ref={scrollRef}
+                    style={styles.expandedSteps}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={false}
+                >
+                    {renderExpandedSteps(remainingSteps, currentIndex)}
+                    <View style={{ height: 10 }} />
+                </ScrollView>
+            ) : null}
+                </>
+            )}
+        </View>
+    );
+
+    const renderPreStartContent = () => (
+        <View style={styles.preStartContainer}>
+            <View style={styles.preStartHeader}>
+                <Text style={styles.preStartLabel}>{preStartLabel}</Text>
+            </View>
+            <View style={styles.preStartRow}>
+                <View style={styles.preStartEta}>
+                    <Text style={styles.preStartMin}>{Math.ceil((augmentedSteps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
+                    <Text style={styles.preStartMinLabel}>min</Text>
+                </View>
+                <View style={styles.preStartInfo}>
+                    <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
+                    <Text style={styles.preStartDist}>{augmentedSteps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m</Text>
+                </View>
+                            <TouchableOpacity style={styles.startBtn} onPress={() => { setHasArrived(false); setHasStarted(true); }}>
+                                <Text style={styles.startBtnText}>Start</Text>
+                            </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    const renderBottomBar = () => (
+        <View style={styles.bottomBar}>
+            {hasArrived ? (
+                <TouchableOpacity style={styles.endBtnSolo} onPress={onClose} activeOpacity={0.82}>
+                    <Text style={styles.endBtnText}>End</Text>
+                </TouchableOpacity>
+            ) : (
+                <>
+            <View style={styles.bottomStat}>
+                <Text style={styles.bottomStatValue}>{formatArrivalTime(remainingMinutes)}</Text>
+                <Text style={styles.bottomStatLabel}>arrival</Text>
+            </View>
+            <View style={styles.bottomDivider} />
+            <View style={styles.bottomStat}>
+                <Text style={styles.bottomStatValue}>{remainingMinutes}</Text>
+                <Text style={styles.bottomStatLabel}>min</Text>
+            </View>
+            <View style={styles.bottomDivider} />
+            <View style={styles.bottomStat}>
+                <Text style={styles.bottomStatValue}>{remainingDistance} m</Text>
+                <Text style={styles.bottomStatLabel}>remain</Text>
+            </View>
+            <TouchableOpacity style={styles.endBtn} onPress={onClose} activeOpacity={0.82}>
+                <Text style={styles.endBtnText}>End</Text>
+            </TouchableOpacity>
+                </>
+            )}
+        </View>
+    );
+
     return (
         <View style={[styles.overlay, hasStarted && styles.overlayTop]} pointerEvents="box-none">
             <Animated.View
@@ -194,138 +372,10 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                     </View>
                 )}
 
-                {hasStarted ? (
-                    <View>
-                        <View style={styles.header}>
-                            <View style={styles.headerLeft}>
-                                <Text style={styles.headerDest} numberOfLines={1}>{destLabel}</Text>
-                                <Text style={styles.progressLabel}>Step {Math.min(currentIndex + 1, totalSteps)} of {totalSteps}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.navRow}>
-                            <TouchableOpacity
-                                style={[styles.navBtnBack, isFirst && styles.navBtnDisabled]}
-                                onPress={goBack}
-                                activeOpacity={isFirst ? 1 : 0.82}
-                                disabled={isFirst}
-                            >
-                                <Text style={[styles.navBtnTextBack, isFirst && styles.navBtnTextDisabled]}>Back</Text>
-                            </TouchableOpacity>
-
-                            {isLast ? (
-                                <View style={[styles.navBtnNext, styles.navBtnArrived]}>
-                                    <Text style={styles.navBtnTextNext}>Arrived</Text>
-                                </View>
-                            ) : (
-                                <TouchableOpacity style={styles.navBtnNext} onPress={goForward} activeOpacity={0.82}>
-                                    <Text style={styles.navBtnTextNext}>Next</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        {currentStep ? (
-                            <Animated.View style={[styles.stepRow, styles.currentStepRow, { opacity: fadeAnim }]}>
-                                <View style={styles.iconWrap}>
-                                    <Image
-                                        source={getDirectionImage(currentStep.direction)}
-                                        style={styles.directionImage}
-                                        resizeMode="contain"
-                                    />
-                                </View>
-                                <View style={styles.stepTextWrap}>
-                                    <Text style={styles.stepTitle}>{currentStep.description}</Text>
-                                    {currentStep.distance > 0 ? <Text style={styles.stepSub}>{currentStep.distance.toFixed(1)} m</Text> : null}
-                                    {currentStep.nodes[0]?.floor ? (
-                                        <Text style={styles.stepFloor}>Floor {currentStep.nodes[0].floor} - {currentStep.nodes[0].building}</Text>
-                                    ) : null}
-                                </View>
-                                <View style={styles.currentBadge}>
-                                    <Text style={styles.currentBadgeText}>Current Step</Text>
-                                </View>
-                            </Animated.View>
-                        ) : null}
-
-                        <TouchableOpacity style={styles.thenRow} onPress={() => setShowAllSteps((prev) => !prev)} activeOpacity={0.82}>
-                            <Text style={styles.thenText} numberOfLines={1}>
-                                {thenLabel}
-                            </Text>
-                            <Text style={styles.thenChevron}>{showAllSteps ? "^" : "v"}</Text>
-                        </TouchableOpacity>
-
-                        {showAllSteps ? (
-                            <ScrollView
-                                ref={scrollRef}
-                                style={styles.expandedSteps}
-                                contentContainerStyle={styles.listContent}
-                                showsVerticalScrollIndicator={true}
-                                bounces={false}
-                            >
-                                {remainingSteps.map((step, idx) => (
-                                    <View key={`step-${currentIndex + 1}-${idx}`} style={styles.stepRow}>
-                                        <View style={styles.iconWrap}>
-                                            <Image
-                                                source={getDirectionImage(step.direction)}
-                                                style={styles.directionImage}
-                                                resizeMode="contain"
-                                            />
-                                        </View>
-                                        <View style={styles.stepTextWrap}>
-                                            <Text style={styles.stepTitle}>{step.description}</Text>
-                                            {step.distance > 0 ? <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text> : null}
-                                            {step.nodes[0]?.floor ? (
-                                                <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} - {step.nodes[0].building}</Text>
-                                            ) : null}
-                                        </View>
-                                    </View>
-                                ))}
-                                <View style={{ height: 10 }} />
-                            </ScrollView>
-                        ) : null}
-                    </View>
-                ) : (
-                    <View style={styles.preStartContainer}>
-                        <View style={styles.preStartHeader}>
-                            <Text style={styles.preStartLabel}>{preStartLabel}</Text>
-                        </View>
-                        <View style={styles.preStartRow}>
-                            <View style={styles.preStartEta}>
-                                <Text style={styles.preStartMin}>{Math.ceil((augmentedSteps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
-                                <Text style={styles.preStartMinLabel}>min</Text>
-                            </View>
-                            <View style={styles.preStartInfo}>
-                                <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
-                                <Text style={styles.preStartDist}>{augmentedSteps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m</Text>
-                            </View>
-                            <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
-                                <Text style={styles.startBtnText}>Start</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
+                {hasStarted ? renderStartedContent() : renderPreStartContent()}
             </Animated.View>
 
-            {hasStarted ? (
-                <View style={styles.bottomBar}>
-                    <View style={styles.bottomStat}>
-                        <Text style={styles.bottomStatValue}>{formatArrivalTime(remainingMinutes)}</Text>
-                        <Text style={styles.bottomStatLabel}>arrival</Text>
-                    </View>
-                    <View style={styles.bottomDivider} />
-                    <View style={styles.bottomStat}>
-                        <Text style={styles.bottomStatValue}>{remainingMinutes}</Text>
-                        <Text style={styles.bottomStatLabel}>min</Text>
-                    </View>
-                    <View style={styles.bottomDivider} />
-                    <View style={styles.bottomStat}>
-                        <Text style={styles.bottomStatValue}>{remainingDistance} m</Text>
-                        <Text style={styles.bottomStatLabel}>remain</Text>
-                    </View>
-                    <TouchableOpacity style={styles.endBtn} onPress={onClose} activeOpacity={0.82}>
-                        <Text style={styles.endBtnText}>End</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : null}
+            {hasStarted ? renderBottomBar() : null}
         </View>
     );
 };
@@ -350,6 +400,16 @@ const styles = StyleSheet.create({
     navBtnTextNext: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: 0.2 },
     navBtnTextDisabled: { color: "#CCCCCC" },
     navBtnArrived: { backgroundColor: AMBER },
+    arrivedContent: {
+        paddingHorizontal: 18,
+        paddingTop: 18,
+        paddingBottom: 18,
+    },
+    arrivedText: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: DARK,
+    },
     listContent: { paddingBottom: 8 },
     currentStepRow: { borderTopWidth: 1, borderTopColor: "#EEEEEE" },
     stepRow: {
@@ -445,6 +505,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         alignItems: "center",
         justifyContent: "center",
+    },
+    endBtnSolo: {
+        backgroundColor: AMBER,
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        alignSelf: "center",
     },
     endBtnText: {
         color: BG,

@@ -92,6 +92,12 @@ describe('DirectionsModal', () => {
         expect(getByText('Walk straight')).toBeTruthy();
     });
 
+    it('shows floor and building for the current step', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        expect(getByText('Floor 8 - H')).toBeTruthy();
+    });
+
     it('shows destination label in the header after starting', () => {
         const {getByText} = renderModal({destination: 'Lab 101'});
         fireEvent.press(getByText('Start'));
@@ -115,12 +121,44 @@ describe('DirectionsModal', () => {
         });
     });
 
-    it('goes back to the previous step when Back is pressed', () => {
-        const {getByText} = renderModal();
+    it('goes back to the previous step when Back is pressed', async () => {
+        const { getByText } = renderModal();
         fireEvent.press(getByText('Start'));
-        fireEvent.press(getByText('Next'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
         fireEvent.press(getByText('Back'));
         expect(getByText(/Step 1 of 4/)).toBeTruthy();
+    });
+
+    it('expands remaining steps when the Then row is pressed', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        fireEvent.press(getByText('Then: Turn left 5.00m'));
+        expect(getByText('Turn left')).toBeTruthy();
+        expect(getByText('Turn right')).toBeTruthy();
+    });
+
+    it('shows arrival text when there is no next step before arriving', async () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        expect(getByText('Then: You have arrived at your destination')).toBeTruthy();
+    });
+
+    it('switches to arrived state when Arrived is pressed', async () => {
+        const { getByText, queryByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Next')); });
+
+        fireEvent.press(getByText('Arrived'));
+
+        expect(getByText('You have arrived!')).toBeTruthy();
+        expect(getByText('End')).toBeTruthy();
+        expect(queryByText('arrival')).toBeNull();
+        expect(queryByText('remain')).toBeNull();
+        expect(queryByText('min')).toBeNull();
     });
 
     it('calls onClose when End is pressed after starting', () => {
@@ -170,44 +208,3 @@ describe('DirectionsModal', () => {
         expect(() => renderModal({ steps: [] })).not.toThrow();
     });
 });
-    it('shows remaining steps when the Then row is expanded', () => {
-     const { getByText } = renderModal();
-
-        fireEvent.press(getByText('Start'));
-        fireEvent.press(getByText('Then: Turn left 5.00m'));
-
-        expect(getByText('Turn left')).toBeTruthy();
-        expect(getByText('Turn right')).toBeTruthy();
-    });
-    it('shows floor and building for the current step', () => {
-        const { getByText } = renderModal();
-        fireEvent.press(getByText('Start'));
-
-        expect(getByText('Floor 8 - H')).toBeTruthy();
-    });
-    it('shows the next-step then label with distance', () => {
-    const { getByText } = renderModal();
-    fireEvent.press(getByText('Start'));
-
-    expect(getByText('Then: Turn left 5.00m')).toBeTruthy();
-    });
-
-    it('shows arrival text when there is no next step', async () => {
-        const { getByText } = renderModal();
-        fireEvent.press(getByText('Start'));
-
-        await act(async () => { fireEvent.press(getByText('Next')); });
-        await act(async () => { fireEvent.press(getByText('Next')); });
-        await act(async () => { fireEvent.press(getByText('Next')); });
-
-        expect(getByText('Then: You have arrived at your destination')).toBeTruthy();
-    });
-
-    it('expands remaining steps when the Then row is pressed', () => {
-        const { getByText } = renderModal();
-        fireEvent.press(getByText('Start'));
-        fireEvent.press(getByText('Then: Turn left 5.00m'));
-
-        expect(getByText('Turn left')).toBeTruthy();
-        expect(getByText('Turn right')).toBeTruthy();
-    });
