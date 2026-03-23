@@ -4,10 +4,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { MapboxGL } from '@/services/mapbox';
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer';
 import { POIMarker } from '@/components/indoor/POIMarker';
-import { MaterialIcons } from '@expo/vector-icons';
 import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
-import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, NoDirectionsFoundException} from '@/services/http/indoor-api'
+import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, POI_TYPES} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
@@ -41,12 +40,7 @@ type MapPressFeature = {
     properties?: RoomFeatureProperties
 }
 
-const POI_TYPES = [
-  'bathroom', 'bathroom_men', 'bathroom_women', 'bathroom_unisex',
-  'bathroom_unisex_acc', 'bathroom_men_acc', 'bathroom_women_acc',
-  'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
-  'escalator', 'printer', 'ramp'
-]
+const DEFAULT_MAP_CENTER: [number, number] = [-73.578, 45.496];
 
 const getRoomId = (feature: MapPressFeature): string | null => {
     const propertyId =
@@ -97,9 +91,8 @@ const collectCoordinates = (geometry: GeoJSON.Geometry | null | undefined): [num
     return accumulator
 }
 
-const getGeometryCenter = (geometry: GeoJSON.Geometry | null | undefined): [number, number] => {
-  const coords = collectCoordinates(geometry)
-  if (coords.length === 0) return [-73.578, 45.496]
+const calculateBoundingBoxCenter = (coords: [number, number][]): [number, number] => {
+  if (coords.length === 0) return DEFAULT_MAP_CENTER;
 
   const bounds = coords.reduce(
     (memo, [lng, lat]) => ({
@@ -114,9 +107,14 @@ const getGeometryCenter = (geometry: GeoJSON.Geometry | null | undefined): [numb
       minLat: coords[0][1],
       maxLat: coords[0][1],
     },
-  )
+  );
 
-  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2];
+};
+
+const getGeometryCenter = (geometry: GeoJSON.Geometry | null | undefined): [number, number] => {
+  const coords = collectCoordinates(geometry)
+  return calculateBoundingBoxCenter(coords);
 }
 
 const getCenterCoordinate = (
@@ -127,24 +125,7 @@ const getCenterCoordinate = (
   const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
   const coordinates = [...planCoordinates, ...roomCoordinates]
   
-  if (coordinates.length === 0) return [-73.578, 45.496]
-
-  const bounds = coordinates.reduce(
-    (memo, [lng, lat]) => ({
-      minLng: Math.min(memo.minLng, lng),
-      maxLng: Math.max(memo.maxLng, lng),
-      minLat: Math.min(memo.minLat, lat),
-      maxLat: Math.max(memo.maxLat, lat),
-    }),
-    {
-      minLng: coordinates[0][0],
-      maxLng: coordinates[0][0],
-      minLat: coordinates[0][1],
-      maxLat: coordinates[0][1],
-    },
-  )
-
-  return [(bounds.minLng + bounds.maxLng) / 2, (bounds.minLat + bounds.maxLat) / 2]
+  return calculateBoundingBoxCenter(coordinates);
 }
 
 const convertCoordinatesToFeature = (coordinates: [number, number]) => {
@@ -185,6 +166,27 @@ const extractFloorFromNodeId = (nodeId: string | null, buildingCode: string): nu
 
     return Number(floorToken)
 }
+const POI_TYPES_SET = new Set(POI_TYPES);
+function separateRoomFeatures(rooms?: GeoJSON.FeatureCollection | null) {
+  if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
+
+  const labelRooms: GeoJSON.Feature[] = []
+  const pois: GeoJSON.Feature[] = []
+
+  rooms.features.forEach((feature) => {
+    const type = (feature.properties?.type as string | undefined)?.toLowerCase().trim()
+    if (type && POI_TYPES_SET.has(type)) {
+      pois.push(feature)
+    } else {
+      labelRooms.push(feature)
+    }
+  })
+
+  return {
+    roomCollectionForLabels: { type: 'FeatureCollection' as const, features: labelRooms },
+    poiFeatures: pois,
+  }
+}
 
 export function FloorPlanViewer({
                                     planGeometry,
@@ -198,26 +200,7 @@ export function FloorPlanViewer({
                                     onError
                                 }: FloorPlanViewerProps) {
       
-  const { roomCollectionForLabels, poiFeatures } = useMemo(() => {
-    if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
-
-    const labelRooms: GeoJSON.Feature[] = []
-    const pois: GeoJSON.Feature[] = []
-
-    rooms.features.forEach((feature) => {
-      const type = (feature.properties?.type as string | undefined)?.toLowerCase().trim()
-      if (type && POI_TYPES.includes(type)) {
-        pois.push(feature)
-      } else {
-        labelRooms.push(feature)
-      }
-    })
-
-    return {
-      roomCollectionForLabels: { type: 'FeatureCollection' as const, features: labelRooms },
-      poiFeatures: pois,
-    }
-  }, [rooms])
+  const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
   
     const { accessible, setAccessible } = useIndoorNavigationState();
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
@@ -240,16 +223,13 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-    
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
-        console.log('[NearestNode] Request →', {buildingCode, floorId, longitude, latitude});
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
-            console.log('[NearestNode] Response ←', node);
             setFromNodeId(node.id);
             setFromQuery('Current Location');
         } catch (err) {
-            console.log('[NearestNode] No matching node found:', err instanceof Error ? err.message : err);
+            console.warn('[NearestNode] No matching node found:', err);
             setFromNodeId(null);
             setFromQuery('');
         }
@@ -260,12 +240,7 @@ export function FloorPlanViewer({
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId, accessible);
             setIndoorSteps(steps);
         } catch (err) {
-            console.log('[IndoorDirections] No directions found:', err instanceof Error ? err.message : err);
-
-            if (err instanceof NoDirectionsFoundException) {
-              onError?.(`A${accessible ? "n accessible" : ""} path from ${fromText} to ${toText} could not be found.`);
-            }
-
+            console.warn('[IndoorDirections] No directions found:', err);
             setIndoorSteps(null);
             setCurrentNode(null);
         }
@@ -317,6 +292,8 @@ export function FloorPlanViewer({
         setUserLocation([longitude, latitude]);
     }, [indoorSteps, resolveNearestNode]);
 
+
+
     const planShape = useMemo(() => {
         if (!planGeometry) return null
         return {
@@ -351,23 +328,76 @@ export function FloorPlanViewer({
         })
     }, [selectedRoomFeature])
 
-    const handleRoomPress = (event: any) => {
-        const feature = event?.features?.[0] as MapPressFeature | undefined
-        if (!feature) return
-        const roomId = getRoomId(feature)
-        if (!roomId || !onPressRoom) return
-        onPressRoom(roomId)
-    }
+    const findNearestIndoorNode = async(longitude: number, latitude: number) :Promise<string> => {
 
+        try {
+            const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
+            console.log('[NearestNode] Response ←', node);
+            return node.id;
+        } catch (err) {
+            console.log('[NearestNode] No matching node found:', err instanceof Error ? err.message : err);
+            return "";
+        }
+
+
+    }
+    const handleRoomPress = async (event: any) => {
+        const feature = event?.features?.[0] as MapPressFeature | undefined;
+        if (!feature) return;
+
+        const roomId = getRoomId(feature);
+        if (!roomId || !onPressRoom) return;
+
+        onPressRoom(roomId);
+
+        let nodeId = feature.properties?.nodeID;
+        console.log("nodeID :"+ nodeId);
+        if (typeof nodeId !== "string") {
+            return;
+        }
+
+
+        if (nodeId.trim() === "") {
+            let latitude: number | undefined;
+            let longitude: number | undefined;
+
+            if (event?.coordinates) {
+                ({ latitude, longitude } = event.coordinates);
+            }
+            else if (event?.geometry?.type === "Point") {
+                [longitude, latitude] = event.geometry.coordinates;
+            }
+
+            if (
+                typeof latitude !== "number" ||
+                typeof longitude !== "number"
+            ) {
+                console.error("Invalid coordinates");
+                return;
+            }
+                const g = await findNearestIndoorNode(longitude, latitude);
+            if(g === "") {return;}
+                nodeId = g;
+                console.log(g);
+        }
+        if (!fromQuery) {
+            setFromNodeId(String(nodeId));
+            setFromQuery(String(nodeId));
+        } else if (!toQuery) {
+            setToQuery(String(nodeId));
+            setToNodeId(String(nodeId));
+        }
+    };
   return (
     <View testID="indoor-floor-plan" style={styles.container}>
       {planShape && rooms ? (
-        <MapboxGL.MapView 
-          style={StyleSheet.absoluteFill} 
-          logoEnabled={false} 
-          scaleBarEnabled={false}
-          styleURL={MapboxGL.StyleURL.Light} 
-        >
+          <MapboxGL.MapView
+              style={StyleSheet.absoluteFill}
+              logoEnabled={false}
+              scaleBarEnabled={false}
+              styleURL={MapboxGL.StyleURL.Light}
+          >
+
        
           <MapboxGL.Camera 
             ref={cameraRef}
@@ -645,6 +675,7 @@ const styles = StyleSheet.create({
     },
     directionStepsContainer: {
         position: 'absolute',
+        top: 0,
         bottom: 0,
         left: 0,
         right: 0,
@@ -656,4 +687,4 @@ const styles = StyleSheet.create({
         marginLeft: 10,
         zIndex: 1000,
     },
-})
+});
