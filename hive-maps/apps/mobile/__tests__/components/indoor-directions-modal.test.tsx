@@ -153,6 +153,9 @@ describe('DirectionsModal', () => {
         await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => {
+            expect(getByText('Arrived')).toBeTruthy();
+        });
 
         fireEvent.press(getByText('Arrived'));
 
