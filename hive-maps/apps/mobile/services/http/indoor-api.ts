@@ -1,26 +1,36 @@
 import {getApiBaseUrl} from './campus-api';
 
-export type BuildingCode = string;
-export type FloorId = string;
-export type IndoorCampusId = string;
 export type DirectionType = 'STRAIGHT' | 'LEFT' | 'RIGHT' | 'BACK' | 'UP_OR_DOWN' | 'DEFAULT';
 
+export const POI_TYPES = [
+  'bathroom', 'bathroom_men', 'bathroom_women', 'bathroom_unisex',
+  'bathroom_unisex_acc', 'bathroom_men_acc', 'bathroom_women_acc',
+  'bathroom_private_acc', 'water_fountain', 'stairs', 'elevator', 
+  'escalator', 'printer', 'ramp'
+];
+export class NoDirectionsFoundException extends Error {
+    constructor(message?: string) {
+        super(message);
+        this.name = 'NoDirectionsFoundException';
+    }
+}
+
 export interface FloorSummary {
-    id: FloorId;
+    id: string;
     label: string;
     sortOrder: number;
 }
 
 export interface FloorDetailsResponse {
-    buildingCode: BuildingCode;
-    floor: { id: FloorId; label: string };
+    buildingCode: string;
+    floor: { id: string; label: string };
     planGeometry: GeoJSON.Geometry;
     rooms: GeoJSON.FeatureCollection;
 }
 
 export interface SupportedIndoorBuilding {
-    campusId: IndoorCampusId;
-    buildingCode: BuildingCode;
+    campusId: string;
+    buildingCode: string;
 }
 
 export interface IndoorNodeResponse {
@@ -45,7 +55,7 @@ const baseUrl = getApiBaseUrl();
 
 type HttpStatusError = Error & { status?: number };
 
-export function normalizeIndoorBuildingCode(value: string | undefined | null): BuildingCode | null {
+export function normalizeIndoorBuildingCode(value: string | undefined | null): string | null {
     if (!value) return null;
     const normalized = value.trim().toUpperCase();
     return normalized.length > 0 ? normalized : null;
@@ -59,15 +69,20 @@ function getHttpStatus(error: unknown): number | null {
 
 async function getIndoorJson<T>(path: string): Promise<T> {
     const url = `${baseUrl}${path}`;
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const controller = typeof AbortController === 'undefined' ? null : new AbortController();
     const timeout = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
 
     try {
         const response = await fetch(url, controller ? {signal: controller.signal} : undefined);
         if (!response.ok) {
-            const error = new Error(`Indoor API request failed (${response.status})`) as HttpStatusError;
-            error.status = response.status;
-            throw error;
+            if (response.status === 422) {
+                throw new NoDirectionsFoundException();
+            }
+            else {
+                const error = new Error(`Indoor API request failed (${response.status})`) as HttpStatusError;
+                error.status = response.status;
+                throw error;
+            }
         }
         return (await response.json()) as T;
     } finally {
@@ -83,16 +98,16 @@ export async function fetchSupportedIndoorBuildings(): Promise<SupportedIndoorBu
     }));
 }
 
-export async function fetchBuildingFloors(campusId: IndoorCampusId, buildingCode: BuildingCode): Promise<FloorSummary[]> {
+export async function fetchBuildingFloors(campusId: string, buildingCode: string): Promise<FloorSummary[]> {
     const path = `/api/campuses/${encodeURIComponent(campusId)}/buildings/${encodeURIComponent(buildingCode)}/floors`;
     const floors = await getIndoorJson<FloorSummary[]>(path);
     return [...floors].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export async function fetchFloorDetails(
-    campusId: IndoorCampusId,
-    buildingCode: BuildingCode,
-    floorId: FloorId,
+    campusId: string,
+    buildingCode: string,
+    floorId: string,
 ): Promise<FloorDetailsResponse | null> {
     const path = `/api/campuses/${encodeURIComponent(campusId)}/buildings/${encodeURIComponent(buildingCode)}/floors/${encodeURIComponent(floorId)}`;
 
@@ -105,8 +120,8 @@ export async function fetchFloorDetails(
 }
 
 export async function fetchNearestNode(
-    buildingCode: BuildingCode,
-    floorId: FloorId,
+    buildingCode: string,
+    floorId: string,
     longitude: number,
     latitude: number,
 ): Promise<IndoorNodeResponse> {
@@ -123,15 +138,15 @@ export async function fetchNearestNode(
 }
 
 export async function fetchIndoorRooms(
-    buildingCode: BuildingCode,
-    floorId: FloorId,
+    buildingCode: string,
+    floorId: string,
 ): Promise<IndoorNodeResponse[]>{
     const path = `/api/indoor-directions/building/${encodeURIComponent(buildingCode)}/rooms?floor=${encodeURIComponent(floorId)}`;
     return getIndoorJson<IndoorNodeResponse[]>(path);
 }
 
 export async function fetchIndoorDirections(
-    buildingCode: BuildingCode,
+    buildingCode: string,
     startNodeId: string,
     endNodeId: string,
     accessible = false,

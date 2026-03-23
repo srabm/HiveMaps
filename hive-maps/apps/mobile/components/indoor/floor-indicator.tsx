@@ -1,10 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { BuildingCode } from '@/services/http/indoor-api'
 
-export type FloorIndicatorProps = {
-  buildingCode: BuildingCode | null
+export type FloorIndicatorProps = Readonly<{
+  buildingCode: string | null
   floorLabel: string | null
-}
+}>
 
 export function FloorIndicator({ buildingCode, floorLabel }: FloorIndicatorProps) {
   if (!buildingCode && !floorLabel) return null
