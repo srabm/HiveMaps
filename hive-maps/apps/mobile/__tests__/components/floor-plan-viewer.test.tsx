@@ -1,7 +1,8 @@
 import React from 'react';
 import {render, act, waitFor} from '@testing-library/react-native';
 import type * as GeoJSON from 'geojson';
-import {FloorPlanViewer, buildFloorTraversalList} from '@/components/indoor/floor-plan-viewer';
+import {FloorPlanViewer, buildActiveFloorRouteView, buildFloorTraversalList} from '@/components/indoor/floor-plan-viewer';
+import type { IndoorDirectionsResponse } from '@/services/http/indoor-api';
 
 // ─── captured handlers ────────────────────────────────────────────────────────
 let latestRoomsPressHandler: ((event: any) => void) | undefined;
@@ -105,9 +106,11 @@ jest.mock('@/components/search-bar', () => {
 });
 
 const mockFetchNearestNode = jest.fn();
+const mockFetchIndoorDirections = jest.fn();
 jest.mock('@/services/http/indoor-api', () => ({
   ...jest.requireActual('@/services/http/indoor-api'),
   fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
+  fetchIndoorDirections: (...args: any[]) => mockFetchIndoorDirections(...args),
 }));
 
 // ─── fixtures ─────────────────────────────────────────────────────────────────
@@ -209,6 +212,101 @@ describe('buildFloorTraversalList', () => {
   });
 });
 
+describe('buildActiveFloorRouteView', () => {
+  const makeStepNode = (id: string, floor: string, longitude: number, latitude: number) => ({
+    id,
+    label: id,
+    wheelchairAccessible: true,
+    floor,
+    building: 'H',
+    longitude,
+    latitude,
+  });
+
+  const routeSteps: IndoorDirectionsResponse[] = [
+    {
+      direction: 'STRAIGHT' as const,
+      distance: 25,
+      description: 'Walk on floor 8',
+      nodes: [
+        makeStepNode('H8.001', '8', -73.5800, 45.4900),
+        makeStepNode('H8.002', '8', -73.5799, 45.4901),
+      ],
+    },
+    {
+      direction: 'UP_OR_DOWN' as const,
+      distance: 0,
+      description: 'Take stairs up to floor 9',
+      nodes: [
+        makeStepNode('H8.STAIR', '8', -73.5798, 45.4902),
+        makeStepNode('H9.STAIR', '9', -73.5798, 45.4902),
+      ],
+    },
+    {
+      direction: 'STRAIGHT' as const,
+      distance: 15,
+      description: 'Walk on floor 9',
+      nodes: [
+        makeStepNode('H9.001', '9', -73.5797, 45.4903),
+      ],
+    },
+  ];
+
+  it('returns only nodes from the active floor segment', () => {
+    const result = buildActiveFloorRouteView(routeSteps, '8');
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].nodes.map((node) => node.id)).toEqual(['H8.001', 'H8.002', 'H8.STAIR']);
+  });
+
+  it('adds an up-arrow transition marker at the segment end when route continues upward', () => {
+    const result = buildActiveFloorRouteView(routeSteps, '8');
+    expect(result.startTransitionMarker).toBeNull();
+    expect(result.endTransitionMarker).toEqual({
+      coordinate: [-73.5798, 45.4902],
+      icon: 'uparrow',
+    });
+  });
+
+  it('adds a down-arrow transition marker when route continues downward', () => {
+    const descending: IndoorDirectionsResponse[] = [
+      {
+        direction: 'STRAIGHT' as const,
+        distance: 10,
+        description: 'Walk floor 9',
+        nodes: [makeStepNode('H9.010', '9', -73.5791, 45.4901)],
+      },
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Take elevator down to floor 8',
+        nodes: [
+          makeStepNode('H9.ELEV', '9', -73.5790, 45.4900),
+          makeStepNode('H8.ELEV', '8', -73.5790, 45.4900),
+        ],
+      },
+    ];
+
+    const result = buildActiveFloorRouteView(descending, '9');
+    expect(result.endTransitionMarker?.icon).toBe('downarrow');
+    expect(result.endTransitionMarker?.coordinate).toEqual([-73.5790, 45.4900]);
+  });
+
+  it('shows a start transition marker and no end marker when route ends on active floor', () => {
+    const result = buildActiveFloorRouteView(routeSteps, '9');
+    expect(result.steps).toHaveLength(1);
+    expect(result.startTransitionMarker).toEqual({
+      coordinate: [-73.5798, 45.4902],
+      icon: 'uparrow',
+    });
+    expect(result.endTransitionMarker).toBeNull();
+  });
+
+  it('matches floors by numeric value when id format differs', () => {
+    const result = buildActiveFloorRouteView(routeSteps, 'L8');
+    expect(result.steps[0].nodes.map((node) => node.floor)).toEqual(['8', '8', '8']);
+  });
+});
+
 // ─── suite ────────────────────────────────────────────────────────────────────
 describe('FloorPlanViewer', () => {
   beforeEach(() => {
@@ -217,6 +315,8 @@ describe('FloorPlanViewer', () => {
     latestDirectionBarProps = {};
     latestDirectionsModalProps = {};
     mockFetchNearestNode.mockReset();
+    mockFetchIndoorDirections.mockReset();
+    mockFetchIndoorDirections.mockRejectedValue(new Error('No directions found'));
   });
 
   // ── rendering ─────────────────────────────────────────────────────────────
@@ -616,6 +716,24 @@ describe('FloorPlanViewer', () => {
 
   it('forwards step node floor changes from turn-by-turn modal', async () => {
     const onStepFloorChange = jest.fn();
+    mockFetchIndoorDirections.mockResolvedValueOnce([
+      {
+        direction: 'STRAIGHT',
+        distance: 10,
+        description: 'Move to floor 3 connector',
+        nodes: [
+          {
+            id: 'H3.100',
+            label: 'Node',
+            wheelchairAccessible: true,
+            floor: '3',
+            building: 'H',
+            longitude: -73.58,
+            latitude: 45.49,
+          },
+        ],
+      },
+    ]);
 
     render(
       <FloorPlanViewer
