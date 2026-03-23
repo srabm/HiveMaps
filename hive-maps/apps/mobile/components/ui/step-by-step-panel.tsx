@@ -284,13 +284,15 @@ function StepRow({
     index: number;
     isCurrent: boolean;
 }>) {
+    const isArrivalStep = step.maneuver === 'arrive';
+
     return (
         <View style={[stepRowStyles.row, isCurrent && stepRowStyles.rowActive]}>
-            <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive]}>
+            <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive, isArrivalStep && stepRowStyles.iconWrapArrival]}>
                 <MaterialIcons
                     name={getManeuverIcon(step.maneuver, step.maneuverModifier)}
                     size={18}
-                    color={isCurrent ? '#ffffff' : '#6B7280'}
+                    color={isCurrent || isArrivalStep ? '#111827' : '#6B7280'}
                 />
             </View>
             <View style={stepRowStyles.textWrap}>
@@ -301,6 +303,11 @@ function StepRow({
                     <Text style={stepRowStyles.dist}>{formatDist(step.distance)}</Text>
                 )}
             </View>
+            {isCurrent ? (
+                <View style={stepRowStyles.currentBadge}>
+                    <Text style={stepRowStyles.currentBadgeText}>Current Step</Text>
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -328,12 +335,30 @@ const stepRowStyles = StyleSheet.create({
         marginTop: 1,
     },
     iconWrapActive: {
-        backgroundColor: '#9d1e30',
+        backgroundColor: '#F4B000',
+    },
+    iconWrapArrival: {
+        backgroundColor: '#F4B000',
     },
     textWrap: { flex: 1 },
     instruction: { fontSize: 14, color: '#111827', fontWeight: '500' },
-    instructionActive: { fontWeight: '700', color: '#9d1e30' },
+    instructionActive: { fontWeight: '700', color: '#B98100' },
     dist: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    currentBadge: {
+        backgroundColor: '#E5A712',
+        borderRadius: 7,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        marginLeft: 6,
+        flexShrink: 0,
+        alignSelf: 'center',
+    },
+    currentBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
 });
 
 // ─── Recalculating banner ────────────────────────────────────────────────────
@@ -424,9 +449,8 @@ export function StepByStepPanel({
             <View style={styles.container} pointerEvents="box-none">
                 <View style={styles.topPanel}>
                     <View style={styles.mainRow}>
-                        {/* Red flag matches the app's brand colour */}
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
-                            <MaterialIcons name="flag" size={28} color="#ffffff" />
+                            <MaterialIcons name="flag" size={28} color="#111827" />
                         </View>
                         <View style={styles.instructionBlock}>
                             <Text style={styles.instructionText}>You have arrived!</Text>
@@ -446,6 +470,7 @@ export function StepByStepPanel({
     if (!currentStep) return null;
 
     const distLabel = distanceToNextTurn == null ? '' : formatDist(distanceToNextTurn);
+    const totalSteps = Math.max(steps.length, 1);
 
     // ── The top card always shows the CURRENT step — the action the user is
     // performing right now, with the distance remaining until its endpoint.
@@ -467,6 +492,12 @@ export function StepByStepPanel({
                 {/* Recalculating banner — sits at the top of the card, always visible */}
                 {isRecalculating && <RecalculatingBanner />}
 
+                <View style={styles.headerRow}>
+                    <Text style={styles.progressLabel}>
+                        Step {Math.min(currentStepIndex + 1, totalSteps)} of {totalSteps}
+                    </Text>
+                </View>
+
                 {/* Shuttle phase context strip */}
                 {shuttlePhaseMeta && (
                     <View style={[styles.phaseStrip, { backgroundColor: shuttlePhaseMeta.color + '18' }]}>
@@ -484,8 +515,8 @@ export function StepByStepPanel({
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
                             <MaterialIcons
                                 name={getManeuverIcon(currentStep.maneuver, currentStep.maneuverModifier)}
-                                size={28}
-                                color="#ffffff"
+                                size={24}
+                                color="#111827"
                             />
                         </View>
                         <View style={styles.instructionBlock}>
@@ -514,7 +545,7 @@ export function StepByStepPanel({
                         <MaterialIcons
                             name={nextStep ? getManeuverIcon(nextStep.maneuver, nextStep.maneuverModifier) : 'flag'}
                             size={16}
-                            color="#ffffff"
+                            color="#6B7280"
                         />
                     </View>
                     <Text style={styles.nextText} numberOfLines={1}>
@@ -601,10 +632,10 @@ const styles = StyleSheet.create({
 
     // ── Top panel
     topPanel: {
-        marginHorizontal: 12,
+        marginHorizontal: 8,
         marginTop: 48,         // safe-area clearance
         backgroundColor: '#ffffff',
-        borderRadius: 16,
+        borderRadius: 22,
         shadowColor: '#000',
         shadowOpacity: 0.15,
         shadowOffset: { width: 0, height: 4 },
@@ -612,7 +643,19 @@ const styles = StyleSheet.create({
         elevation: 8,
         overflow: 'hidden',
     },
-
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 14,
+        paddingBottom: 8,
+    },
+    progressLabel: {
+        flex: 1,
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#374151',
+    },
     // Shuttle phase context strip
     phaseStrip: {
         flexDirection: 'row',
@@ -643,7 +686,7 @@ const styles = StyleSheet.create({
     },
     // Active/arrived state: red filled circle with white icon (shared)
     mainIconWrapActive: {
-        backgroundColor: '#9d1e30',
+        backgroundColor: '#E5A712',
     },
     instructionBlock: { flex: 1 },
     shuttleRideLabel: {
@@ -683,7 +726,7 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: '#9d1e30',
+        backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -702,10 +745,10 @@ const styles = StyleSheet.create({
 
     // ── Bottom bar shared base
     bottomBarBase: {
-        marginHorizontal: 12,
+        marginHorizontal: 8,
         marginBottom: 20,
         backgroundColor: '#ffffff',
-        borderRadius: 16,
+        borderRadius: 20,
         paddingVertical: 14,
         paddingHorizontal: 20,
         shadowColor: '#000',
@@ -749,7 +792,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E7EB',
     },
     endButton: {
-        backgroundColor: '#9d1e30',
+        backgroundColor: '#F4B000',
         borderRadius: 12,
         paddingVertical: 10,
         paddingHorizontal: 20,
