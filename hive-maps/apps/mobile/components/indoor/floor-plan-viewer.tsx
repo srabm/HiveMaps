@@ -360,7 +360,7 @@ export function FloorPlanViewer({
                 return;
             }
                 const g = await findNearestIndoorNode(longitude, latitude);
-            if(g === "") return;
+            if(g === "") {return;}
                 nodeId = g;
                 console.log(g);
         }
