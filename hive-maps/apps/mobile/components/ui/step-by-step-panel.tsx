@@ -268,7 +268,10 @@ type StepByStepPanelProps = {
     isRecalculating: boolean;
     /** Current shuttle phase label — null for non-shuttle modes. */
     shuttlePhase: ShuttlePhase | null;
+    /** Called when the user taps "End" mid-navigation — search state is preserved. */
     onExit: () => void;
+    /** Called when the user taps "End Navigation" after arriving — full teardown. */
+    onArrived: () => void;
 };
 
 // ─── Full directions list row ────────────────────────────────────────────────
@@ -392,6 +395,7 @@ export function StepByStepPanel({
     isRecalculating,
     shuttlePhase,
     onExit,
+    onArrived,
 }: Readonly<StepByStepPanelProps>) {
     const [showAllSteps, setShowAllSteps] = useState(false);
 
@@ -431,7 +435,7 @@ export function StepByStepPanel({
                 </View>
                 {/* Centred End button */}
                 <View style={[styles.bottomBarBase, styles.bottomBarArrived]}>
-                    <Pressable style={styles.endButton} onPress={onExit}>
+                    <Pressable style={styles.endButton} onPress={onArrived}>
                         <Text style={styles.endButtonText}>End Navigation</Text>
                     </Pressable>
                 </View>

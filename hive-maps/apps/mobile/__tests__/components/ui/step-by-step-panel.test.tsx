@@ -95,6 +95,7 @@ const defaultProps = {
     isRecalculating: false,
     shuttlePhase: null,
     onExit: jest.fn(),
+    onArrived: jest.fn(),
 };
 
 // ─── Arrived state ────────────────────────────────────────────────────────────
@@ -110,11 +111,11 @@ describe('Arrived state', () => {
         expect(getByText('End Navigation')).toBeTruthy();
     });
 
-    it('calls onExit when "End Navigation" is pressed', () => {
-        const onExit = jest.fn();
-        const { getByText } = render(<StepByStepPanel {...defaultProps} arrived onExit={onExit} />);
+    it('calls onArrived when "End Navigation" is pressed', () => {
+        const onArrived = jest.fn();
+        const { getByText } = render(<StepByStepPanel {...defaultProps} arrived onArrived={onArrived} />);
         fireEvent.press(getByText('End Navigation'));
-        expect(onExit).toHaveBeenCalledTimes(1);
+        expect(onArrived).toHaveBeenCalledTimes(1);
     });
 
     it('does not render the instruction panel when arrived', () => {
