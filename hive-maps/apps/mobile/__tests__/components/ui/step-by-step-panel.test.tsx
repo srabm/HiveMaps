@@ -249,6 +249,34 @@ describe('Expandable step list', () => {
     });
 });
 
+    it('does not show "Then:" preview when nextStep is null', () => {
+        const { queryByText } = render(
+            <StepByStepPanel {...defaultProps} nextStep={null} />
+        );
+        expect(queryByText(/^Then:/)).toBeNull();
+    });
+
+    it('marks the current expanded row with "current step"', () => {
+        const steps = [
+            makeStep({ instruction: 'Step one' }),
+            makeStep({ instruction: 'Step two', maneuver: 'turn', maneuverModifier: 'right' }),
+        ];
+        const { getByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={steps}
+                currentStep={steps[0]}
+                nextStep={steps[1]}
+                currentStepIndex={0}
+            />
+        );
+        fireEvent.press(getByText('Then: Step two'));
+        expect(getByText('Current Step')).toBeTruthy();
+    });
+
+
+
+
 // ─── Recalculating banner ─────────────────────────────────────────────────────
 
 describe('Recalculating banner', () => {
