@@ -49,7 +49,8 @@
         {
           "RNMapboxMapsVersion": "11.18.1"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

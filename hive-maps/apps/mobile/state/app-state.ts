@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { CampusId } from '@/types/campus';
 import { loadSelectedCampus, saveSelectedCampus } from '@/storage/campus-storage';
 
 export type AppState = {
-  campus: CampusId | null;
+  campus: string | null;
 };
 
 const defaultState: AppState = {
@@ -29,7 +28,7 @@ export function useAppState() {
     };
   }, []);
 
-  const setCampus = useCallback((campus: CampusId) => {
+  const setCampus = useCallback((campus: string) => {
     setState((prev) => ({ ...prev, campus }));
     saveSelectedCampus(campus);
   }, []);

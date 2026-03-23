@@ -40,6 +40,7 @@ export interface DirectionsModalProps {
     onClose: () => void;
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
+    preStartLabel?: string;
 }
 
 function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null {
@@ -48,13 +49,16 @@ function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null
 }
 
 const DirectionsModal: React.FC<DirectionsModalProps> = ({
-    visible,
-    steps,
-    origin = "Your location",
-    destination,
-    onClose,
-    onCurrentNodeChange,
-}) => {
+                                                             visible,
+                                                             steps,
+                                                             origin = "Your location",
+                                                             destination,
+                                                             onClose,
+                                                             onCurrentNodeChange,
+                                                             beeImageSource,
+                                                             preStartLabel = "Walk",
+                                                         }) => {
+
     if (steps.length > 0) {
         steps = [
             ...steps,

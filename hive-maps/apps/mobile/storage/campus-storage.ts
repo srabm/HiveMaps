@@ -1,14 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { CampusId } from '@/types/campus';
-
 const CAMPUS_KEY = 'settings.selectedCampus';
 const BUILDING_CACHE_KEY = 'data.buildingCoordinates';
 const DETAILS_CACHE_KEY = 'data.placeDetails';
 
 export type BuildingCoordinateCache = Record<string, [number, number]>;
 
-export async function loadSelectedCampus(): Promise<CampusId | null> {
+export async function loadSelectedCampus(): Promise<string | null> {
   try {
     const stored = await AsyncStorage.getItem(CAMPUS_KEY);
     if (stored?.trim()) return stored;
@@ -18,7 +16,7 @@ export async function loadSelectedCampus(): Promise<CampusId | null> {
   return null;
 }
 
-export async function saveSelectedCampus(campus: CampusId) {
+export async function saveSelectedCampus(campus: string) {
   try {
     await AsyncStorage.setItem(CAMPUS_KEY, campus);
   } catch {

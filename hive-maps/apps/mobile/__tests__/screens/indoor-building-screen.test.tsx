@@ -356,4 +356,33 @@ describe('Indoor building screen', () => {
       expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
     });
   });
+  it('shows floor-details error when selected floor request fails', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([{ id: '1', label: 'L1', sortOrder: 1 }]);
+    mockFetchFloorDetails.mockRejectedValue(new Error('network'));
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
+      expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
+    });
+  });
+
+  it('calls router.back() when the back button is pressed', () => {
+    const { getByTestId } = render(<IndoorMapScreen />);
+  
+    fireEvent.press(getByTestId('indoor-back-button'));
+    
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers handleMissingBuilding when buildingCode is completely unsupported', async () => {
+    mockFetchSupportedIndoorBuildings.mockResolvedValue([]);
+    
+    const { getByText } = render(<IndoorMapScreen />);
+    
+    await waitFor(() => {
+       expect(getByText('This building does not currently support indoor maps.')).toBeTruthy();
+    });
+  });
 });

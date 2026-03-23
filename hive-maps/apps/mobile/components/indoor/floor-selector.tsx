@@ -1,12 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { FloorSummary } from '@/services/http/indoor-api'
 
-export type FloorSelectorProps = {
+export type FloorSelectorProps = Readonly<{
   floors: FloorSummary[]
   activeFloorId: string | null
   onSelectFloor: (floorId: string) => void
   disabled?: boolean
-}
+}>
 
 export function FloorSelector({ floors, activeFloorId, onSelectFloor, disabled = false }: FloorSelectorProps) {
   if (floors.length === 0) return null
