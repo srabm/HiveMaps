@@ -142,12 +142,14 @@ describe('DirectionsModal', () => {
         fireEvent.press(getByText('Start'));
         await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
+        await act(async () => { fireEvent.press(getByText('Next')); });
         expect(getByText('Then: You have arrived at your destination')).toBeTruthy();
     });
 
     it('switches to arrived state when Arrived is pressed', async () => {
         const { getByText, queryByText } = renderModal();
         fireEvent.press(getByText('Start'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
         await act(async () => { fireEvent.press(getByText('Next')); });
