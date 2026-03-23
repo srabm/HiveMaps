@@ -1,7 +1,7 @@
 import React from 'react';
-import {render, act, fireEvent, waitFor} from '@testing-library/react-native';
-import DirectionsModal, {DirectionsModalProps} from '@/components/indoor/indoor-directions-modal';
-import type {IndoorDirectionsResponse, IndoorNodeResponse, DirectionType} from '@/services/http/indoor-api';
+import { render, act, fireEvent, waitFor } from '@testing-library/react-native';
+import DirectionsModal, { DirectionsModalProps } from '@/components/indoor/indoor-directions-modal';
+import type { IndoorDirectionsResponse, IndoorNodeResponse, DirectionType } from '@/services/http/indoor-api';
 
 jest.mock('@/assets/images/bee.png', () => 'bee-image');
 jest.mock('@/assets/images/straight.png', () => 'straight-image');
@@ -170,3 +170,18 @@ describe('DirectionsModal', () => {
         expect(() => renderModal({ steps: [] })).not.toThrow();
     });
 });
+    it('shows remaining steps when the Then row is expanded', () => {
+     const { getByText } = renderModal();
+
+        fireEvent.press(getByText('Start'));
+        fireEvent.press(getByText('Then: Turn left 5.00m'));
+
+        expect(getByText('Turn left')).toBeTruthy();
+        expect(getByText('Turn right')).toBeTruthy();
+    });
+    it('shows floor and building for the current step', () => {
+        const { getByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+
+        expect(getByText('Floor 8 - H')).toBeTruthy();
+    });
