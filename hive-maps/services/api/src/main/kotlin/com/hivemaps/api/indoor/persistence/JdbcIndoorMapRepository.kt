@@ -62,7 +62,7 @@ class JdbcIndoorMapRepository(
         val floorRow = jdbcTemplate.queryForList(floorSql, campusId, buildingCode, floorId).firstOrNull()
             ?: return null
 
-        val roomsSql = "SELECT id, label, room_type, geometry FROM room WHERE building_code = ? AND floor_id = ?"
+        val roomsSql = "SELECT id, label, room_type, geometry,nodeID FROM room WHERE building_code = ? AND floor_id = ?"
         val roomRows = jdbcTemplate.queryForList(roomsSql, buildingCode, floorId)
 
         val rooms = roomRows.map { room ->
@@ -70,7 +70,8 @@ class JdbcIndoorMapRepository(
                 id = room["id"] as String,
                 label = room["label"] as String?,
                 type = room["room_type"] as String,
-                geometry = parseJsonColumn(room["geometry"])
+                geometry = parseJsonColumn(room["geometry"]),
+                nodeID = room["nodeID"] as String?
             )
         }
 

@@ -602,7 +602,11 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('E107', 'E107', true, 'VL2.297-1_1', 'VL_J1', 'VL', 3.6813989133804443),
 ('E108', 'E108', true, 'VL_J1', 'VL2.297-1_1', 'VL', 3.6813989133804443),
 ('E109', 'E109', true, 'VL2.203-3', 'VL_J3', 'VL', 2.6763225515055797),
-('E110', 'E110', true, 'VL_J3', 'VL2.203-3', 'VL', 2.6763225515055797);
+('E110', 'E110', true, 'VL_J3', 'VL2.203-3', 'VL', 2.6763225515055797),
+('E111', 'E111', true, 'VL1.ELEVATOR_4', 'VL.ELEVATOR_2', 'VL', 0.0),
+('E112', 'E112', true, 'VL.ELEVATOR_2', 'VL1.ELEVATOR_4', 'VL', 0.0),
+('E113', 'E113', true, 'VL1.ELEVATOR_6', 'VL2.ELEVATOR_5', 'VL', 0.0),
+('E114', 'E114', true, 'VL2.ELEVATOR_5', 'VL1.ELEVATOR_6', 'VL', 0.0);
 
 
 

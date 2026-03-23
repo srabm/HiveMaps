@@ -192,7 +192,6 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(false);
-    
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
@@ -255,6 +254,8 @@ export function FloorPlanViewer({
         setUserLocation([longitude, latitude]);
     }, [resolveNearestNode]);
 
+
+
     const planShape = useMemo(() => {
         if (!planGeometry) return null
         return {
@@ -289,23 +290,76 @@ export function FloorPlanViewer({
         })
     }, [selectedRoomFeature])
 
-    const handleRoomPress = (event: any) => {
-        const feature = event?.features?.[0] as MapPressFeature | undefined
-        if (!feature) return
-        const roomId = getRoomId(feature)
-        if (!roomId || !onPressRoom) return
-        onPressRoom(roomId)
-    }
+    const findNearestIndoorNode = async(longitude: number, latitude: number) :Promise<string> => {
 
+        try {
+            const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
+            console.log('[NearestNode] Response ←', node);
+            return node.id;
+        } catch (err) {
+            console.log('[NearestNode] No matching node found:', err instanceof Error ? err.message : err);
+            return "";
+        }
+
+
+    }
+    const handleRoomPress = async (event: any) => {
+        const feature = event?.features?.[0] as MapPressFeature | undefined;
+        if (!feature) return;
+
+        const roomId = getRoomId(feature);
+        if (!roomId || !onPressRoom) return;
+
+        onPressRoom(roomId);
+
+        let nodeId = feature.properties?.nodeID;
+        console.log("nodeID :"+ nodeId);
+        if (typeof nodeId !== "string") {
+            return;
+        }
+
+
+        if (nodeId.trim() === "") {
+            let latitude: number | undefined;
+            let longitude: number | undefined;
+
+            if (event?.coordinates) {
+                ({ latitude, longitude } = event.coordinates);
+            }
+            else if (event?.geometry?.type === "Point") {
+                [longitude, latitude] = event.geometry.coordinates;
+            }
+
+            if (
+                typeof latitude !== "number" ||
+                typeof longitude !== "number"
+            ) {
+                console.error("Invalid coordinates");
+                return;
+            }
+                const g = await findNearestIndoorNode(longitude, latitude);
+            if(g === "") {return;}
+                nodeId = g;
+                console.log(g);
+        }
+        if (!fromQuery) {
+            setFromNodeId(String(nodeId));
+            setFromQuery(String(nodeId));
+        } else if (!toQuery) {
+            setToQuery(String(nodeId));
+            setToNodeId(String(nodeId));
+        }
+    };
   return (
     <View testID="indoor-floor-plan" style={styles.container}>
       {planShape && rooms ? (
-        <MapboxGL.MapView 
-          style={StyleSheet.absoluteFill} 
-          logoEnabled={false} 
-          scaleBarEnabled={false}
-          styleURL={MapboxGL.StyleURL.Light} 
-        >
+          <MapboxGL.MapView
+              style={StyleSheet.absoluteFill}
+              logoEnabled={false}
+              scaleBarEnabled={false}
+              styleURL={MapboxGL.StyleURL.Light}
+          >
+
        
           <MapboxGL.Camera 
             ref={cameraRef}

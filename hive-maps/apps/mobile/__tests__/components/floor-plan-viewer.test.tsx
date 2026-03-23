@@ -847,4 +847,382 @@ describe('FloorPlanViewer', () => {
       expect(mockFetchNearestNode).toHaveBeenCalledWith('MB', '8', -73.5798, 45.4902);
     });
   });
+  it('sets toQuery via room press when fromQuery is already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('node-to');
+  });
+  it('does not set toQuery when nodeID is missing on room press with fromQuery already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not set toQuery when nodeID is empty string on room press with fromQuery already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not overwrite toQuery on third room press when both are already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'node-from', id: 'node-from'}, undefined);
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-2' } }],
+      });
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-extra', roomId: 'room-3' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('node-to');
+  });
+
+  it('sets fromQuery via room press when fromQuery is not already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    )
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-from');
+  });
+
+  it('does not set fromQuery when nodeID is empty string on room press with fromQuery not already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('');
+  });
+
+  it('does not overwrite fromQuery on third room press when both are already set', () => {
+    const onPressRoom = jest.fn();
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={onPressRoom}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-3' } }],
+      });
+    });
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-extra', roomId: 'room-3' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-from');
+  });
+
+  it('sets fromQuery to resolved id when fromQuery is empty when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-resolved'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-resolved');
+  });
+
+  it('sets toQuery to resolved id when toQuery is empty when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-resolved'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+    expect(latestDirectionBarProps.toValue).toBe('node-resolved');
+  });
+
+  //  mockFetchNearestNode.mockRejectedValue(new Error('No nodes found'));
+  it('sets toQuery to resolved id when toQuery is null string when using coordinates', async () => {
+    mockFetchNearestNode.mockResolvedValue(new Error('No nodes found'));
+
+    render(
+        <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
+                         onPressRoom={jest.fn()} buildingCode="H" floorId="8" />,
+    );
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
+      });
+    });
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+    expect(latestDirectionBarProps.toValue).toBe("undefined");
+  });
+
+  it('logs warning when fetchNearestNode rejects inside findNearestIndoorNode', async () => {
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockFetchNearestNode.mockRejectedValue(new Error('No nodes'));
+
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={jest.fn()}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[NearestNode] No matching node found:',
+        'No nodes',
+    );
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
+    consoleLogSpy.mockRestore();
+  });
+
+  it('logs warning with raw error when rejection is not an Error instance', async () => {
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockFetchNearestNode.mockRejectedValue('string error');
+
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={jest.fn()}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        coordinates: { latitude: 45.4902, longitude: -73.5798 },
+      });
+    });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[NearestNode] No matching node found:',
+        'string error',
+    );
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('logs error when coordinates are missing and nodeID is empty', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={jest.fn()}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+      });
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Invalid coordinates');
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('does not update fromQuery or toQuery when coordinates are invalid', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={jest.fn()}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('resolves coordinates from event.geometry.type Point when coordinates field is absent', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-from-geometry'));
+
+    render(
+        <FloorPlanViewer
+            planGeometry={makePlanGeometry()}
+            rooms={makeRooms()}
+            onPressRoom={jest.fn()}
+            buildingCode="H"
+            floorId="8"
+        />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: '   ', roomId: 'room-1' } }],
+        geometry: {
+          type: 'Point',
+          coordinates: [-73.5798, 45.4902],
+        },
+      });
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('node-from-geometry');
+  });
+
 });
