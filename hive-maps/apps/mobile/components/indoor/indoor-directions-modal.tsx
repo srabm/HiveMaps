@@ -32,6 +32,24 @@ function formatArrivalTime(durationMinutes: number): string {
     return arrival.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+function buildAugmentedSteps(steps: IndoorDirectionsResponse[]): IndoorDirectionsResponse[] {
+    if (steps.length === 0) return steps;
+
+    const lastStep = steps.at(-1);
+    const lastNode = lastStep?.nodes?.at(-1);
+    if (!lastStep || !lastNode) return steps;
+
+    return [
+        ...steps,
+        {
+            direction: "DEFAULT",
+            distance: 0,
+            description: "You have arrived at your destination",
+            nodes: [lastNode],
+        },
+    ];
+}
+
 export interface DirectionsModalProps {
     visible: boolean;
     steps: IndoorDirectionsResponse[];
@@ -49,61 +67,55 @@ function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null
 }
 
 const DirectionsModal: React.FC<DirectionsModalProps> = ({
-                                                             visible,
-                                                             steps,
-                                                             origin = "Your location",
-                                                             destination,
-                                                             onClose,
-                                                             onCurrentNodeChange,
-                                                             beeImageSource,
-                                                             preStartLabel = "Walk",
-                                                         }) => {
-
-    if (steps.length > 0) {
-        steps = [
-            ...steps,
-            {
-                direction: "DEFAULT",
-                distance: 0,
-                description: "You have arrived at your destination",
-                nodes: [steps.at(-1)!.nodes[steps.at(-1)!.nodes.length - 1]],
-            },
-        ];
-    }
+    visible,
+    steps,
+    origin = "Your location",
+    destination,
+    onClose,
+    onCurrentNodeChange,
+    beeImageSource,
+    preStartLabel = "Walk",
+}) => {
+    const augmentedSteps = buildAugmentedSteps(steps);
 
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [sheetHeight, setSheetHeight]   = useState(DEFAULT_HEIGHT);
-
-    const fadeAnim      = useRef(new Animated.Value(1)).current;
-    const sheetAnim     = useRef(new Animated.Value(DEFAULT_HEIGHT)).current;
-    const dragStartY    = useRef(0);
-    const dragStartH    = useRef(DEFAULT_HEIGHT);
-    const scrollRef     = useRef<ScrollView>(null);
-    const isScrolling   = useRef(false);
-
-    const remainingSteps = steps.slice(currentIndex);
-    const isFirst        = currentIndex === 0;
-    const isLast         = currentIndex >= steps.length - 1;
-    const totalSteps     = steps.length;
-    const progressPct    = (totalSteps > 1 ? `${Math.round((currentIndex / (totalSteps - 1)) * 100)}%` : "100%") as DimensionValue;
-    const listH          = sheetHeight - FIXED_H;
-    const destLabel      = destination ?? (() => { const l = steps[steps.length - 1]; return l?.nodes?.[l.nodes.length - 1]?.id ?? "Destination"; })();
+    const [sheetHeight, setSheetHeight] = useState(DEFAULT_HEIGHT);
     const [hasStarted, setHasStarted] = useState<boolean>(false);
 
     const [showAllSteps, setShowAllSteps] = useState(false);
-    const currentStep = steps[currentIndex] ?? null;
-    const nextStep = steps[currentIndex + 1] ?? null;
-    const remainingDistance = Math.round(steps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0));
+
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const sheetAnim = useRef(new Animated.Value(DEFAULT_HEIGHT)).current;
+    const dragStartH = useRef(DEFAULT_HEIGHT);
+    const scrollRef = useRef<ScrollView>(null);
+
+    const remainingSteps = augmentedSteps.slice(currentIndex);
+    const isFirst = currentIndex === 0;
+    const isLast = currentIndex >= augmentedSteps.length - 1;
+    const totalSteps = augmentedSteps.length;
+    const destLabel = destination ?? (() => {
+        const last = augmentedSteps[augmentedSteps.length - 1];
+        return last?.nodes?.[last.nodes.length - 1]?.id ?? "Destination";
+    })();
+    const currentStep = augmentedSteps[currentIndex] ?? null;
+    const nextStep = augmentedSteps[currentIndex + 1] ?? null;
+    const remainingDistance = Math.round(
+        augmentedSteps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0),
+    );
     const remainingMinutes = Math.max(1, Math.ceil((remainingDistance / 4000) * 60));
+    const nextStepDistanceLabel = nextStep && nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : "";
+    const thenLabel = nextStep
+        ? `Then: ${nextStep.description}${nextStepDistanceLabel}`
+        : "Then: You have arrived at your destination";
 
     useEffect(() => {
         if (!visible) return;
-        if (!steps[currentIndex]) return;  // ← add this line
-        const node = getFirstNode(steps[currentIndex]);
+        if (!augmentedSteps[currentIndex]) return;
+        const node = getFirstNode(augmentedSteps[currentIndex]);
         if (node && onCurrentNodeChange) {
             onCurrentNodeChange(node);
         }
-    }, [currentIndex, onCurrentNodeChange, steps, visible]);
+    }, [augmentedSteps, currentIndex, onCurrentNodeChange, visible]);
 
     useEffect(() => {
         if (visible) {
@@ -176,11 +188,11 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                     { height: hasStarted ? undefined : sheetHeight, transform: [{ translateY: sheetAnim }] },
                 ]}
             >
-                {!hasStarted ? (
+                {hasStarted ? null : (
                     <View testID="drag-handle" style={styles.handleArea} {...panResponder.panHandlers}>
                         <View style={styles.handleBar} />
                     </View>
-                ) : null}
+                )}
 
                 {hasStarted ? (
                     <View>
@@ -236,9 +248,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
 
                         <TouchableOpacity style={styles.thenRow} onPress={() => setShowAllSteps((prev) => !prev)} activeOpacity={0.82}>
                             <Text style={styles.thenText} numberOfLines={1}>
-                                {nextStep
-                                    ? `Then: ${nextStep.description}${nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : ""}`
-                                    : "Then: You have arrived at your destination"}
+                                {thenLabel}
                             </Text>
                             <Text style={styles.thenChevron}>{showAllSteps ? "^" : "v"}</Text>
                         </TouchableOpacity>
@@ -276,16 +286,16 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                 ) : (
                     <View style={styles.preStartContainer}>
                         <View style={styles.preStartHeader}>
-                            <Text style={styles.preStartLabel}>Walk</Text>
+                            <Text style={styles.preStartLabel}>{preStartLabel}</Text>
                         </View>
                         <View style={styles.preStartRow}>
                             <View style={styles.preStartEta}>
-                                <Text style={styles.preStartMin}>{Math.ceil((steps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
+                                <Text style={styles.preStartMin}>{Math.ceil((augmentedSteps.reduce((sum, s) => sum + s.distance, 0) / 4000) * 60)}</Text>
                                 <Text style={styles.preStartMinLabel}>min</Text>
                             </View>
                             <View style={styles.preStartInfo}>
                                 <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
-                                <Text style={styles.preStartDist}>{steps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m</Text>
+                                <Text style={styles.preStartDist}>{augmentedSteps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m</Text>
                             </View>
                             <TouchableOpacity style={styles.startBtn} onPress={() => setHasStarted(true)}>
                                 <Text style={styles.startBtnText}>Start</Text>
@@ -388,7 +398,7 @@ const styles = StyleSheet.create({
     preStartInfo: { flex: 1 },
     preStartArrive: { fontSize: 14, fontWeight: "600", color: DARK },
     preStartDist: { fontSize: 12, color: MUTED, marginTop: 2 },
-    startBtn: { backgroundColor: "#9D1E30", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
+    startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
     startBtnText: { color: BG, fontSize: 14, fontWeight: "700" },
     bottomBar: {
         position: "absolute",
