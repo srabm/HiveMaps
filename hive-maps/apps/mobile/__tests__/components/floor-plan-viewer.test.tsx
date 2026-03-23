@@ -107,6 +107,7 @@ jest.mock('@/components/search-bar', () => {
 
 const mockFetchNearestNode = jest.fn();
 const mockFetchIndoorDirections = jest.fn();
+
 jest.mock('@/services/http/indoor-api', () => ({
   ...jest.requireActual('@/services/http/indoor-api'),
   fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
@@ -197,6 +198,25 @@ const makeNodeResponse = (id = 'node-1') => ({
   longitude: -73.5798,
   latitude: 45.4902,
 });
+
+const makeDirectionsSteps = () => [
+  {
+    direction: 'STRAIGHT',
+    distance: 10,
+    description: 'Walk straight',
+    nodes: [
+      {
+        id: 'H1.101',
+        floor: '1',
+        building: 'H',
+        longitude: -73.58,
+        latitude: 45.49,
+        label: '',
+        wheelchairAccessible: false,
+      },
+    ],
+  },
+];
 
 describe('buildFloorTraversalList', () => {
   it('builds ascending floors inclusively', () => {
@@ -1021,6 +1041,7 @@ describe('FloorPlanViewer', () => {
       expect(mockFetchNearestNode).toHaveBeenCalledWith('MB', '8', -73.5798, 45.4902);
     });
   });
+
   it('sets toQuery via room press when fromQuery is already set', () => {
     const onPressRoom = jest.fn();
     render(
@@ -1045,6 +1066,7 @@ describe('FloorPlanViewer', () => {
 
     expect(latestDirectionBarProps.toValue).toBe('node-to');
   });
+
   it('does not set toQuery when nodeID is missing on room press with fromQuery already set', () => {
     const onPressRoom = jest.fn();
     render(
@@ -1135,8 +1157,8 @@ describe('FloorPlanViewer', () => {
             onPressRoom={onPressRoom}
             buildingCode="H"
             floorId="8"
-        />,
-    )
+        />
+    );
     act(() => {
       latestRoomsPressHandler?.({
         features: [{ properties: { nodeID: 'node-from', roomId: 'room-2' } }],
