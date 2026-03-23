@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, act, waitFor} from '@testing-library/react-native';
+import {render, act, fireEvent, waitFor} from '@testing-library/react-native';
 import type * as GeoJSON from 'geojson';
 import {FloorPlanViewer} from '@/components/indoor/floor-plan-viewer';
 
@@ -7,6 +7,8 @@ import {FloorPlanViewer} from '@/components/indoor/floor-plan-viewer';
 let latestRoomsPressHandler: ((event: any) => void) | undefined;
 let latestUserLocationUpdate: ((loc: any) => void) | undefined;
 let latestDirectionBarProps: Record<string, any> = {};
+let latestDirectionsModalProps: Record<string, any> = {};
+const mockSetAccessible = jest.fn();
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
 jest.mock('@/services/mapbox', () => {
@@ -70,7 +72,10 @@ jest.mock('@/components/indoor/indoor-directions-modal', () => {
   const {View} = require('react-native');
   return {
     __esModule: true,
-    default: () => React.createElement(View, {testID: 'directions-modal'}),
+    default: (props: any) => {
+      latestDirectionsModalProps = props;
+      return React.createElement(View, {testID: 'directions-modal'});
+    },
   };
 });
 
@@ -100,10 +105,20 @@ jest.mock('@/components/search-bar', () => {
   return {__esModule: true, default: () => React.createElement(View, null)};
 });
 
+jest.mock('@/state/indoor-navigation-state', () => ({
+  useIndoorNavigationState: () => ({
+    accessible: false,
+    setAccessible: mockSetAccessible,
+    hydrated: true,
+  }),
+}));
+
 const mockFetchNearestNode = jest.fn();
+const mockFetchIndoorDirections = jest.fn();
 jest.mock('@/services/http/indoor-api', () => ({
   ...jest.requireActual('@/services/http/indoor-api'),
   fetchNearestNode: (...args: any[]) => mockFetchNearestNode(...args),
+  fetchIndoorDirections: (...args: any[]) => mockFetchIndoorDirections(...args),
 }));
 
 // ─── fixtures ─────────────────────────────────────────────────────────────────
@@ -191,13 +206,26 @@ const makeNodeResponse = (id = 'node-1') => ({
   latitude: 45.4902,
 });
 
+const makeIndoorSteps = () => ([
+  {
+    direction: 'STRAIGHT',
+    distance: 5,
+    description: 'Walk straight',
+    nodes: [makeNodeResponse('node-from'), makeNodeResponse('node-to')],
+  },
+]);
+
 // ─── suite ────────────────────────────────────────────────────────────────────
 describe('FloorPlanViewer', () => {
   beforeEach(() => {
     latestRoomsPressHandler = undefined;
     latestUserLocationUpdate = undefined;
     latestDirectionBarProps = {};
+    latestDirectionsModalProps = {};
     mockFetchNearestNode.mockReset();
+    mockFetchIndoorDirections.mockReset();
+    mockFetchIndoorDirections.mockResolvedValue([]);
+    mockSetAccessible.mockReset();
   });
 
   // ── rendering ─────────────────────────────────────────────────────────────
@@ -522,6 +550,306 @@ describe('FloorPlanViewer', () => {
       />,
     );
     expect(getByTestId('direction-bar')).toBeTruthy();
+  });
+
+  // ── POI destination tap ────────────────────────────────────────────────────
+  it('uses nearest-node resolution for POI tap even when POI has node id', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('poi-node-1'));
+
+    const roomsWithPoiNode = makeRooms();
+    (roomsWithPoiNode.features[1].properties as Record<string, unknown>).nodeID = 'poi-node-1';
+
+    const {getByTestId, queryByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={roomsWithPoiNode}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledWith('H', '8', -73.579, 45.49);
+      expect(latestDirectionBarProps.toValue).toBe('Mens Washroom');
+    });
+    expect(queryByTestId('indoor-poi-quick-actions')).toBeNull();
+  });
+
+  it('sets destination from POI tap using nearest-node fallback when node id is missing', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('poi-node-2'));
+
+    const {getByTestId, queryByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledWith('H', '8', -73.579, 45.49);
+      expect(latestDirectionBarProps.toValue).toBe('Mens Washroom');
+    });
+    expect(queryByTestId('indoor-poi-quick-actions')).toBeNull();
+  });
+
+  it('keeps destination label but does not start routing when POI node cannot be resolved', async () => {
+    mockFetchNearestNode.mockRejectedValue(new Error('No nodes found in radius'));
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'Start', id: 'start-node'}, undefined);
+    });
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    await waitFor(() => {
+      expect(latestDirectionBarProps.toValue).toBe('Mens Washroom');
+    });
+
+    expect(mockFetchIndoorDirections).not.toHaveBeenCalled();
+  });
+
+  it('ignores POI taps while indoor directions are active', async () => {
+    mockFetchIndoorDirections.mockResolvedValue(makeIndoorSteps());
+
+    const {getByTestId, queryByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        onPressRoom={jest.fn()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-from', roomId: 'room-1' } }],
+      });
+    });
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'node-to', roomId: 'room-2' } }],
+      });
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('directions-modal')).toBeTruthy();
+    });
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    expect(latestDirectionBarProps.toValue).toBe('node-to');
+    expect(mockFetchNearestNode).not.toHaveBeenCalled();
+
+    act(() => {
+      latestDirectionsModalProps.onClose?.();
+    });
+
+    await waitFor(() => {
+      expect(queryByTestId('directions-modal')).toBeNull();
+    });
+  });
+
+  it('does not apply stale POI destination updates after destination is cleared during async lookup', async () => {
+    let resolveNearestNodeRequest: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
+    mockFetchNearestNode.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveNearestNodeRequest = resolve as (value: ReturnType<typeof makeNodeResponse>) => void;
+      }),
+    );
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    act(() => {
+      latestDirectionBarProps.onClearTo();
+    });
+
+    await act(async () => {
+      resolveNearestNodeRequest?.(makeNodeResponse('late-node'));
+      await Promise.resolve();
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not apply stale POI lookup result after room tap sets destination', async () => {
+    let resolvePoiLookup: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
+    mockFetchNearestNode.mockImplementation(
+      () => new Promise((resolve) => {
+        resolvePoiLookup = resolve as (value: ReturnType<typeof makeNodeResponse>) => void;
+      }),
+    );
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        onPressRoom={jest.fn()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'Start', id: 'start-node'}, undefined);
+    });
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    act(() => {
+      latestRoomsPressHandler?.({
+        features: [{ properties: { nodeID: 'room-destination-node', roomId: 'room-2' } }],
+      });
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('room-destination-node');
+
+    await act(async () => {
+      resolvePoiLookup?.(makeNodeResponse('late-poi-node'));
+      await Promise.resolve();
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('room-destination-node');
+  });
+
+  it('does not apply stale POI lookup result after manual destination typing', async () => {
+    let resolvePoiLookup: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
+    mockFetchNearestNode.mockImplementation(
+      () => new Promise((resolve) => {
+        resolvePoiLookup = resolve as (value: ReturnType<typeof makeNodeResponse>) => void;
+      }),
+    );
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    act(() => {
+      latestDirectionBarProps.onChangeTo('Manual destination');
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('Manual destination');
+
+    await act(async () => {
+      resolvePoiLookup?.(makeNodeResponse('late-poi-node'));
+      await Promise.resolve();
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('Manual destination');
+  });
+
+  it('does not apply POI destination label from a stale floor lookup after floor change', async () => {
+    let resolveOldFloorLookup: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
+    mockFetchNearestNode.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveOldFloorLookup = resolve as (value: ReturnType<typeof makeNodeResponse>) => void;
+      }),
+    );
+
+    const {getByTestId, rerender} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    rerender(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="9"
+      />,
+    );
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+
+    await act(async () => {
+      resolveOldFloorLookup?.(makeNodeResponse('old-floor-node'));
+      await Promise.resolve();
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
+  it('does not apply stale POI lookup results after floor change and a new POI selection', async () => {
+    let resolveOldFloorLookup: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
+    mockFetchNearestNode
+      .mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolveOldFloorLookup = resolve as (value: ReturnType<typeof makeNodeResponse>) => void;
+        }),
+      )
+      .mockResolvedValueOnce(makeNodeResponse('new-floor-node'));
+
+    const {getByTestId, rerender} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    rerender(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="9"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-1'));
+
+    await waitFor(() => {
+      expect(latestDirectionBarProps.toValue).toBe('H-ELEV');
+    });
+
+    await act(async () => {
+      resolveOldFloorLookup?.(makeNodeResponse('old-floor-node'));
+      await Promise.resolve();
+    });
+
+    expect(latestDirectionBarProps.toValue).toBe('H-ELEV');
   });
 
   // ── DirectionBar callbacks ────────────────────────────────────────────────
@@ -1067,9 +1395,8 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.toValue).toBe('node-resolved');
   });
 
-  //  mockFetchNearestNode.mockRejectedValue(new Error('No nodes found'));
-  it('sets toQuery to resolved id when toQuery is null string when using coordinates', async () => {
-    mockFetchNearestNode.mockResolvedValue(new Error('No nodes found'));
+  it('does not set toQuery when nearest node cannot be resolved using coordinates', async () => {
+    mockFetchNearestNode.mockRejectedValue(new Error('No nodes found'));
 
     render(
         <FloorPlanViewer planGeometry={makePlanGeometry()} rooms={makeRooms()}
@@ -1086,11 +1413,10 @@ describe('FloorPlanViewer', () => {
         coordinates: { latitude: 45.4902, longitude: -73.5798 },
       });
     });
-    expect(latestDirectionBarProps.toValue).toBe("undefined");
+    expect(latestDirectionBarProps.toValue).toBe('');
   });
 
-  it('logs warning when fetchNearestNode rejects inside findNearestIndoorNode', async () => {
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  it('keeps from/to queries empty when fetchNearestNode rejects inside findNearestIndoorNode', async () => {
     mockFetchNearestNode.mockRejectedValue(new Error('No nodes'));
 
     render(
@@ -1110,17 +1436,11 @@ describe('FloorPlanViewer', () => {
       });
     });
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[NearestNode] No matching node found:',
-        'No nodes',
-    );
     expect(latestDirectionBarProps.fromValue).toBe('');
     expect(latestDirectionBarProps.toValue).toBe('');
-    consoleLogSpy.mockRestore();
   });
 
-  it('logs warning with raw error when rejection is not an Error instance', async () => {
-    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  it('handles non-Error nearest-node rejection without changing destination', async () => {
     mockFetchNearestNode.mockRejectedValue('string error');
 
     render(
@@ -1140,12 +1460,8 @@ describe('FloorPlanViewer', () => {
       });
     });
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[NearestNode] No matching node found:',
-        'string error',
-    );
-
-    consoleLogSpy.mockRestore();
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
   });
 
   it('logs error when coordinates are missing and nodeID is empty', async () => {

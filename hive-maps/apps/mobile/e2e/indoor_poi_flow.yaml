@@ -18,16 +18,46 @@ appId: com.anonymous.mobile
     id: "poi-icon-elevator"
 - assertVisible:
     id: "poi-icon-escalator"
+- assertVisible: "To room (e.g. H8.841)"
 
-- tapOn: "8th Floor"
+- tapOn:
+    id: "clear-from"
+- assertVisible: "From room (e.g. H8.835)"
+
+- tapOn:
+    id: "poi-icon-elevator"
+- assertNotVisible:
+    id: "indoor-poi-quick-actions"
+- extendedWaitUntil:
+    notVisible: "To room (e.g. H8.841)"
+    timeout: 5000
+
+- runFlow:
+    when:
+      visible: "Elevator"
+    commands:
+      - assertVisible: "Elevator"
 
 - waitForAnimationToEnd:
-    timeout: 3000
+    timeout: 1200
 
-- assertVisible:
-    id: "poi-icon-elevator"
-- assertVisible:
+- runFlow:
+    when:
+      visible: "✕"
+    commands:
+      - tapOn: "✕"
+      - extendedWaitUntil:
+          visible: "To room (e.g. H8.841)"
+          timeout: 5000
+
+- tapOn:
     id: "poi-icon-escalator"
+- assertNotVisible:
+    id: "indoor-poi-quick-actions"
+- extendedWaitUntil:
+    visible: "Escalator"
+    timeout: 5000
+- assertNotVisible: "Elevator"
     
 - swipe:
     start: 50%, 50%
