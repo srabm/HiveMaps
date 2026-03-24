@@ -138,8 +138,6 @@ export function useGoogleCalendarAuth() {
 
       await saveGoogleCalendarSelection({ selectedCalendarIds: nextSelectedCalendarIds });
     } catch (calendarLoadError: unknown) {
-      setCalendars([]);
-      setSelectedCalendarIds([]);
       setCalendarStatus('error');
       setCalendarError(
         calendarLoadError instanceof Error
