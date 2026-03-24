@@ -1,0 +1,74 @@
+appId: com.anonymous.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn: "Search building or address"
+- inputText: "V Lib"
+- tapOn: "Vanier Library"
+- tapOn: "Indoor"
+- assertVisible: "1st Floor"
+- assertVisible: "VL Building - Indoor Map"
+- assertVisible: "From room (e.g. H8.835)"
+- tapOn: "From room (e.g. H8.835)"
+- assertVisible:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+- tapOn:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 40
+- assertVisible: "VL1.101-4"
+- tapOn: "VL1.101-4"
+- assertVisible: "To room (e.g. H8.841)"
+- tapOn: "To room (e.g. H8.841)"
+- assertVisible:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+- tapOn:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 40
+- tapOn:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 36
+- assertVisible:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 47
+- tapOn:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 47
+- assertVisible:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 9
+- tapOn:
+    id: "com.google.android.inputmethod.latin:id/0_resource_name_obfuscated"
+    index: 9
+- assertVisible: "VL2.240"
+- assertVisible:
+    text: "Room · Floor 2"
+    index: 0
+- tapOn: "VL2.240, Room · Floor 2"
+- assertVisible: "Start"
+- tapOn: "Start"
+- assertVisible: "Next"
+- assertVisible: "Current Step"
+- assertVisible: "End"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- assertVisible: "Arrived"
+- tapOn: "Arrived"
+- assertVisible: "End"
+- tapOn: "End"
+- stopApp
