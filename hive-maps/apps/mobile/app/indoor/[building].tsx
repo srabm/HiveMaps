@@ -67,14 +67,14 @@ function getFallbackFloorId(
   return fallback?.id || null;
 }
 
-function getNumericFloor(value: string | null | undefined): number | null {
+export function getNumericFloor(value: string | null | undefined): number | null {
   if (!value) return null;
   const match = value.trim().match(/-?\d+/);
   if (!match) return null;
   return Number(match[0]);
 }
 
-function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFloor: string): string | null {
+export function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFloor: string): string | null {
   const directMatch = getRequestedFloorMatch(availableFloors, stepFloor);
   if (directMatch) return directMatch.id;
 
