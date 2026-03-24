@@ -16,7 +16,7 @@ const mockOpenURL = Linking.openURL as jest.MockedFunction<typeof Linking.openUR
 
 describe('AccountScreen', () => {
   beforeEach(() => {
-    mockOpenURL.mockResolvedValueOnce();
+    mockOpenURL.mockImplementation(async (_url: string) => {});
     mockedUseGoogleCalendarAuth.mockReturnValue({
       calendarError: null,
       calendarStatus: 'idle',
