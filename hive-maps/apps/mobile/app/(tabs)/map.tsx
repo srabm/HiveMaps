@@ -692,6 +692,24 @@ export default function MapScreen() {
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
+
+                {poiMarkers.length > 0 && poiMarkers.map((poi, index) => (
+                    <MapboxGL.PointAnnotation
+                        key={`poi-${poi.name}-${index}`}
+                        id={`poi-${poi.name}-${index}`}
+                        coordinate={[poi.coordinates.longitude, poi.coordinates.latitude]}
+                    >
+                        <View style={styles.poiMarker}>
+                            <Text style={styles.poiMarkerText}>📍</Text>
+                        </View>
+                        <MapboxGL.Callout title={poi.name} contentStyle={styles.poiCallout}>
+                        <View style={styles.poiCalloutContainer}>
+                            <Text style={styles.poiCalloutTitle}>{poi.name}</Text>
+                            <Text style={styles.poiCalloutAddress}>{poi.full_address}</Text>
+                        </View>
+                    </MapboxGL.Callout>
+                    </MapboxGL.PointAnnotation>
+                ))}
                 {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
@@ -1134,5 +1152,41 @@ const styles = StyleSheet.create({
         right: 4,
         bottom: 5,
         zIndex: 15,
+    },
+    poiMarker: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    poiMarkerText: {
+        fontSize: 24,
+    },
+    poiCallout: {
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+    },
+    poiCalloutContainer: {
+        width: 180,
+        minHeight: 60,
+        backgroundColor: '#ffffff',
+        borderRadius: 10,
+        padding: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    poiCalloutTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1a1a1a',
+        marginBottom: 4,
+        flexWrap: 'wrap',
+    },
+    poiCalloutAddress: {
+        fontSize: 11,
+        color: '#666666',
+        lineHeight: 15,
+        flexWrap: 'wrap',
     },
 });

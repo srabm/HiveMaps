@@ -71,8 +71,7 @@ export function POICategory({
         console.log(userLocation);
         console.log(radius);
         if (activeCategory === category.id) {
-            setActiveCategory(null);
-            onClearCategory?.();
+            handleClearActive();
             return;
         }
 
@@ -83,6 +82,7 @@ export function POICategory({
             if(!pois)return;
             setAllPOIS(pois);
             setActiveCategory(category.id);
+            onSelectCategory?.(category.id, pois);
             console.log(pois);
         }
         catch(error){
@@ -92,6 +92,11 @@ export function POICategory({
             setLoadingCategory(null);
         }
     }
+    const handleClearActive = () => {
+        setActiveCategory(null);
+        setAllPOIS([]);
+        onClearCategory?.();
+    };
 
     return (
         <View style={styles.wrapper} pointerEvents="box-none">
@@ -101,6 +106,16 @@ export function POICategory({
                 contentContainerStyle={styles.scrollContent}
                 keyboardShouldPersistTaps="handled"
             >
+                {activeCategory && (
+                    <TouchableOpacity
+                        key="clear"
+                        style={styles.chipClear}
+                        onPress={handleClearActive}
+                        activeOpacity={0.75}
+                    >
+                        <Text style={styles.chipClearLabel}>✕</Text>
+                    </TouchableOpacity>
+                )}
                 {CATEGORIES.map((category) => {
                     const isActive = activeCategory === category.id;
                     return (
@@ -164,6 +179,22 @@ const styles = StyleSheet.create({
         color: '#1a1a1a',
     },
     chipLabelActive: {
+        color: '#ffffff',
+    },
+    chipClear: {
+        paddingVertical: 7,
+        paddingHorizontal: 13,
+        borderRadius: 20,
+        backgroundColor: '#9d1e30',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    chipClearLabel: {
+        fontSize: 13,
+        fontWeight: '700',
         color: '#ffffff',
     },
 });
