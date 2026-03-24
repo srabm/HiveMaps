@@ -9,6 +9,7 @@ let latestRoomsPressHandler: ((event: any) => void) | undefined;
 let latestUserLocationUpdate: ((loc: any) => void) | undefined;
 let latestDirectionBarProps: Record<string, any> = {};
 let latestDirectionsModalProps: Record<string, any> = {};
+let mockLatestMarkerViews: Array<{ id?: string; source?: unknown }> = [];
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
 jest.mock('@/services/mapbox', () => {
@@ -43,7 +44,10 @@ jest.mock('@/services/mapbox', () => {
       LineLayer: () => null,
       SymbolLayer: () => null,
       Images: () => null,
-      MarkerView: ({ children }: any) => React.createElement(View, null, children),
+      MarkerView: ({ children, id }: any) => {
+        mockLatestMarkerViews.push({ id, source: children?.props?.source });
+        return React.createElement(View, { testID: id }, children);
+      },
       StyleURL: {
         Light: 'mapbox://styles/mapbox/light-v10',
       },
@@ -325,6 +329,90 @@ describe('buildActiveFloorRouteView', () => {
     const result = buildActiveFloorRouteView(routeSteps, 'L8');
     expect(result.steps[0].nodes.map((node) => node.floor)).toEqual(['8', '8', '8']);
   });
+
+  it('selects the segment that contains currentNodeId when multiple active-floor segments exist', () => {
+    const multiSegment: IndoorDirectionsResponse[] = [
+      {
+        direction: 'STRAIGHT' as const,
+        distance: 5,
+        description: 'Segment one',
+        nodes: [makeStepNode('H8.A', '8', -73.5801, 45.4901)],
+      },
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Go up to 9',
+        nodes: [
+          makeStepNode('H8.STAIR.A', '8', -73.58, 45.4902),
+          makeStepNode('H9.STAIR', '9', -73.58, 45.4902),
+        ],
+      },
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Go down to 8',
+        nodes: [
+          makeStepNode('H9.STAIR.B', '9', -73.5799, 45.4903),
+          makeStepNode('H8.B', '8', -73.5799, 45.4903),
+        ],
+      },
+    ];
+
+    const result = buildActiveFloorRouteView(multiSegment, '8', 'H8.B');
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].nodes.map((node) => node.id)).toEqual(['H8.B']);
+  });
+
+  it('returns downarrow from fallback text when floors are non-numeric and text includes down', () => {
+    const nonNumeric: IndoorDirectionsResponse[] = [
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Go down to mezzanine',
+        nodes: [
+          makeStepNode('H-LOBBY', 'LOBBY', -73.5802, 45.4902),
+          makeStepNode('H-MEZZ', 'MEZZ', -73.5801, 45.4902),
+        ],
+      },
+    ];
+
+    const result = buildActiveFloorRouteView(nonNumeric, 'LOBBY');
+    expect(result.endTransitionMarker?.icon).toBe('downarrow');
+  });
+
+  it('returns uparrow from fallback text when floors are non-numeric and text includes up', () => {
+    const nonNumeric: IndoorDirectionsResponse[] = [
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Go up to mezzanine',
+        nodes: [
+          makeStepNode('H-LOBBY', 'LOBBY', -73.5802, 45.4902),
+          makeStepNode('H-MEZZ', 'MEZZ', -73.5801, 45.4902),
+        ],
+      },
+    ];
+
+    const result = buildActiveFloorRouteView(nonNumeric, 'LOBBY');
+    expect(result.endTransitionMarker?.icon).toBe('uparrow');
+  });
+
+  it('defaults to uparrow when fallback text has no up/down keyword', () => {
+    const nonNumeric: IndoorDirectionsResponse[] = [
+      {
+        direction: 'UP_OR_DOWN' as const,
+        distance: 0,
+        description: 'Proceed to mezzanine connector',
+        nodes: [
+          makeStepNode('H-LOBBY', 'LOBBY', -73.5802, 45.4902),
+          makeStepNode('H-MEZZ', 'MEZZ', -73.5801, 45.4902),
+        ],
+      },
+    ];
+
+    const result = buildActiveFloorRouteView(nonNumeric, 'LOBBY');
+    expect(result.endTransitionMarker?.icon).toBe('uparrow');
+  });
 });
 
 // ─── suite ────────────────────────────────────────────────────────────────────
@@ -334,6 +422,7 @@ describe('FloorPlanViewer', () => {
     latestUserLocationUpdate = undefined;
     latestDirectionBarProps = {};
     latestDirectionsModalProps = {};
+    mockLatestMarkerViews = [];
     mockFetchNearestNode.mockReset();
     mockFetchIndoorDirections.mockReset();
     mockFetchIndoorDirections.mockRejectedValue(new Error('No directions found'));
@@ -787,6 +876,124 @@ describe('FloorPlanViewer', () => {
     });
 
     expect(onStepFloorChange).toHaveBeenCalledWith('3');
+  });
+
+  it('renders MapboxGL.MarkerView transition markers with start downarrow and end uparrow images', async () => {
+    const upArrow = require('@/assets/images/uparrow.png');
+    const downArrow = require('@/assets/images/downarrow.png');
+
+    mockFetchIndoorDirections.mockResolvedValueOnce([
+      {
+        direction: 'UP_OR_DOWN',
+        distance: 0,
+        description: 'Descend to floor 8',
+        nodes: [
+          {
+            id: 'H9.STAIR', label: 'H9.STAIR', wheelchairAccessible: true, floor: '9', building: 'H', longitude: -73.58, latitude: 45.49,
+          },
+          {
+            id: 'H8.STAIR.A', label: 'H8.STAIR.A', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.5799, latitude: 45.4901,
+          },
+        ],
+      },
+      {
+        direction: 'STRAIGHT',
+        distance: 5,
+        description: 'Walk on floor 8',
+        nodes: [
+          {
+            id: 'H8.100', label: 'H8.100', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.5798, latitude: 45.4902,
+          },
+        ],
+      },
+      {
+        direction: 'UP_OR_DOWN',
+        distance: 0,
+        description: 'Ascend to floor 9',
+        nodes: [
+          {
+            id: 'H8.STAIR.B', label: 'H8.STAIR.B', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.5797, latitude: 45.4903,
+          },
+          {
+            id: 'H9.101', label: 'H9.101', wheelchairAccessible: true, floor: '9', building: 'H', longitude: -73.5796, latitude: 45.4904,
+          },
+        ],
+      },
+    ]);
+
+    const { getByTestId } = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({ name: 'From', id: 'H9.001' }, undefined);
+      latestDirectionBarProps.onSelectTo({ name: 'To', id: 'H9.101' }, undefined);
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('indoor-floor-transition-marker-start')).toBeTruthy();
+      expect(getByTestId('indoor-floor-transition-marker-end')).toBeTruthy();
+    });
+
+    const startMarker = mockLatestMarkerViews.find((marker) => marker.id === 'indoor-floor-transition-marker-start');
+    const endMarker = mockLatestMarkerViews.find((marker) => marker.id === 'indoor-floor-transition-marker-end');
+
+    expect(startMarker?.source).toBe(downArrow);
+    expect(endMarker?.source).toBe(upArrow);
+  });
+
+  it('uses the downarrow image for end transition marker when route exits to a lower floor', async () => {
+    const downArrow = require('@/assets/images/downarrow.png');
+
+    mockFetchIndoorDirections.mockResolvedValueOnce([
+      {
+        direction: 'STRAIGHT',
+        distance: 5,
+        description: 'Walk on floor 8',
+        nodes: [
+          {
+            id: 'H8.100', label: 'H8.100', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.5798, latitude: 45.4902,
+          },
+        ],
+      },
+      {
+        direction: 'UP_OR_DOWN',
+        distance: 0,
+        description: 'Go down to floor 7',
+        nodes: [
+          {
+            id: 'H8.STAIR', label: 'H8.STAIR', wheelchairAccessible: true, floor: '8', building: 'H', longitude: -73.5797, latitude: 45.4903,
+          },
+          {
+            id: 'H7.100', label: 'H7.100', wheelchairAccessible: true, floor: '7', building: 'H', longitude: -73.5796, latitude: 45.4904,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({ name: 'From', id: 'H8.050' }, undefined);
+      latestDirectionBarProps.onSelectTo({ name: 'To', id: 'H7.100' }, undefined);
+    });
+
+    await waitFor(() => {
+      const endMarker = mockLatestMarkerViews.find((marker) => marker.id === 'indoor-floor-transition-marker-end');
+      expect(endMarker?.source).toBe(downArrow);
+    });
   });
 
   it('onClearFrom resets fromQuery to empty string', () => {
