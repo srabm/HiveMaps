@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, act, fireEvent, waitFor } from '@testing-library/react-native';
+import { Dimensions, PanResponder, StyleSheet } from 'react-native';
 import DirectionsModal, { DirectionsModalProps } from '@/components/indoor/indoor-directions-modal';
 import type { IndoorDirectionsResponse, IndoorNodeResponse, DirectionType } from '@/services/http/indoor-api';
 
@@ -48,6 +49,18 @@ const renderModal = (overrides: Partial<DirectionsModalProps> = {}) =>
         />,
     );
 
+const getSheetHeightFromHandle = (handle: any): number | undefined => {
+    let current = handle;
+    while (current) {
+        const flattened = StyleSheet.flatten(current.props?.style);
+        if (typeof flattened?.height === 'number') {
+            return flattened.height;
+        }
+        current = current.parent;
+    }
+    return undefined;
+};
+
 describe('DirectionsModal', () => {
 
     it('shows the pre-start screen before the user presses Start', () => {
@@ -59,6 +72,53 @@ describe('DirectionsModal', () => {
     it('shows destination label on the pre-start screen', () => {
         const {getByText} = renderModal({destination: 'Lab 101'});
         expect(getByText('Arrive at Lab 101')).toBeTruthy();
+    });
+
+    it('falls back to the last node id when destination is not provided', () => {
+        const { getByText } = renderModal({ destination: undefined });
+        expect(getByText('Arrive at node-3')).toBeTruthy();
+    });
+
+    it('falls back to "Destination" when no steps are available and destination is not provided', () => {
+        const { getByText } = renderModal({ steps: [], destination: undefined });
+        expect(getByText('Arrive at Destination')).toBeTruthy();
+    });
+
+    it('configures the pan responder to capture start and move gestures', () => {
+        const panResponderSpy = jest.spyOn(PanResponder, 'create');
+        renderModal();
+
+        expect(panResponderSpy).toHaveBeenCalled();
+        const handlers = panResponderSpy.mock.calls[0][0] as any;
+        expect(handlers.onStartShouldSetPanResponder()).toBe(true);
+        expect(handlers.onMoveShouldSetPanResponder()).toBe(true);
+
+        panResponderSpy.mockRestore();
+    });
+
+    it('updates and clamps sheet height while dragging the pre-start handle', () => {
+        const panResponderSpy = jest.spyOn(PanResponder, 'create');
+        const { getByTestId } = renderModal();
+
+        const handlers = panResponderSpy.mock.calls[0][0] as any;
+        const screenHeight = Dimensions.get('window').height;
+        const minHeight = screenHeight * 0.3;
+        const maxHeight = screenHeight * 0.85;
+        const getHeight = () => getSheetHeightFromHandle(getByTestId('drag-handle'));
+
+        act(() => {
+            handlers.onPanResponderGrant();
+            handlers.onPanResponderMove({}, { dy: 9999 });
+        });
+        expect(getHeight()).toBeCloseTo(minHeight, 3);
+
+        act(() => {
+            handlers.onPanResponderGrant();
+            handlers.onPanResponderMove({}, { dy: -9999 });
+        });
+        expect(getHeight()).toBeCloseTo(maxHeight, 3);
+
+        panResponderSpy.mockRestore();
     });
 
     it('shows total distance (sum of all steps) on pre-start screen', () => {
@@ -127,6 +187,45 @@ describe('DirectionsModal', () => {
         await act(async () => { fireEvent.press(getByText('Next')); });
         fireEvent.press(getByText('Back'));
         expect(getByText(/Step 1 of 4/)).toBeTruthy();
+    });
+
+    it('collapses expanded steps when Back is pressed', async () => {
+        const { getByText, queryByText } = renderModal();
+        fireEvent.press(getByText('Start'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => {
+            expect(getByText(/Step 2 of 4/)).toBeTruthy();
+            expect(getByText('Then: Turn right 8.00m')).toBeTruthy();
+        });
+
+        fireEvent.press(getByText('Then: Turn right 8.00m'));
+        expect(getByText('Turn right')).toBeTruthy();
+
+        fireEvent.press(getByText('Back'));
+        await waitFor(() => {
+            expect(getByText(/Step 1 of 4/)).toBeTruthy();
+            expect(queryByText('Turn right')).toBeNull();
+        });
+    });
+
+    it('calls onCurrentNodeChange with the previous node when going back', async () => {
+        const onCurrentNodeChange = jest.fn();
+        const steps = [
+            makeStep('Step 1', 'STRAIGHT', 5, [makeNode('node-1')]),
+            makeStep('Step 2', 'LEFT', 5, [makeNode('node-2')]),
+        ];
+        const { getByText } = renderModal({ steps, onCurrentNodeChange });
+
+        fireEvent.press(getByText('Start'));
+        await act(async () => { fireEvent.press(getByText('Next')); });
+        await waitFor(() => {
+            expect(onCurrentNodeChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'node-2' }));
+        });
+
+        await act(async () => { fireEvent.press(getByText('Back')); });
+        await waitFor(() => {
+            expect(onCurrentNodeChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'node-1' }));
+        });
     });
 
     it('expands remaining steps when the Then row is pressed', () => {
