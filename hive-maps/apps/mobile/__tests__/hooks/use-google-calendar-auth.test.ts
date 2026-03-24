@@ -219,6 +219,25 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.calendars).toEqual([]);
   });
 
+  it('clears the stored session when silent sign-in reports credentials are required', async () => {
+    mockLoadGoogleCalendarSession.mockResolvedValue({
+      accessToken: 'stored-token',
+      email: 'student@example.edu',
+      obtainedAt: 123,
+    });
+    mockSignInSilently.mockRejectedValueOnce({
+      code: 'SIGN_IN_REQUIRED',
+      message: 'Sign in required',
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    expect(mockClearGoogleCalendarSession).toHaveBeenCalledTimes(1);
+    expect(result.current.session).toBeNull();
+  });
+
   it('preserves a stored session when silent sign-in fails with a transient error', async () => {
     mockLoadGoogleCalendarSession.mockResolvedValue({
       accessToken: 'stored-token',
@@ -405,6 +424,20 @@ describe('useGoogleCalendarAuth', () => {
     expect(mockGetDefaultSelectedCalendarIds).not.toHaveBeenCalled();
   });
 
+  it('falls back to the default calendar selection when the stored selection is stale', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockLoadGoogleCalendarSelection.mockResolvedValue({
+      selectedCalendarIds: ['missing-calendar'],
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    expect(mockGetDefaultSelectedCalendarIds).toHaveBeenCalledWith(availableCalendars);
+    expect(result.current.selectedCalendarIds).toEqual(['primary-calendar']);
+  });
+
   it('toggles selected calendars while keeping at least one calendar selected', async () => {
     mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
     const { result } = renderHook(() => useGoogleCalendarAuth());
@@ -428,6 +461,48 @@ describe('useGoogleCalendarAuth', () => {
     });
 
     expect(result.current.selectedCalendarIds).toEqual(['classes-calendar']);
+  });
+
+  it('surfaces a calendar sync error when loading calendars fails', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockFetchGoogleCalendars.mockRejectedValueOnce(new Error('Calendar API unavailable'));
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    expect(result.current.calendarStatus).toBe('error');
+    expect(result.current.calendarError).toBe('Calendar API unavailable');
+    expect(result.current.calendars).toEqual([]);
+    expect(result.current.selectedCalendarIds).toEqual([]);
+  });
+
+  it('uses the generic calendar error when loading calendars fails with a non-Error value', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockFetchGoogleCalendars.mockRejectedValueOnce('bad response');
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    expect(result.current.calendarStatus).toBe('error');
+    expect(result.current.calendarError).toBe('Unable to load Google Calendars right now.');
+  });
+
+  it('resets calendar state when refresh is requested without a session', async () => {
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    await act(async () => {
+      await result.current.refreshCalendars();
+    });
+
+    expect(mockFetchGoogleCalendars).not.toHaveBeenCalled();
+    expect(result.current.calendarStatus).toBe('idle');
+    expect(result.current.calendarError).toBeNull();
+    expect(result.current.calendars).toEqual([]);
+    expect(result.current.selectedCalendarIds).toEqual([]);
   });
 
   it('clears the local session on disconnect even when revoke access fails', async () => {

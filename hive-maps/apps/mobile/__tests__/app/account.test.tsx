@@ -275,4 +275,30 @@ describe('AccountScreen', () => {
     expect(getByText('Loading calendars...')).toBeTruthy();
     expect(getByText('Unable to load Google Calendars right now.')).toBeTruthy();
   });
+
+  it('shows the empty state when no calendars are available for a connected account', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'loaded',
+      calendars: [],
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
+      session: {
+        accessToken: 'token',
+        email: 'student@example.edu',
+        obtainedAt: Date.now(),
+      },
+      status: 'connected',
+      toggleCalendarSelection: jest.fn(),
+    });
+
+    const { getByText } = render(<AccountScreen />);
+
+    expect(getByText('No calendars were found for this Google account.')).toBeTruthy();
+  });
 });
