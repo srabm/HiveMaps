@@ -489,6 +489,43 @@ describe('useGoogleCalendarAuth', () => {
     expect(result.current.calendarError).toBe('Unable to load Google Calendars right now.');
   });
 
+  it('refreshes calendars for an active session', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockFetchGoogleCalendars
+      .mockResolvedValueOnce(availableCalendars)
+      .mockResolvedValueOnce([
+        ...availableCalendars,
+        {
+          id: 'labs-calendar',
+          summary: 'Labs',
+          primary: false,
+          description: 'Weekly lab sessions',
+          backgroundColor: null,
+        },
+      ]);
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    await act(async () => {
+      await result.current.refreshCalendars();
+    });
+
+    expect(mockFetchGoogleCalendars).toHaveBeenNthCalledWith(2, 'access-token');
+    expect(result.current.calendars).toEqual([
+      ...availableCalendars,
+      {
+        id: 'labs-calendar',
+        summary: 'Labs',
+        primary: false,
+        description: 'Weekly lab sessions',
+        backgroundColor: null,
+      },
+    ]);
+    expect(result.current.calendarStatus).toBe('loaded');
+  });
+
   it('resets calendar state when refresh is requested without a session', async () => {
     const { result } = renderHook(() => useGoogleCalendarAuth());
 
