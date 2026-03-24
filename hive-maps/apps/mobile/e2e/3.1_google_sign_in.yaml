@@ -1,0 +1,15 @@
+appId: com.anonymous.mobile
+---
+- tapOn: "Calendar"
+- tapOn: "Connect Google Calendar"
+- tapOn: "mohamedmahmoud4123@gmail.com"
+- tapOn: "Continue"
+- tapOn: "Continue"
+- tapOn: "See and download any calendar you can access using your Google Calendar.\
+    \ Learn more"
+- scrollUntilVisible:
+      element:
+          text: "Continue"
+      direction: "DOWN"
+- tapOn: "Continue"
+- tapOn: "Disconnect"
