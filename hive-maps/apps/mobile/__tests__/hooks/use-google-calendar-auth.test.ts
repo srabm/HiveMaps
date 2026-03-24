@@ -18,9 +18,17 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 }));
 
 jest.mock('@/storage/auth-storage', () => ({
+  clearGoogleCalendarSelection: jest.fn(),
   loadGoogleCalendarSession: jest.fn(),
+  loadGoogleCalendarSelection: jest.fn(),
   saveGoogleCalendarSession: jest.fn(),
+  saveGoogleCalendarSelection: jest.fn(),
   clearGoogleCalendarSession: jest.fn(),
+}));
+
+jest.mock('@/services/google-calendar', () => ({
+  fetchGoogleCalendars: jest.fn(),
+  getDefaultSelectedCalendarIds: jest.fn(),
 }));
 
 jest.mock('@/hooks/google-calendar-auth-config', () => ({
@@ -42,10 +50,17 @@ jest.mock('@/hooks/google-calendar-auth-config', () => ({
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { getGoogleCalendarAuthConfig } from '@/hooks/google-calendar-auth-config';
 import {
+  clearGoogleCalendarSelection,
   clearGoogleCalendarSession,
+  loadGoogleCalendarSelection,
   loadGoogleCalendarSession,
+  saveGoogleCalendarSelection,
   saveGoogleCalendarSession,
 } from '@/storage/auth-storage';
+import {
+  fetchGoogleCalendars,
+  getDefaultSelectedCalendarIds,
+} from '@/services/google-calendar';
 import { useGoogleCalendarAuth } from '@/hooks/use-google-calendar-auth';
 
 const mockGetGoogleCalendarAuthConfig = getGoogleCalendarAuthConfig as jest.MockedFunction<
@@ -59,6 +74,19 @@ const mockSaveGoogleCalendarSession = saveGoogleCalendarSession as jest.MockedFu
 >;
 const mockClearGoogleCalendarSession = clearGoogleCalendarSession as jest.MockedFunction<
   typeof clearGoogleCalendarSession
+>;
+const mockLoadGoogleCalendarSelection = loadGoogleCalendarSelection as jest.MockedFunction<
+  typeof loadGoogleCalendarSelection
+>;
+const mockSaveGoogleCalendarSelection = saveGoogleCalendarSelection as jest.MockedFunction<
+  typeof saveGoogleCalendarSelection
+>;
+const mockClearGoogleCalendarSelection = clearGoogleCalendarSelection as jest.MockedFunction<
+  typeof clearGoogleCalendarSelection
+>;
+const mockFetchGoogleCalendars = fetchGoogleCalendars as jest.MockedFunction<typeof fetchGoogleCalendars>;
+const mockGetDefaultSelectedCalendarIds = getDefaultSelectedCalendarIds as jest.MockedFunction<
+  typeof getDefaultSelectedCalendarIds
 >;
 const mockConfigure = GoogleSignin.configure as jest.MockedFunction<typeof GoogleSignin.configure>;
 const mockSignInSilently = GoogleSignin.signInSilently as jest.MockedFunction<
@@ -101,6 +129,11 @@ const configuredAuthConfig = {
     webClientId: 'web.apps.googleusercontent.com',
   },
 };
+
+const availableCalendars = [
+  { id: 'primary-calendar', summary: 'Personal', primary: true, description: null, backgroundColor: null },
+  { id: 'classes-calendar', summary: 'Classes', primary: false, description: null, backgroundColor: null },
+];
 
 function makeUser(): GoogleUser {
   return {
@@ -145,8 +178,13 @@ describe('useGoogleCalendarAuth', () => {
 
     mockGetGoogleCalendarAuthConfig.mockReturnValue(configuredAuthConfig);
     mockLoadGoogleCalendarSession.mockResolvedValue(null);
+    mockLoadGoogleCalendarSelection.mockResolvedValue(null);
     mockSaveGoogleCalendarSession.mockResolvedValue(undefined);
+    mockSaveGoogleCalendarSelection.mockResolvedValue(undefined);
+    mockClearGoogleCalendarSelection.mockResolvedValue(undefined);
     mockClearGoogleCalendarSession.mockResolvedValue(undefined);
+    mockFetchGoogleCalendars.mockResolvedValue(availableCalendars);
+    mockGetDefaultSelectedCalendarIds.mockReturnValue(['primary-calendar']);
 
     mockSignInSilently.mockResolvedValue(makeNoSavedCredentialFoundResponse());
     mockHasPlayServices.mockResolvedValue(true);
@@ -164,6 +202,9 @@ describe('useGoogleCalendarAuth', () => {
     await waitFor(() => expect(result.current.status).toBe('connected'));
 
     expect(mockSaveGoogleCalendarSession).toHaveBeenCalledTimes(1);
+    expect(mockFetchGoogleCalendars).toHaveBeenCalledWith('access-token');
+    expect(result.current.calendars).toEqual(availableCalendars);
+    expect(result.current.selectedCalendarIds).toEqual(['primary-calendar']);
     expect(result.current.session?.email).toBe('student@example.edu');
     expect(result.current.error).toBeNull();
   });
@@ -175,6 +216,7 @@ describe('useGoogleCalendarAuth', () => {
 
     expect(mockClearGoogleCalendarSession).toHaveBeenCalledTimes(1);
     expect(result.current.session).toBeNull();
+    expect(result.current.calendars).toEqual([]);
   });
 
   it('preserves a stored session when silent sign-in fails with a transient error', async () => {
@@ -342,8 +384,50 @@ describe('useGoogleCalendarAuth', () => {
 
     expect(mockHasPlayServices).toHaveBeenCalledWith({ showPlayServicesUpdateDialog: true });
     expect(mockSaveGoogleCalendarSession).toHaveBeenCalledTimes(1);
+    expect(mockSaveGoogleCalendarSelection).toHaveBeenCalledWith({
+      selectedCalendarIds: ['primary-calendar'],
+    });
     expect(result.current.status).toBe('connected');
     expect(result.current.session?.email).toBe('student@example.edu');
+  });
+
+  it('restores a saved calendar selection when those calendars still exist', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    mockLoadGoogleCalendarSelection.mockResolvedValue({
+      selectedCalendarIds: ['classes-calendar'],
+    });
+
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    expect(result.current.selectedCalendarIds).toEqual(['classes-calendar']);
+    expect(mockGetDefaultSelectedCalendarIds).not.toHaveBeenCalled();
+  });
+
+  it('toggles selected calendars while keeping at least one calendar selected', async () => {
+    mockSignInSilently.mockResolvedValue(makeSignInSuccessResponse());
+    const { result } = renderHook(() => useGoogleCalendarAuth());
+
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+
+    await act(async () => {
+      await result.current.toggleCalendarSelection('classes-calendar');
+    });
+
+    expect(result.current.selectedCalendarIds).toEqual(['primary-calendar', 'classes-calendar']);
+
+    await act(async () => {
+      await result.current.toggleCalendarSelection('primary-calendar');
+    });
+
+    expect(result.current.selectedCalendarIds).toEqual(['classes-calendar']);
+
+    await act(async () => {
+      await result.current.toggleCalendarSelection('classes-calendar');
+    });
+
+    expect(result.current.selectedCalendarIds).toEqual(['classes-calendar']);
   });
 
   it('clears the local session on disconnect even when revoke access fails', async () => {
@@ -358,10 +442,12 @@ describe('useGoogleCalendarAuth', () => {
       await result.current.disconnect();
     });
 
+    expect(mockClearGoogleCalendarSelection).toHaveBeenCalled();
     expect(mockClearGoogleCalendarSession).toHaveBeenCalled();
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe('idle');
     expect(result.current.session).toBeNull();
+    expect(result.current.selectedCalendarIds).toEqual([]);
     expect(result.current.error).toBeNull();
   });
 
