@@ -1,10 +1,13 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGoogleCalendarAuth } from '@/hooks/use-google-calendar-auth';
+
+const CONCORDIA_CALENDAR_EXTENSION_URL =
+  'https://chromewebstore.google.com/detail/visual-schedule-builder-e/nbapggbchldhdjckbhdhkhlodokjdoha';
 
 function getStatusLabel(status: ReturnType<typeof useGoogleCalendarAuth>['status']) {
   switch (status) {
@@ -50,6 +53,14 @@ export default function AccountScreen() {
       ? 'Google Calendar is not connected. Link your account to let Hive Maps use your schedule.'
       : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.';
 
+  const openConcordiaCalendarExtension = async () => {
+    try {
+      await Linking.openURL(CONCORDIA_CALENDAR_EXTENSION_URL);
+    } catch (error: unknown) {
+      console.warn('[account] Failed to open Concordia calendar extension link', error);
+    }
+  };
+
   return (
     <ThemedView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -68,7 +79,6 @@ export default function AccountScreen() {
           {session?.email ? <ThemedText>{session.email}</ThemedText> : null}
           {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
           <ThemedText style={styles.helperText}>{helperMessage}</ThemedText>
-
           {isDisconnected ? (
             <Pressable
               accessibilityRole="button"
@@ -160,6 +170,18 @@ export default function AccountScreen() {
                 </Pressable>
               );
             })}
+
+            <ThemedText style={styles.linkPrompt}>
+              Don&apos;t have your Concordia course schedule in Google Calendar yet?
+            </ThemedText>
+            <Pressable
+              accessibilityRole="link"
+              onPress={openConcordiaCalendarExtension}
+              style={styles.inlineLink}>
+              <ThemedText style={[styles.linkText, { color: theme.tint }]}>
+                Export it with the Visual Schedule Builder extension
+              </ThemedText>
+            </Pressable>
           </View>
         ) : null}
       </ScrollView>
@@ -208,6 +230,16 @@ const styles = StyleSheet.create({
   },
   helperText: {
     opacity: 0.8,
+  },
+  linkPrompt: {
+    opacity: 0.85,
+  },
+  inlineLink: {
+    alignSelf: 'flex-start',
+  },
+  linkText: {
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   errorText: {
     color: '#b42318',

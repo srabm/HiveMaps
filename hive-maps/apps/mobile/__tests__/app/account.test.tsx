@@ -1,4 +1,5 @@
 import React from 'react';
+import { Linking } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import AccountScreen from '@/app/account';
@@ -11,9 +12,11 @@ jest.mock('@/hooks/use-google-calendar-auth', () => ({
 const mockedUseGoogleCalendarAuth = useGoogleCalendarAuth as jest.MockedFunction<
   typeof useGoogleCalendarAuth
 >;
+const mockOpenURL = Linking.openURL as jest.MockedFunction<typeof Linking.openURL>;
 
 describe('AccountScreen', () => {
   beforeEach(() => {
+    mockOpenURL.mockResolvedValueOnce();
     mockedUseGoogleCalendarAuth.mockReturnValue({
       calendarError: null,
       calendarStatus: 'idle',
@@ -32,13 +35,55 @@ describe('AccountScreen', () => {
   });
 
   it('renders the Google Calendar connect button', () => {
-    const { getByText } = render(<AccountScreen />);
+    const { getByText, queryByText } = render(<AccountScreen />);
 
     expect(getByText('Connect Google Calendar')).toBeTruthy();
     expect(getByText('Status: Not connected')).toBeTruthy();
     expect(
+      queryByText("Don't have your Concordia course schedule in Google Calendar yet?")
+    ).toBeNull();
+    expect(queryByText('Export it with the Visual Schedule Builder extension')).toBeNull();
+    expect(
       getByText('Google Calendar is not connected. Link your account to let Hive Maps use your schedule.')
     ).toBeTruthy();
+  });
+
+  it('opens the Concordia schedule export extension link', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'loaded',
+      calendars: [
+        {
+          id: 'primary-calendar',
+          summary: 'Personal',
+          primary: true,
+          description: null,
+          backgroundColor: null,
+        },
+      ],
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: ['primary-calendar'],
+      session: {
+        accessToken: 'token',
+        email: 'student@example.edu',
+        obtainedAt: Date.now(),
+      },
+      status: 'connected',
+      toggleCalendarSelection: jest.fn(),
+    });
+
+    const { getByRole } = render(<AccountScreen />);
+
+    fireEvent.press(getByRole('link'));
+
+    expect(mockOpenURL).toHaveBeenCalledWith(
+      'https://chromewebstore.google.com/detail/visual-schedule-builder-e/nbapggbchldhdjckbhdhkhlodokjdoha'
+    );
   });
 
   it('starts the Google connection flow from the button', () => {
@@ -145,6 +190,10 @@ describe('AccountScreen', () => {
       )
     ).toBeNull();
     expect(getByText('Course Schedule Calendars')).toBeTruthy();
+    expect(
+      getByText("Don't have your Concordia course schedule in Google Calendar yet?")
+    ).toBeTruthy();
+    expect(getByText('Export it with the Visual Schedule Builder extension')).toBeTruthy();
     expect(getByText('Personal (Primary)')).toBeTruthy();
     expect(getByText('Classes')).toBeTruthy();
     expect(getByText('Concordia schedule')).toBeTruthy();
