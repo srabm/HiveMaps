@@ -35,6 +35,7 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import {POI,POICategory} from "@/components/ui/POICategory";
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -257,7 +258,7 @@ export default function MapScreen() {
     const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
-
+    const [poiMarkers, setPoiMarkers] = useState<POI[]>([]);
   const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
@@ -842,6 +843,13 @@ export default function MapScreen() {
                         }}
                     />
                 }
+                    <POICategory
+                        userLocation={userLocation}
+                        radius={0.8}
+                        onSelectCategory={(category, pois) => setPoiMarkers(pois)}
+                        onClearCategory={() => setPoiMarkers([])}
+                    />
+
                 </>
                 )}
             </View>

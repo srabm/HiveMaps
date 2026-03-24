@@ -1,7 +1,7 @@
 import MapboxGL from '@rnmapbox/maps';
 import Constants from 'expo-constants';
 
-import type { MapLocation, MapsProviderPort } from './maps/maps-provider';
+import type {MapLocation, MapsProviderPort, POI} from './maps/maps-provider';
 
 const PLACEHOLDER_TOKENS = new Set([
   'YOUR_MAPBOX_TOKEN_HERE',
@@ -155,6 +155,40 @@ class MapboxMapsAdapter implements MapsProviderPort {
 
     catch(error){
       console.error("Forward geocoding failed:",error);
+      return null;
+    }
+  }
+
+  async categorySearch(categoryID: string, usercoordinates:[number,number],minLat:number,minLon:number,maxLat:number,maxLon:number ):Promise<POI[] | null>{
+    const activeToken = this.ensureConfigured();
+    if (!activeToken) return null;
+    const encodedCategory = encodeURIComponent(categoryID);
+    const [lon, lat] = usercoordinates;
+    const url = `https://api.mapbox.com/search/searchbox/v1/category/${encodedCategory}?` +
+        `access_token=${activeToken}` +
+        `&proximity=${lon},${lat}`  +
+        `&bbox=${minLon},${minLat},${maxLon},${maxLat}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error("Mapbox API error", response.statusText);
+        return null;
+      }
+      const data = await response.json();
+      if (!data.features) return null;
+      return data.features.map((feature: any) => {
+        const [flon, flat] = feature.geometry?.coordinates;
+        return {
+          name: feature.properties?.name || feature.text,
+          full_address: feature.properties?.full_address || "",
+          coordinates: {
+            latitude: feature.properties?.coordinates?.latitude ?? flat,
+            longitude: feature.properties?.coordinates?.longitude ?? flon,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error fetching category data:", error);
       return null;
     }
   }
