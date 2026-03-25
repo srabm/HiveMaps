@@ -600,6 +600,103 @@ describe('FloorPlanViewer', () => {
     expect(queryByTestId('indoor-poi-quick-actions')).toBeNull();
   });
 
+  it('derives POI destination label from type when explicit label is blank', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('poi-node-type-derived'));
+
+    const roomsWithUnlabeledPoi: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 'room-1',
+          properties: { label: 'H-101' },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [-73.5799, 45.4901],
+              [-73.5796, 45.4901],
+              [-73.5796, 45.4904],
+              [-73.5799, 45.4904],
+              [-73.5799, 45.4901],
+            ]],
+          },
+        },
+        {
+          type: 'Feature',
+          properties: { type: 'bathroom_unisex_acc', label: '   ' },
+          geometry: {
+            type: 'Point',
+            coordinates: [-73.5792, 45.4901],
+          },
+        },
+      ],
+    };
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={roomsWithUnlabeledPoi}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledWith('H', '8', -73.5792, 45.4901);
+      expect(latestDirectionBarProps.toValue).toBe('POI: Bathroom Unisex Acc');
+    });
+  });
+
+  it('normalizes uppercase/trimmed POI type values into destination labels', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('poi-node-type-normalized'));
+
+    const roomsWithNormalizedPoiType: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 'room-1',
+          properties: { label: 'H-101' },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [-73.5799, 45.4901],
+              [-73.5796, 45.4901],
+              [-73.5796, 45.4904],
+              [-73.5799, 45.4904],
+              [-73.5799, 45.4901],
+            ]],
+          },
+        },
+        {
+          type: 'Feature',
+          properties: { type: '  WATER_FOUNTAIN  ' },
+          geometry: {
+            type: 'Point',
+            coordinates: [-73.5793, 45.4902],
+          },
+        },
+      ],
+    };
+
+    const {getByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={roomsWithNormalizedPoiType}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
+
+    await waitFor(() => {
+      expect(latestDirectionBarProps.toValue).toBe('POI: Water Fountain');
+    });
+  });
+
   it('keeps destination label but does not start routing when POI node cannot be resolved', async () => {
     mockFetchNearestNode.mockRejectedValue(new Error('No nodes found in radius'));
 
