@@ -12,7 +12,7 @@ export type NextClassResult =
     | {status: 'no_location'; event: CalendarEvent; startsAt: Date}
     | {status: 'none'};
 
-const ROOM_CODE_REGEX = /([A-Z]+)(\d+)\.(\d+)/;
+const ROOM_CODE_REGEX = /\b([A-Z]{1,6})-([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 
 export function parseRoomCode(location: string | null | undefined): string | null {
     if (!location || !location.trim()) {
@@ -23,9 +23,7 @@ export function parseRoomCode(location: string | null | undefined): string | nul
         return null;
     }
 
-    const building = match[1].toUpperCase();
-    const room = match[2];
-    return `${building}-${room}`;
+    return match[0].toUpperCase();
 } 
 
 function parseEventStart(event: CalendarEvent): Date | null {
