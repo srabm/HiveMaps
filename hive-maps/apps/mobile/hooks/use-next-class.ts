@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {getNextClass, type CalendarEvent, type NextClassResult} from '../domain/next-class-parser';
+import {getNextClass, type CalendarEvent, type NextClassResult} from '../services/next-class-parser';
 
 type UseNextClassOptions = {
     events: CalendarEvent[] | null;
@@ -12,6 +12,25 @@ type UseNextClassState = {
     lastChecked: Date | null;
 };
 
+function getEventsDependencyKey(events: CalendarEvent[] | null): string {
+    if (!events) {
+        return 'null';
+    }
+
+    return events
+        .map((event) =>
+            [
+                event.id,
+                event.location ?? '',
+                event.start.dateTime ?? '',
+                event.start.date ?? '',
+                event.end.dateTime ?? '',
+                event.end.date ?? '',
+            ].join('|')
+        )
+        .join('||');
+}
+
 export function useNextClass({
     events,
     refreshIntervalMs = 60 * 1000,
@@ -19,6 +38,7 @@ export function useNextClass({
 }: UseNextClassOptions): UseNextClassState {
     const [result, setResult] = useState<NextClassResult>({status: 'none'});
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
+    const eventsDependencyKey = getEventsDependencyKey(events);
 
     useEffect(() => {
         let active = true;
@@ -48,7 +68,7 @@ export function useNextClass({
             active = false;
             clearInterval(timer);
         };
-    }, [events, refreshIntervalMs]);
+    }, [eventsDependencyKey, refreshIntervalMs, nowProvider]);
 
     return {result, lastChecked};
 }
