@@ -22,6 +22,7 @@ type POICategoryChipsProps = {
     radius?: number | null;
     onSelectCategory?: (category: string, pois: POI[]) => void;
     onClearCategory?: () => void;
+    marginTop?: number;
 };
 
 
@@ -35,6 +36,7 @@ export function POICategory({
                                 radius,
                                 onSelectCategory,
                                 onClearCategory,
+                                marginTop,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const [loadingCategory, setLoadingCategory] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export function POICategory({
     };
 
     return (
-        <View style={styles.wrapper} pointerEvents="box-none">
+        <View style={[styles.wrapper, { marginTop: marginTop ?? 65 }]} pointerEvents="box-none">
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -138,7 +140,6 @@ export function POICategory({
 
 const styles = StyleSheet.create({
     wrapper: {
-        marginTop: 65,
         paddingLeft: 12,
     },
     scrollContent: {

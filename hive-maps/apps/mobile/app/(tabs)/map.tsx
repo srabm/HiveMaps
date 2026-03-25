@@ -861,11 +861,13 @@ export default function MapScreen() {
                         }}
                     />
                 }
+
                     <POICategory
-                        userLocation={userLocation}
+                        userLocation={userLocation ?? fromCoordinates}
                         radius={0.8}
                         onSelectCategory={(category, pois) => setPoiMarkers(pois)}
                         onClearCategory={() => setPoiMarkers([])}
+                        marginTop={seeDirectionBar ? 11 : 65}
                     />
 
                 </>
