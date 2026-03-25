@@ -11,54 +11,70 @@ appId: com.anonymous.mobile
 
 - extendedWaitUntil:
     visible:
-      id: "poi-icon-elevator"
+      id: "floor-chip-9"
     timeout: 10000
 
+- tapOn:
+    id: "floor-chip-9"
+- extendedWaitUntil:
+    visible:
+      id: "floor-chip-9-active"
+    timeout: 5000
+
 - assertVisible:
-    id: "poi-icon-elevator"
-- assertVisible:
-    id: "poi-icon-escalator"
+    id: "indoor-poi-marker-H-9-ELEVATOR-001"
 - assertVisible: "To room (e.g. H8.841)"
 
-- tapOn:
-    id: "clear-from"
-- assertVisible: "From room (e.g. H8.835)"
+- swipe:
+    start: 62%, 62%
+    end: 48%, 48%
+    duration: 700
+- swipe:
+    start: 48%, 48%
+    end: 62%, 62%
+    duration: 700
+- waitForAnimationToEnd:
+    timeout: 5000
 
 - tapOn:
-    id: "poi-icon-elevator"
+    id: "indoor-poi-marker-H-9-ELEVATOR-001"
 - assertNotVisible:
     id: "indoor-poi-quick-actions"
 - extendedWaitUntil:
     notVisible: "To room (e.g. H8.841)"
-    timeout: 5000
+    timeout: 10000
 
 - runFlow:
     when:
-      visible: "Elevator"
+      visible: "Walk"
     commands:
-      - assertVisible: "Elevator"
+      - assertVisible: "Walk"
 
 - waitForAnimationToEnd:
     timeout: 1200
 
+- extendedWaitUntil:
+    visible: " Start"
+    timeout: 10000
+- tapOn: " Start"
+- extendedWaitUntil:
+    visible: "Next"
+    timeout: 8000
+
+- repeat:
+    while:
+      visible: "Next"
+    commands:
+      - tapOn: "Next"
+      - waitForAnimationToEnd:
+          timeout: 500
+
 - runFlow:
     when:
-      visible: "✕"
+      visible: "Arrived"
     commands:
-      - tapOn: "✕"
-      - extendedWaitUntil:
-          visible: "To room (e.g. H8.841)"
-          timeout: 5000
+      - assertVisible: "Arrived"
 
-- tapOn:
-    id: "poi-icon-escalator"
-- assertNotVisible:
-    id: "indoor-poi-quick-actions"
-- extendedWaitUntil:
-    visible: "Escalator"
-    timeout: 5000
-- assertNotVisible: "Elevator"
-    
 - swipe:
     start: 50%, 50%
     end: 50%, 50%
