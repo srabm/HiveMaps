@@ -82,6 +82,7 @@ jest.mock('@/hooks/use-shuttle-routing', () => ({
 
 jest.mock('@/services/mapbox', () => {
     mockCameraSetCamera = jest.fn();
+    const { View } = require('react-native');
     return {
         MapboxGL: {
             MapView: ({ children }: any) => <>{children}</>,
@@ -1776,7 +1777,7 @@ describe('US-5.1: Outdoor POI Selection', () => {
             Object.values(mockShapeSourceHandlers).forEach(handler => {
                 handler(eventPayload);
             });
-            
+
             if (mockShapeSourceOnPress) {
                 mockShapeSourceOnPress(eventPayload);
             }
