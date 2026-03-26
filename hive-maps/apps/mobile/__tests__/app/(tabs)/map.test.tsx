@@ -14,6 +14,8 @@ let mockShapeSourceOnPress: ((e: any) => void) | null = null;
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
 let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
+let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
+let mockDirectionBarProps: any = null;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -128,7 +130,16 @@ jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
 jest.mock('@/components/search-bar', () => () => null);
-jest.mock('@/components/directions-bars', () => () => null);
+jest.mock('@/components/directions-bars', () => {
+    const { View } = require('react-native');
+    return {
+        __esModule: true,
+        default: (props: any) => {
+            mockDirectionBarProps = props;
+            return <View testID="direction-bar-mock" />;
+        },
+    };
+});
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
     return {
@@ -166,6 +177,16 @@ jest.mock('react-native', () => {
     const rn = jest.requireActual('react-native');
     rn.Image.resolveAssetSource = jest.fn(() => ({ uri: 'test-uri' }));
     return rn;
+});
+
+jest.mock('@/components/ui/POICategory', () => {
+    const { View } = require('react-native');
+    return {
+        POICategory: (props: any) => {
+            mockPOICategoryCallbacks = props;
+            return <View testID="poi-category-mock" />;
+        },
+    };
 });
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
@@ -1716,5 +1737,83 @@ describe('timeout modal', () => {
         await waitFor(() => {
             expect(queryByText('Directions Unavailable')).toBeNull();
         });
+    });
+});
+
+describe('Outdoor POI Selection', () => {
+    const mockPOI = {
+        name: 'Gourmet Burger',
+        full_address: '123 Burger St, Montreal, QC',
+        coordinates: { latitude: 45.497, longitude: -73.579 },
+        phone: '514-555-0199'
+    };
+
+    it('displays OutdoorPOICard when a POI is selected', async () => {
+        const { getByText, queryByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        act(() => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { name: 'Gourmet Burger', isPOI: true } }]
+            });
+        });
+
+        expect(getByText('Gourmet Burger')).toBeTruthy();
+        expect(getByText('123 Burger St, Montreal, QC')).toBeTruthy();
+    });
+
+    it('renders distance from user location inside the card', () => {
+        mockUserLocationOnUpdate?.({
+            coords: { latitude: 45.498, longitude: -73.579 }
+        });
+
+        const { getByText } = render(<MapScreen />);
+        
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        expect(getByText(/m away/)).toBeTruthy();
+    });
+
+    it('closes the card when the close button is pressed', () => {
+        const { queryByText, getByTestId } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        const closeBtn = getByTestId('poi-card-close');
+        fireEvent.press(closeBtn);
+
+        expect(queryByText('Gourmet Burger')).toBeNull();
+    });
+
+    it('triggers directions flow when "Get Directions" is pressed', () => {
+        const { getByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        fireEvent.press(getByText('Get Directions'));
+
+        expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
+    });
+
+    it('starts navigation immediately when the "Start" button is pressed', () => {
+        const { getByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        fireEvent.press(getByText('Start'));
+
+        const controller = (useNavigationController as jest.Mock).mock.results[0].value;
+        expect(controller.handleStartPress).toHaveBeenCalled();
     });
 });
