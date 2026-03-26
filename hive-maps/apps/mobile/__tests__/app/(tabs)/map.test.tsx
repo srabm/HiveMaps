@@ -55,13 +55,20 @@ jest.mock('@/components/ui/step-by-step-panel', () => {
     };
 });
 
-jest.mock('@/services/maps/route-validator', () => ({
-    validateCampusRoute: jest.fn(() => ({
-        valid: true,
-        route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
-    })),
-    getNearestCampus: jest.fn(() => 'SGW'),
-}));
+jest.mock('@/services/maps/route-validator', () => {
+    const actual = jest.requireActual('@/services/maps/route-validator');
+    
+    return {
+        ...actual,
+        haversineKM: jest.fn().mockReturnValue(0.12), 
+    
+        validateCampusRoute: jest.fn(() => ({
+            valid: true,
+            route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
+        })),
+        getNearestCampus: jest.fn(() => 'SGW'),
+    };
+});
 
 jest.mock('@/services/maps/camera-utils', () => ({
     getCameraBoundsForRoute: jest.fn(() => ({
