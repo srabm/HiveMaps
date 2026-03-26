@@ -10,6 +10,7 @@ export type POI = {
         latitude: number;
         longitude: number;
     };
+    phone?: string;
 };
 
 type Category = {

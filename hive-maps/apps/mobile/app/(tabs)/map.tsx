@@ -36,6 +36,7 @@ import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 import {POI,POICategory} from "@/components/ui/POICategory";
+import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -259,7 +260,7 @@ export default function MapScreen() {
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
     const [poiMarkers, setPoiMarkers] = useState<POI[]>([]);
-  const [from, setFrom] = useState<string>("");
+    const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
@@ -280,6 +281,7 @@ export default function MapScreen() {
         destinationStopName: string;
         shuttleDurationSeconds: number;
     } | null>(null);
+    const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -698,16 +700,11 @@ export default function MapScreen() {
                         key={`poi-${poi.name}-${index}`}
                         id={`poi-${poi.name}-${index}`}
                         coordinate={[poi.coordinates.longitude, poi.coordinates.latitude]}
+                        onSelected={() => setSelectedOutdoorPOI(poi)}
                     >
                         <View style={styles.poiMarker}>
                             <Text style={styles.poiMarkerText}>📍</Text>
                         </View>
-                        <MapboxGL.Callout title={poi.name} contentStyle={styles.poiCallout}>
-                        <View style={styles.poiCalloutContainer}>
-                            <Text style={styles.poiCalloutTitle}>{poi.name}</Text>
-                            <Text style={styles.poiCalloutAddress}>{poi.full_address}</Text>
-                        </View>
-                    </MapboxGL.Callout>
                     </MapboxGL.PointAnnotation>
                 ))}
                 {directions && selectedMode !== 'Shuttle' && (
@@ -948,7 +945,33 @@ export default function MapScreen() {
                     setShowLocationPrompt(true);
                 }}
             />
-
+            <OutdoorPOICard 
+                poi={selectedOutdoorPOI}
+                userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null} 
+                onClose={() => setSelectedOutdoorPOI(null)}
+                onGetDirections={() => {
+                    if (!selectedOutdoorPOI) return;
+                    setSeeDirectionBar(true); 
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    if (userLocation) {
+                        setFrom("Your location");
+                        setFromCoordinates(userLocation);
+                        fromCoordinatesIsUserLocation.current = true;
+                    }
+                    setSelectedOutdoorPOI(null);
+                }}
+                onStartNavigation={() => {
+                    if (!selectedOutdoorPOI || !userLocation) return;
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    setFrom("Your location");
+                    setFromCoordinates(userLocation);
+                    
+                    handleStartPress(); 
+                    setSelectedOutdoorPOI(null);
+                }}
+            />
             <Modal
                 transparent
                 animationType="fade"

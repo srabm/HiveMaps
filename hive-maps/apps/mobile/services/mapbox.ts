@@ -185,6 +185,7 @@ class MapboxMapsAdapter implements MapsProviderPort {
             latitude: feature.properties?.coordinates?.latitude ?? flat,
             longitude: feature.properties?.coordinates?.longitude ?? flon,
           },
+          phone: feature.properties?.metadata?.phone || feature.properties?.phone,
         };
       });
     } catch (error) {
