@@ -1,0 +1,45 @@
+appId: com.anonymous.mobile
+---
+- tapOn: "Calendar"
+- tapOn: "Connect Google Calendar"
+- tapOn:
+    id: "com.google.android.gms:id/account_name"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Sign in to Hivemaps"
+    timeout: 20000
+- tapOn: "Continue"
+- tapOn: "See and download any calendar you can access using your Google Calendar.\
+    \ Learn more"
+- scrollUntilVisible:
+    element:
+      text: "Continue"
+    direction: "DOWN"
+- tapOn: "Continue"
+- "scroll"
+- "scroll"
+- tapOn: "Refresh"
+- "scroll"
+- "scroll"
+- tapOn:
+    point: "16%,80%"
+- tapOn:
+    point: "16%,67%"
+- tapOn:
+    point: "16%,57%"
+- tapOn:
+    point: "16%,67%"
+- tapOn: "Refresh"
+- tapOn: "Export it with the Visual Schedule Builder extension"
+- extendedWaitUntil:
+    visible: "chrome web store"
+    timeout: 20000
+- swipe:
+    start: "50%, 98%"
+    end: "90%, 98%"
+    duration: 200
+- swipe:
+    start: "50%, 98%"
+    end: "90%, 98%"
+    duration: 200
+- tapOn: "Disconnect"
