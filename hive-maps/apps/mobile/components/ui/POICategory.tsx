@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import {ScrollView, TouchableOpacity, Text, StyleSheet, View,} from 'react-native';
-import {useEffect} from "react";
 import {mapboxMapsAdapter} from "@/services/mapbox";
 
 export type POI = {
@@ -40,8 +39,6 @@ export function POICategory({
                                 marginTop,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const [loadingCategory, setLoadingCategory] = useState<string | null>(null);
-    const [allPOIS,setAllPOIS] = useState<POI[]>([]);
     const [minLat,setMinLat] = useState<number>(0);
     const [maxLat,setMaxLat] = useState<number>(0);
     const [minLon,setMinLon] = useState<number>(0);
@@ -80,10 +77,8 @@ export function POICategory({
 
         try{
             if (!userLocation ) return;
-            setLoadingCategory(category.id);
             const pois:POI[] | null = await mapboxMapsAdapter.categorySearch(category.id,userLocation,minLat,minLon,maxLat,maxLon);
             if(!pois)return;
-            setAllPOIS(pois);
             setActiveCategory(category.id);
             onSelectCategory?.(category.id, pois);
             console.log(pois);
@@ -91,13 +86,9 @@ export function POICategory({
         catch(error){
             console.error("Fetching points of interest failed: ",error);
         }
-        finally {
-            setLoadingCategory(null);
-        }
     }
     const handleClearActive = () => {
         setActiveCategory(null);
-        setAllPOIS([]);
         onClearCategory?.();
     };
 

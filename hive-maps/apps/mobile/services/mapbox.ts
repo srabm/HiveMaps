@@ -177,7 +177,7 @@ class MapboxMapsAdapter implements MapsProviderPort {
       const data = await response.json();
       if (!data.features) return null;
       return data.features.map((feature: any) => {
-        const [flon, flat] = feature.geometry?.coordinates;
+        const [flon, flat] = feature.geometry?.coordinates ?? [0, 0];
         return {
           name: feature.properties?.name || feature.text,
           full_address: feature.properties?.full_address || "",
