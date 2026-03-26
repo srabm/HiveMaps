@@ -1863,12 +1863,12 @@ describe('US-5.1: Outdoor POI Selection', () => {
                 handleStartPress: mockHandleStartPress
             };
         });
-        
+
+        const { findByText } = render(<MapScreen />);
+
         mockUserLocationOnUpdate?.({
             coords: { latitude: 45.498, longitude: -73.579 }
         });
-
-        const { findByText } = render(<MapScreen />);
 
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
