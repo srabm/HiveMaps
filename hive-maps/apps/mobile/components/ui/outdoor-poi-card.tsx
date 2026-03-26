@@ -43,7 +43,7 @@ export function OutdoorPOICard({
             <View style={styles.header}>
                 <View style={styles.titleContainer}>
                     <Text style={styles.title} numberOfLines={1}>{poi.name}</Text>
-                    <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
+                    <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12} testID="poi-card-close">
                         <Ionicons name="close" size={20} color="#6B7280" />
                     </Pressable>
                 </View>

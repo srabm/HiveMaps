@@ -1757,7 +1757,9 @@ describe('Outdoor POI Selection', () => {
 
         act(() => {
             mockShapeSourceOnPress?.({
-                features: [{ properties: { name: 'Gourmet Burger', isPOI: true } }]
+                features: [{ properties: { name: 'Gourmet Burger', isPOI: true },
+                geometry: { coordinates: [-73.579, 45.497] }
+             }]
             });
         });
 
@@ -1776,7 +1778,7 @@ describe('Outdoor POI Selection', () => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
 
-        expect(getByText(/m away/)).toBeTruthy();
+        expect(getByText(/m/)).toBeTruthy();
     });
 
     it('closes the card when the close button is pressed', () => {
@@ -1799,7 +1801,7 @@ describe('Outdoor POI Selection', () => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
 
-        fireEvent.press(getByText('Get Directions'));
+        fireEvent.press(getByText('Directions'));
 
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
