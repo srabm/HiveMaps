@@ -11,6 +11,8 @@ import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 
 let capturedDirectionsListener: ((event: any) => void) | null = null;
 let mockShapeSourceOnPress: ((e: any) => void) | null = null;
+let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
+let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
 let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
@@ -88,14 +90,22 @@ jest.mock('@/services/mapbox', () => {
                 mockUserLocationOnUpdate = onUpdate;
                 return null;
             },
-            ShapeSource: ({ children, onPress }: any) => {
-                mockShapeSourceOnPress = onPress;
-                return <>{children}</>;
+            ShapeSource: ({id, children, onPress }: any) => {
+                if (onPress) {
+                    mockShapeSourceOnPress = onPress; // Keep for backward compatibility
+                    mockShapeSourceHandlers[id || 'unknown'] = onPress; // Capture specifically
+                }
+                return <View testID={id}>{children}</View>;
             },
             FillLayer: () => null,
             LineLayer: () => null,
             SymbolLayer: () => null,
-            PointAnnotation: ({ children }: any) => <>{children}</>,
+            PointAnnotation: ({ id, onSelected, children }: any) => {
+                if (onSelected) {
+                    mockPointAnnotationHandlers[id || 'unknown'] = onSelected;
+                }
+                return <View testID={id}>{children}</View>;
+            },
             Images: () => null,
             requestAndroidLocationPermissions: jest.fn(),
         },
@@ -199,6 +209,7 @@ import { useShuttleRouting } from '@/hooks/use-shuttle-routing';
 import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-validator';
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
+import { View } from 'react-native/Libraries/Components/View/View';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -1750,12 +1761,25 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
     const triggerMapboxClick = () => {
         act(() => {
-            mockShapeSourceOnPress?.({
+            if (mockPointAnnotationHandlers['Gourmet Burger']) {
+                mockPointAnnotationHandlers['Gourmet Burger']();
+                return;
+            }
+
+            const eventPayload = {
                 features: [{ 
                     properties: { name: 'Gourmet Burger', isPOI: true },
                     geometry: { type: 'Point', coordinates: [-73.579, 45.497] } 
                 }]
+            };
+
+            Object.values(mockShapeSourceHandlers).forEach(handler => {
+                handler(eventPayload);
             });
+            
+            if (mockShapeSourceOnPress) {
+                mockShapeSourceOnPress(eventPayload);
+            }
         });
     };
 
