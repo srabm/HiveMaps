@@ -1762,8 +1762,9 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
     const triggerMapboxClick = () => {
         act(() => {
-            if (mockPointAnnotationHandlers['Gourmet Burger']) {
-                mockPointAnnotationHandlers['Gourmet Burger']();
+            const targetId = 'poi-Gourmet Burger-0';
+            if (mockPointAnnotationHandlers[targetId]) {
+                mockPointAnnotationHandlers[targetId]();
                 return;
             }
 
