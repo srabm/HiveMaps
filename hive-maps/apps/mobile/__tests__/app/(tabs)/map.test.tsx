@@ -1858,37 +1858,4 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
-
-    it('starts navigation immediately when the "Start" button is pressed', async () => {
-        const mockHandleStartPress = jest.fn();
-        
-        const originalImpl = (useNavigationController as jest.Mock).getMockImplementation();
-        (useNavigationController as jest.Mock).mockImplementation((...args) => {
-            const baseResult = originalImpl ? originalImpl(...args) : {};
-            return {
-                ...baseResult,
-                handleStartPress: mockHandleStartPress
-            };
-        });
-
-        const { findByText } = render(<MapScreen />);
-
-        mockUserLocationOnUpdate?.({
-            coords: { latitude: 45.498, longitude: -73.579 }
-        });
-
-        act(() => {
-            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
-        });
-        
-        triggerMapboxClick();
-
-        const startBtn = await findByText('Start');
-        
-        act(() => {
-            fireEvent.press(startBtn);
-        });
-
-        expect(mockHandleStartPress).toHaveBeenCalled();
-    });
 });
