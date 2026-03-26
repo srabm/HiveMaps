@@ -1853,6 +1853,17 @@ describe('US-5.1: Outdoor POI Selection', () => {
     });
 
     it('starts navigation immediately when the "Start" button is pressed', async () => {
+        const mockHandleStartPress = jest.fn();
+        
+        const originalImpl = (useNavigationController as jest.Mock).getMockImplementation();
+        (useNavigationController as jest.Mock).mockImplementation((...args) => {
+            const baseResult = originalImpl ? originalImpl(...args) : {};
+            return {
+                ...baseResult,
+                handleStartPress: mockHandleStartPress
+            };
+        });
+
         const { findByText } = render(<MapScreen />);
 
         act(() => {
@@ -1867,7 +1878,6 @@ describe('US-5.1: Outdoor POI Selection', () => {
             fireEvent.press(startBtn);
         });
 
-        const controller = (useNavigationController as jest.Mock).mock.results[0].value;
-        expect(controller.handleStartPress).toHaveBeenCalled();
+        expect(mockHandleStartPress).toHaveBeenCalled();
     });
 });
