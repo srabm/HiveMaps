@@ -1740,7 +1740,7 @@ describe('timeout modal', () => {
     });
 });
 
-describe('Outdoor POI Selection', () => {
+describe('US-5.1: Outdoor POI Selection', () => {
     const mockPOI = {
         name: 'Gourmet Burger',
         full_address: '123 Burger St, Montreal, QC',
@@ -1748,72 +1748,98 @@ describe('Outdoor POI Selection', () => {
         phone: '514-555-0199'
     };
 
-    it('displays OutdoorPOICard when a POI is selected', async () => {
-        const { getByText, queryByText } = render(<MapScreen />);
+    const triggerMapboxClick = () => {
+        act(() => {
+            mockShapeSourceOnPress?.({
+                features: [{ 
+                    properties: { name: 'Gourmet Burger', isPOI: true },
+                    geometry: { type: 'Point', coordinates: [-73.579, 45.497] } 
+                }]
+            });
+        });
+    };
+
+    it('TASK-5.2.1: displays OutdoorPOICard when a POI is selected', async () => {
+        const { findByText } = render(<MapScreen />);
 
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
+        
+        triggerMapboxClick();
 
-        act(() => {
-            mockShapeSourceOnPress?.({
-                features: [{ properties: { name: 'Gourmet Burger', isPOI: true },
-                geometry: { coordinates: [-73.579, 45.497] }
-             }]
-            });
-        });
-
-        expect(getByText('Gourmet Burger')).toBeTruthy();
-        expect(getByText('123 Burger St, Montreal, QC')).toBeTruthy();
+        expect(await findByText('Gourmet Burger')).toBeTruthy();
+        expect(await findByText('123 Burger St, Montreal, QC')).toBeTruthy();
     });
 
-    it('renders distance from user location inside the card', () => {
+    it('renders distance from user location inside the card', async () => {
         mockUserLocationOnUpdate?.({
             coords: { latitude: 45.498, longitude: -73.579 }
         });
 
-        const { getByText } = render(<MapScreen />);
+        const { findByText } = render(<MapScreen />);
         
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
 
-        expect(getByText(/m/)).toBeTruthy();
+        triggerMapboxClick();
+
+        expect(await findByText(/m/)).toBeTruthy();
     });
 
-    it('closes the card when the close button is pressed', () => {
-        const { queryByText, getByTestId } = render(<MapScreen />);
+    it('TASK-108: closes the card when the close button is pressed', async () => {
+        const { findByTestId, queryByText } = render(<MapScreen />);
 
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
+        
+        triggerMapboxClick();
 
-        const closeBtn = getByTestId('poi-card-close');
-        fireEvent.press(closeBtn);
+        const closeBtn = await findByTestId('poi-card-close');
+        
+        act(() => {
+            fireEvent.press(closeBtn);
+        });
 
-        expect(queryByText('Gourmet Burger')).toBeNull();
+        await waitFor(() => {
+            expect(queryByText('Gourmet Burger')).toBeNull();
+        });
     });
 
-    it('triggers directions flow when "Get Directions" is pressed', () => {
-        const { getByText } = render(<MapScreen />);
+    it('TASK-5.2.4: triggers directions flow when "Directions" is pressed', async () => {
+        const { findByText } = render(<MapScreen />);
 
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
+        
+        triggerMapboxClick();
 
-        fireEvent.press(getByText('Directions'));
+        const directionsBtn = await findByText('Directions');
+        
+        act(() => {
+            fireEvent.press(directionsBtn);
+        });
 
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
 
-    it('starts navigation immediately when the "Start" button is pressed', () => {
-        const { getByText } = render(<MapScreen />);
+    it('starts navigation immediately when the "Start" button is pressed', async () => {
+        const { findByText } = render(<MapScreen />);
 
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
+        
+        triggerMapboxClick();
 
-        fireEvent.press(getByText('Start'));
+        const startBtn = await findByText('Start');
+        
+        act(() => {
+            fireEvent.press(startBtn);
+        });
 
         const controller = (useNavigationController as jest.Mock).mock.results[0].value;
         expect(controller.handleStartPress).toHaveBeenCalled();
