@@ -1863,6 +1863,10 @@ describe('US-5.1: Outdoor POI Selection', () => {
                 handleStartPress: mockHandleStartPress
             };
         });
+        
+        mockUserLocationOnUpdate?.({
+            coords: { latitude: 45.498, longitude: -73.579 }
+        });
 
         const { findByText } = render(<MapScreen />);
 
