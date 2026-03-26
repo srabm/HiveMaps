@@ -19,6 +19,7 @@ export function createIndoorNodeSearchAdapter(
     geocode: async () => null,
     reverse: async () => null,
     forward: async () => null,
+    categorySearch: async () => null,
 
     async search(query: string, _coordinates: Coordinates | null, _sessionToken: string): Promise<MapLocation[] | null> {
       if (!query.trim()) return [];
