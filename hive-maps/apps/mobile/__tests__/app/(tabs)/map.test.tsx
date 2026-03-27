@@ -37,6 +37,14 @@ jest.mock('@/hooks/use-step-navigator', () => ({
     useStepNavigator: jest.fn(),
 }));
 
+jest.mock('@/hooks/use-google-calendar-events', () => ({
+    useGoogleCalendarEvents: jest.fn(),
+}));
+
+jest.mock('@/hooks/use-next-class', () => ({
+    useNextClass: jest.fn(),
+}));
+
 jest.mock('@/components/ui/step-by-step-panel', () => {
     const { View, Text, Pressable } = require('react-native');
     return {
@@ -128,7 +136,15 @@ jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
 jest.mock('@/components/search-bar', () => () => null);
-jest.mock('@/components/directions-bars', () => () => null);
+jest.mock('@/components/directions-bars', () => {
+    const { View, Text } = require('react-native');
+    return ({fromValue, toValue}: any) => (
+        <View testID='direction-bar'>
+            <Text>{fromValue}</Text>
+            <Text>{toValue}</Text>
+        </View>
+    );
+});
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
     return {
@@ -138,6 +154,19 @@ jest.mock('@/components/building-info-modal', () => {
                 <Pressable testID="building-close-btn" onPress={onClose} />
                 <Pressable testID="building-indoor-btn" onPress={onIndoorMap} />
                 <Pressable testID="building-start-btn" onPress={onStart} />
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
             </View>
         ),
     };
@@ -178,6 +207,9 @@ import { useShuttleRouting } from '@/hooks/use-shuttle-routing';
 import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-validator';
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
+import { useNextClass } from '@/hooks/use-next-class';
+import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
+
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -265,6 +297,8 @@ beforeEach(() => {
     (useLiveLocation as jest.Mock).mockReturnValue({ location: null });
     (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav());
     (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
+    (useGoogleCalendarEvents as jest.Mock).mockReturnValue({ events: [], error: null, status: 'loaded' });
+    (useNextClass as jest.Mock).mockReturnValue({ result: { status: 'none' }, lastChecked: null });
     // jest.clearAllMocks() wipes implementations set in jest.mock factories — restore them.
     (validateCampusRoute as jest.Mock).mockReturnValue({
         valid: true,
@@ -879,6 +913,70 @@ function renderWithBuilding() {
     return render(<MapScreen />);
 }
 
+describe('next class prompt', () => {
+    it('renders a prompt when the next class is in a known building', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+    });
+    it('starts directions to the next class when the prompt button is pressed', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+        });
+
+        expect(utils.getByTestId('direction-bar')).toBeTruthy();
+        expect(utils.getByText('Your location')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+});
 /**
  * Full sequence to get NavigationOverlay mounted:
  * 1. Render with a building point (ShapeSource active)
