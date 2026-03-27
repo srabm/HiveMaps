@@ -3,8 +3,8 @@ export type CalendarEvent = {
     id: string;
     summary?: string;
     location?: string | null;
-    start: {dateTime: string; date?: string};
-    end: {dateTime: string; date?: string};
+    start: {dateTime?: string | null; date?: string | null};
+    end: {dateTime?: string | null; date?: string | null};
 };
 
 export type NextClassResult = 
