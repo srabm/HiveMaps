@@ -146,12 +146,13 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
 
     useEffect(() => {
         if (!visible) return;
+        if (!hasStarted) return;
         if (!augmentedSteps[currentIndex]) return;
         const node = getFirstNode(augmentedSteps[currentIndex]);
         if (node && onCurrentNodeChange) {
             onCurrentNodeChange(node);
         }
-    }, [augmentedSteps, currentIndex, onCurrentNodeChange, visible]);
+        }, [currentIndex, hasStarted, onCurrentNodeChange, augmentedSteps, visible]);
 
     useEffect(() => {
         if (visible) {

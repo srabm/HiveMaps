@@ -34,8 +34,8 @@ name: "US-4.5 Indoor Directions - Accessible Directions"
     text: "H8.841"
     index: 1
 - extendedWaitUntil:
-    visible: " Start"
+    visible: "Start"
     timeout: 5000
-- tapOn: " Start"
-- tapOn: "✕"
+- tapOn: "Start"
+- tapOn: "End"
 - stopApp

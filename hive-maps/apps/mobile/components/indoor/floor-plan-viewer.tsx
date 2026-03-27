@@ -1,6 +1,6 @@
 import type * as GeoJSON from 'geojson'
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { MapboxGL } from '@/services/mapbox';
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer';
 import { POIMarker } from '@/components/indoor/POIMarker';
@@ -18,6 +18,7 @@ export type FloorPlanViewerProps = Readonly<{
     selectedRoomId?: string | null
     onPressRoom?: (roomId: string) => void
     onDirectionsActiveChange?: (active: boolean) => void
+    onStepFloorChange?: (floor: string) => void
     buildingCode: string
     floorId: string
     onError?: (message: string) => void
@@ -141,7 +142,180 @@ const convertCoordinatesToFeature = (coordinates: [number, number]) => {
     };
 }
 
+export const buildFloorTraversalList = (startFloor: number, endFloor: number): number[] => {
+    const step = startFloor <= endFloor ? 1 : -1
+    const floors: number[] = []
+
+    for (let floor = startFloor; step > 0 ? floor <= endFloor : floor >= endFloor; floor += step) {
+        floors.push(floor)
+    }
+
+    return floors
+}
+
+const extractFloorFromNodeId = (nodeId: string | null, buildingCode: string): number | null => {
+    if (!nodeId) return null
+
+    const normalizedBuildingCode = buildingCode.trim().toUpperCase()
+    const normalizedNodeId = nodeId.trim().toUpperCase()
+    if (!normalizedNodeId.startsWith(normalizedBuildingCode)) return null
+
+    const remainder = normalizedNodeId.slice(normalizedBuildingCode.length)
+    const floorToken = remainder.split('.')[0]
+    if (!/^-?\d+$/.test(floorToken)) return null
+
+    return Number(floorToken)
+}
 const POI_TYPES_SET = new Set(POI_TYPES);
+
+type TransitionIconName = 'uparrow' | 'downarrow'
+type TransitionMarker = {
+  coordinate: [number, number]
+  icon: TransitionIconName
+}
+
+const getNumericFloor = (value: string | null | undefined): number | null => {
+  if (!value) return null
+  const match = value.trim().match(/-?\d+/)
+  if (!match) return null
+  return Number(match[0])
+}
+
+const floorsMatch = (nodeFloor: string | null | undefined, activeFloor: string | null | undefined): boolean => {
+  if (!nodeFloor || !activeFloor) return false
+  const normalizedNodeFloor = nodeFloor.trim().toUpperCase()
+  const normalizedActiveFloor = activeFloor.trim().toUpperCase()
+  if (normalizedNodeFloor === normalizedActiveFloor) return true
+
+  const nodeNumeric = getNumericFloor(normalizedNodeFloor)
+  const activeNumeric = getNumericFloor(normalizedActiveFloor)
+  return nodeNumeric !== null && activeNumeric !== null && nodeNumeric === activeNumeric
+}
+
+const resolveTransitionIcon = (
+  fromFloor: string | null | undefined,
+  toFloor: string | null | undefined,
+  fallbackText: string,
+): TransitionIconName => {
+  const fromNumeric = getNumericFloor(fromFloor)
+  const toNumeric = getNumericFloor(toFloor)
+  if (fromNumeric !== null && toNumeric !== null) {
+    return toNumeric < fromNumeric ? 'downarrow' : 'uparrow'
+  }
+
+  const normalizedText = fallbackText.toLowerCase()
+  if (normalizedText.includes('down')) return 'downarrow'
+  if (normalizedText.includes('up')) return 'uparrow'
+  return 'uparrow'
+}
+
+type RouteNodeReference = {
+  node: IndoorNodeResponse
+  description: string
+}
+
+const dedupeConsecutiveRouteNodes = (routeNodes: RouteNodeReference[]): RouteNodeReference[] => {
+  if (routeNodes.length === 0) return []
+
+  const deduped: RouteNodeReference[] = [routeNodes[0]]
+  for (let index = 1; index < routeNodes.length; index += 1) {
+    const current = routeNodes[index]
+    const previous = deduped[deduped.length - 1]
+    const sameNode = current.node.id === previous.node.id
+    const sameCoordinate =
+      current.node.longitude === previous.node.longitude && current.node.latitude === previous.node.latitude
+    const sameFloor = floorsMatch(current.node.floor, previous.node.floor)
+
+    if (sameNode || (sameCoordinate && sameFloor)) continue
+    deduped.push(current)
+  }
+
+  return deduped
+}
+
+export const buildActiveFloorRouteView = (
+  indoorSteps: IndoorDirectionsResponse[] | null | undefined,
+  activeFloorId: string,
+  currentNodeId?: string | null,
+): {
+  steps: IndoorDirectionsResponse[]
+  startTransitionMarker: TransitionMarker | null
+  endTransitionMarker: TransitionMarker | null
+} => {
+  if (!indoorSteps || indoorSteps.length === 0 || !activeFloorId) {
+    return { steps: [], startTransitionMarker: null, endTransitionMarker: null }
+  }
+
+  const routeNodes = dedupeConsecutiveRouteNodes(
+    indoorSteps.flatMap((step) => step.nodes.map((node) => ({ node, description: step.description }))),
+  )
+  if (routeNodes.length === 0) return { steps: [], startTransitionMarker: null, endTransitionMarker: null }
+
+  const segments: Array<{ start: number; end: number }> = []
+  let segmentStart: number | null = null
+
+  for (let index = 0; index < routeNodes.length; index += 1) {
+    const matchesActiveFloor = floorsMatch(routeNodes[index].node.floor, activeFloorId)
+    if (matchesActiveFloor) {
+      if (segmentStart === null) segmentStart = index
+      continue
+    }
+
+    if (segmentStart !== null) {
+      segments.push({ start: segmentStart, end: index - 1 })
+      segmentStart = null
+    }
+  }
+
+  if (segmentStart !== null) {
+    segments.push({ start: segmentStart, end: routeNodes.length - 1 })
+  }
+
+  if (segments.length === 0) return { steps: [], startTransitionMarker: null, endTransitionMarker: null }
+
+  const selectedSegment =
+    (currentNodeId
+      ? segments.find(({ start, end }) =>
+          routeNodes.slice(start, end + 1).some(({ node }) => node.id === currentNodeId),
+        )
+      : null) || segments[0]
+
+  const segmentNodes = routeNodes.slice(selectedSegment.start, selectedSegment.end + 1).map(({ node }) => node)
+  const steps: IndoorDirectionsResponse[] =
+    segmentNodes.length > 0
+      ? [{ direction: 'STRAIGHT', distance: 0, description: '', nodes: segmentNodes }]
+      : []
+
+  const segmentStartNode = segmentNodes[0]
+  const segmentEndNode = segmentNodes[segmentNodes.length - 1]
+  const previousNodeRef = routeNodes[selectedSegment.start - 1]
+  const nextNodeRef = routeNodes[selectedSegment.end + 1]
+
+  const startTransitionMarker: TransitionMarker | null = previousNodeRef
+    ? {
+        coordinate: [segmentStartNode.longitude, segmentStartNode.latitude],
+        icon: resolveTransitionIcon(
+          previousNodeRef.node.floor,
+          segmentStartNode.floor,
+          `${previousNodeRef.description} ${routeNodes[selectedSegment.start].description}`,
+        ),
+      }
+    : null
+
+  const endTransitionMarker: TransitionMarker | null = nextNodeRef
+    ? {
+        coordinate: [segmentEndNode.longitude, segmentEndNode.latitude],
+        icon: resolveTransitionIcon(
+          segmentEndNode.floor,
+          nextNodeRef.node.floor,
+          `${routeNodes[selectedSegment.end].description} ${nextNodeRef.description}`,
+        ),
+      }
+    : null
+
+  return { steps, startTransitionMarker, endTransitionMarker }
+}
+
 function separateRoomFeatures(rooms?: GeoJSON.FeatureCollection | null) {
   if (!rooms?.features) return { roomCollectionForLabels: null, poiFeatures: [] }
 
@@ -169,6 +343,7 @@ export function FloorPlanViewer({
                                     selectedRoomId,
                                     onPressRoom,
                                     onDirectionsActiveChange,
+                                    onStepFloorChange,
                                     buildingCode,
                                     floorId,
                                     onError
@@ -186,8 +361,17 @@ export function FloorPlanViewer({
     const [indoorSteps, setIndoorSteps] = useState<IndoorDirectionsResponse[] | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
-    const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode, floorId), [buildingCode, floorId]);
-    
+    const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode), [buildingCode]);
+    const floorsToTraverse = useMemo(() => {
+        const startFloor = extractFloorFromNodeId(fromNodeId, buildingCode)
+        const endFloor = extractFloorFromNodeId(toNodeId, buildingCode)
+        if (startFloor === null || endFloor === null) return []
+        return buildFloorTraversalList(startFloor, endFloor)
+    }, [fromNodeId, toNodeId, buildingCode])
+    const activeFloorRouteView = useMemo(
+      () => buildActiveFloorRouteView(indoorSteps, floorId, currentNode?.id),
+      [indoorSteps, floorId, currentNode?.id],
+    )
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
@@ -217,13 +401,14 @@ export function FloorPlanViewer({
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
+        if (indoorSteps) return;
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
         if (coords) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(coords[0], coords[1]);
         }
-    }, [buildingCode, floorId, resolveNearestNode]);
+    }, [buildingCode, floorId, indoorSteps, resolveNearestNode]);
 
     useEffect(() => {
         if (!fromNodeId || !toNodeId) {
@@ -240,6 +425,12 @@ export function FloorPlanViewer({
         }
     }, [indoorSteps, onDirectionsActiveChange]);
 
+    useEffect(() => {
+        if (floorsToTraverse.length > 0) {
+            console.log('[IndoorDirections] Floors to traverse \u2192', floorsToTraverse)
+        }
+    }, [floorsToTraverse])
+
     const handleUserLocationUpdate = useCallback((loc: any) => {
         const coords = loc?.coords;
         if (!coords) return;
@@ -247,12 +438,12 @@ export function FloorPlanViewer({
         const latitude: number = coords.latitude;
         userCoordsRef.current = [longitude, latitude];
         // Only trigger nearest-node once per floor load
-        if (!nearestNodeResolvedRef.current) {
+        if (!nearestNodeResolvedRef.current && !indoorSteps) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
         setUserLocation([longitude, latitude]);
-    }, [resolveNearestNode]);
+    }, [indoorSteps, resolveNearestNode]);
 
 
 
@@ -431,11 +622,11 @@ export function FloorPlanViewer({
             </MapboxGL.ShapeSource>
           )}
 
-          {indoorSteps && <DirectionsLine    
+          {activeFloorRouteView.steps.length > 0 && <DirectionsLine
             endpointId='indoor-directions-endpoints'
             lineColor = {accessible ? '#2196F3' : undefined }
             useIndoorData={true}
-            IndoorDirections={indoorSteps}
+            IndoorDirections={activeFloorRouteView.steps}
             lineWidth={5}
             directions={{
                 polyline: "",
@@ -451,6 +642,38 @@ export function FloorPlanViewer({
             }}
           />
           
+          {activeFloorRouteView.startTransitionMarker && (
+            <MapboxGL.MarkerView
+              id="indoor-floor-transition-marker-start"
+              coordinate={activeFloorRouteView.startTransitionMarker.coordinate}
+            >
+              <Image
+                source={
+                  activeFloorRouteView.startTransitionMarker.icon === 'downarrow'
+                    ? require('@/assets/images/downarrow.png')
+                    : require('@/assets/images/uparrow.png')
+                }
+                style={styles.transitionMarkerIcon}
+              />
+            </MapboxGL.MarkerView>
+          )}
+
+          {activeFloorRouteView.endTransitionMarker && (
+            <MapboxGL.MarkerView
+              id="indoor-floor-transition-marker-end"
+              coordinate={activeFloorRouteView.endTransitionMarker.coordinate}
+            >
+              <Image
+                source={
+                  activeFloorRouteView.endTransitionMarker.icon === 'downarrow'
+                    ? require('@/assets/images/downarrow.png')
+                    : require('@/assets/images/uparrow.png')
+                }
+                style={styles.transitionMarkerIcon}
+              />
+            </MapboxGL.MarkerView>
+          )}
+
           {(currentNode || userLocation) && (
             <MapboxGL.ShapeSource 
               id="user-location-source" 
@@ -462,7 +685,7 @@ export function FloorPlanViewer({
             >
               <MapboxGL.SymbolLayer
                 id="indoor-user-location-icon"
-                aboveLayerID={indoorSteps ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
+                aboveLayerID={activeFloorRouteView.steps.length > 0 ? 'indoor-directions-endpoints' : 'indoor-rooms-outline'}
                 style={{
                   iconImage: 'bee',
                   iconSize: 0.25,
@@ -508,6 +731,7 @@ export function FloorPlanViewer({
             destination={toQuery}
             onCurrentNodeChange={(node) => {
                 setCurrentNode(node);
+                if (node.floor) onStepFloorChange?.(node.floor);
                 const coordinates = [node.longitude, node.latitude];
                 if (coordinates) cameraRef.current?.setCamera({
                     centerCoordinate: coordinates,
@@ -647,5 +871,9 @@ const styles = StyleSheet.create({
         marginTop: 10,
         marginLeft: 10,
         zIndex: 1000,
+    },
+    transitionMarkerIcon: {
+        width: 24,
+        height: 24,
     },
 });
