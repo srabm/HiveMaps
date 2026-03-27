@@ -61,7 +61,7 @@ export function POICategory({
             setMaxLat(lat + deltaLat);
         }
 
-        getBoundaries(userLocation ,parseFloat(radiusKm) || 0.8);
+        getBoundaries(userLocation ,Number.parseFloat(radiusKm) || 0.8);
     }, [userLocation,radiusKm]);
 
 
@@ -93,7 +93,7 @@ export function POICategory({
         onClearCategory?.();
     };
     const handleRadiusChange = (text: string) => {
-        const numeric = text.replace(/[^0-9]/g, '');
+        const numeric = text.replaceAll(/\D/g, '');
         setRadiusKm(numeric);
     };
 
