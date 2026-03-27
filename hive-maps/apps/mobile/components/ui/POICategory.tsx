@@ -1,5 +1,5 @@
 import React, { useState,useEffect } from 'react';
-import {ScrollView, TouchableOpacity, Text, StyleSheet, View,} from 'react-native';
+import {ScrollView, TouchableOpacity, Text, StyleSheet, View,TextInput} from 'react-native';
 import {mapboxMapsAdapter} from "@/services/mapbox";
 
 export type POI = {
@@ -39,6 +39,7 @@ export function POICategory({
                                 marginTop,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
+    const [radiusKm, setRadiusKm] = useState<string>(String(radius ?? 1));
     const [minLat,setMinLat] = useState<number>(0);
     const [maxLat,setMaxLat] = useState<number>(0);
     const [minLon,setMinLon] = useState<number>(0);
@@ -60,8 +61,8 @@ export function POICategory({
             setMaxLat(lat + deltaLat);
         }
 
-        getBoundaries(userLocation ,0.8);
-    }, [userLocation]);
+        getBoundaries(userLocation ,parseFloat(radiusKm) || 0.8);
+    }, [userLocation,radiusKm]);
 
 
     const handlePress = async (category: Category) => {
@@ -91,6 +92,11 @@ export function POICategory({
         setActiveCategory(null);
         onClearCategory?.();
     };
+    const handleRadiusChange = (text: string) => {
+        const numeric = text.replace(/[^0-9]/g, '');
+        setRadiusKm(numeric);
+    };
+
 
     return (
         <View style={[styles.wrapper, { marginTop: marginTop ?? 65 }]} pointerEvents="box-none">
@@ -125,6 +131,19 @@ export function POICategory({
                         </TouchableOpacity>
                     );
                 })}
+                <View style={styles.radiusChip}>
+                    <Text style={styles.radiusUnit}>km</Text>
+                    <TextInput
+                        style={styles.radiusInput}
+                        value={radiusKm}
+                        onChangeText={handleRadiusChange}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                        placeholder="1"
+                        placeholderTextColor="#aaa"
+                        selectTextOnFocus
+                    />
+                </View>
             </ScrollView>
         </View>
     );
@@ -189,5 +208,31 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
         color: '#ffffff',
+    },
+    radiusChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 5,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: '#ffffff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    radiusUnit: {
+        fontSize: 12,
+        color: '#888',
+    },
+    radiusInput: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1a1a1a',
+        width: 36,
+        textAlign: 'center',
+        padding: 0,
     },
 });
