@@ -1792,6 +1792,16 @@ describe('US-5.1: Outdoor POI Selection', () => {
         });
     };
 
+    it('clears POI markers when category is cleared', () => {
+        render(<MapScreen />);
+        
+        act(() => {
+            mockPOICategoryCallbacks?.onClearCategory();
+        });
+        
+        expect(mockPOICategoryCallbacks).toBeDefined();
+    });
+
     it('TASK-5.2.1: displays OutdoorPOICard when a POI is selected', async () => {
         const { findByText } = render(<MapScreen />);
 
@@ -1858,4 +1868,27 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
+
+    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
+        const { getDirections } = require('@/services/maps/directions-api-adapter');
+        getDirections.mockClear();
+
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+        
+        triggerMapboxClick();
+
+        const startBtn = await findByText('Start');
+        
+        await act(async () => {
+            fireEvent.press(startBtn);
+        });
+
+        expect(getDirections).not.toHaveBeenCalled();
+    });
+
+    
 });

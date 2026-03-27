@@ -87,6 +87,7 @@ export function OutdoorPOICard({
                 <Pressable 
                     style={[styles.actionBtn, styles.primaryBtn]} 
                     onPress={() => setIsFavourite(!isFavourite)}
+                    testID="fav-btn"
                 >
                     <MaterialIcons name={isFavourite ? "star" : "star-outline"} size={18} color="#ffffff" />
                     <Text style={styles.primaryBtnText}>Favourite</Text>

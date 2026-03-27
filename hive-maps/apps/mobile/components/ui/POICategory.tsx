@@ -142,6 +142,7 @@ export function POICategory({
                         placeholder="1"
                         placeholderTextColor="#aaa"
                         selectTextOnFocus
+                        testID="radius-input"
                     />
                 </View>
             </ScrollView>
