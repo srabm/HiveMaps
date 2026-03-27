@@ -18,14 +18,16 @@ type GoogleCalendarListResponse = {
   }>;
 };
 
+type GoogleCalendarEventItem = {
+  id?: string;
+  summary?: string;
+  location?: string | null;
+  start?: {dateTime?: string | null; date?: string | null};
+  end?: {dateTime?: string | null; date?: string | null};
+};
+
 type GoogleCalendarEventsResponse = {
-  items?: Array<{
-    id?: string;
-    summary?: string;
-    location?: string | null;
-    start?: {dateTime?: string; date?: string};
-    end?: {dateTime?: string; date?: string};
-  }>;
+  items?: GoogleCalendarEventItem[];
 };
 
 function sortCalendars(calendars: GoogleCalendar[]) {
@@ -113,26 +115,34 @@ export async function fetchUpcomingGoogleCalendarEvents(
 
       const payload = (await response.json()) as GoogleCalendarEventsResponse;
       return (payload.items ?? [])
-        .filter((item): item is Required<Pick<CalendarEvent, 'id' | 'start' | 'end'>> & CalendarEvent => {
-          return (
-            typeof item.id === 'string' &&
-            typeof item.start === 'object' &&
-            item.start !== null &&
-            typeof item.end === 'object' &&
-            item.end !== null
-          );
-        })
+        .filter(
+          (
+            item
+          ): item is GoogleCalendarEventItem & {
+            id: string;
+            start: NonNullable<GoogleCalendarEventItem['start']>;
+            end: NonNullable<GoogleCalendarEventItem['end']>;
+          } => {
+            return (
+              typeof item.id === 'string' &&
+              typeof item.start === 'object' &&
+              item.start !== null &&
+              typeof item.end === 'object' &&
+              item.end !== null
+            );
+          }
+        )
         .map((item) => ({
           id: item.id,
           summary: item.summary,
           location: item.location ?? null,
           start: {
             dateTime: item.start.dateTime ?? '',
-            date: item.start.date,
+            date: item.start.date ?? null,
           },
           end: {
             dateTime: item.end.dateTime ?? '',
-            date: item.end.date,
+            date: item.end.date ?? null,
           },
         }));
     })

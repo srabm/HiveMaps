@@ -6,7 +6,7 @@ describe('NextClassPrompt', () => {
     it('renders the supplied copy', () => {
         const {getByText} = render(
             <NextClassPrompt
-                body='Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.'
+                body='Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building'
                 onDismiss={jest.fn()}
                 onStartDirections={jest.fn()}
             />
