@@ -18,6 +18,7 @@ import MapSearchBar from '@/components/search-bar';
 import {Coordinates} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
 import {NavigationBottom} from "@/components/ui/navigation-bottom";
+import { NextClassPrompt } from '@/components/next-class-prompt';
 import {
     DirectionsResponse,
     DirectionsRequest,
@@ -35,6 +36,8 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
+import { useNextClass } from '@/hooks/use-next-class';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -104,6 +107,46 @@ type SelectedBuilding = {
     hasIndoorMap?: boolean;
 } & Record<string, unknown>;
 
+type ResolvedNextClassDestination = {
+    buildingName: string;
+    campus: string;
+    coordinates: Coordinates;
+    eventId: string;
+    eventSummary: string;
+    roomCode: string;
+};
+
+function getBuildingCodeFromRoomCode(roomCode: string): string {
+    return roomCode.split('-')[0]?.toUpperCase() ?? '';
+}
+
+function resolveNextClassDestination(
+    roomCode: string,
+    eventId: string,
+    eventSummary: string | undefined,
+    points: ReturnType<typeof useNavigationController>['points']
+): ResolvedNextClassDestination | null {
+    const buildingCode = getBuildingCodeFromRoomCode(roomCode);
+    if (!buildingCode) {
+        return null;
+    }
+
+    const matchingPoint = points.find(
+        (point) => point.building.code.toUpperCase() === buildingCode
+    );
+    if (!matchingPoint) {
+        return null;
+    }
+
+    return {
+        buildingName: matchingPoint.building.name,
+        campus: matchingPoint.building.campus,
+        coordinates: matchingPoint.coordinate,
+        eventId,
+        eventSummary: eventSummary ?? 'Your next class',
+        roomCode,
+    };
+}
 
 // ─── NavigationOverlay ────────────────────────────────────────────────────────
 // Extracted as its own component so hooks (useLiveLocation, useStepNavigator)
@@ -248,6 +291,8 @@ export default function MapScreen() {
     } = useNavigationController();
     const colorScheme = useColorScheme();
     const cameraRef = useRef<MapboxGL.Camera>(null);
+    const {events: calendarEvents} = useGoogleCalendarEvents();
+    const {result: nextClassResult} = useNextClass({events: calendarEvents});
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -267,6 +312,7 @@ export default function MapScreen() {
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
+    const [dismissedNextClassEventId, setDismissedNextClassEventId] = useState<string | null>(null);
     // Snapshotted at onStartPress — never mutated by live hook re-fetches during navigation.
     const [activeSteps, setActiveSteps] = useState<Step[]>([]);
     const [activeShuttlePhaseBoundaries, setActiveShuttlePhaseBoundaries] = useState<ShuttlePhaseBoundaries | undefined>(undefined);
@@ -280,10 +326,50 @@ export default function MapScreen() {
         shuttleDurationSeconds: number;
     } | null>(null);
 
+    const nextClassDestination = useMemo(() => {
+        if (nextClassResult.status !== 'found') {
+            return null;
+        }
+
+        return resolveNextClassDestination(
+            nextClassResult.roomCode,
+            nextClassResult.event.id,
+            nextClassResult.event.summary,
+            points
+        );
+    }, [nextClassResult, points]);
+
+    useEffect(() => {
+        if (!nextClassDestination) {
+            setDismissedNextClassEventId(null);
+            return;
+        }
+
+        if (dismissedNextClassEventId && dismissedNextClassEventId !== nextClassDestination.eventId) {
+            setDismissedNextClassEventId(null);
+        }
+    }, [dismissedNextClassEventId, nextClassDestination]);
+
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
         setFromCoordinates(userLocation);
         fromCoordinatesIsUserLocation.current = true;
+    }
+
+    function startDirectionsToNextClass() {
+        if (!nextClassDestination) return;
+        setStartingPointAsUserCoordinates();
+        setTo(nextClassDestination.roomCode);
+        setToCoordinates(nextClassDestination.coordinates);
+        setCampus(nextClassDestination.campus);
+        setSeeDirectionBar(true);
+        setDismissedNextClassEventId(nextClassDestination.eventId);
+        setSelectedBuilding(null);
+        cameraRef.current?.setCamera({
+            centerCoordinate: nextClassDestination.coordinates,
+            zoomLevel: 18,
+            animationDuration: 800,
+        });
     }
 
     function navigateToSelectedBuilding() {
@@ -420,6 +506,15 @@ export default function MapScreen() {
     }, []);
 
     const theme = Colors[colorScheme ?? 'light'];
+    const shouldShowNextClassPrompt = Boolean(
+        !isNavigating &&
+        !seeDirectionBar &&
+        nextClassDestination &&
+        dismissedNextClassEventId !== nextClassDestination.eventId
+    );
+    const nextClassPromptBody = nextClassDestination
+        ? `Navigate to ${nextClassDestination.eventSummary}. Your next class is in Room ${nextClassDestination.roomCode}, ${nextClassDestination.buildingName}.`
+        : null;
 
   // --- FEATURE BUILDER ---
   const polygonFeatures = useMemo(() => buildPolygonFeatures(points, userLocation), [points, userLocation]);
@@ -845,6 +940,15 @@ export default function MapScreen() {
                 </>
                 )}
             </View>
+
+            {shouldShowNextClassPrompt && nextClassPromptBody ? (
+                <NextClassPrompt
+                    body={nextClassPromptBody}
+                    onDismiss={() => setDismissedNextClassEventId(nextClassDestination?.eventId ?? null)}
+                    onStartDirections={startDirectionsToNextClass}
+                    title='Your next class is coming up!'
+                />
+            ): null}
 
             {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
                 <View style={styles.navigationBottomContainer}>
