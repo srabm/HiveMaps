@@ -18,6 +18,10 @@ const makeEvent = (id: string, startOffsetMin: number, location = 'H-820'): Cale
 });
 
 describe('useNextClass', () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
     it('returns none immediately when events is null (3.1/3.2 not yet integrated)', () => {
         const {result} = renderHook(() =>
             useNextClass({events: null, nowProvider: fixedNow, refreshIntervalMs: 0})
@@ -103,6 +107,21 @@ describe('useNextClass', () => {
 
         expect(spySetInterval).not.toHaveBeenCalled();
         spySetInterval.mockRestore();
-        jest.useRealTimers();
+    });
+    it('uses the default refresh interval and now provider when omitted', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(NOW);
+        const spySetInterval = jest.spyOn(global, 'setInterval');
+        const events = [makeEvent('e1', 30, 'H-820')];
+
+        const {result} = renderHook(() =>
+            useNextClass({events})
+        );
+
+        expect(result.current.result.status).toBe('found');
+        expect(result.current.lastChecked?.toISOString()).toBe(NOW.toISOString());
+        expect(spySetInterval).toHaveBeenCalledWith(expect.any(Function), 60 * 1000);
+
+        spySetInterval.mockRestore();
     });
 });

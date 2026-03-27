@@ -12,6 +12,8 @@ type UseNextClassState = {
     lastChecked: Date | null;
 };
 
+const defaultNowProvider = () => new Date();
+
 function getEventsDependencyKey(events: CalendarEvent[] | null): string {
     if (!events) {
         return 'null';
@@ -34,22 +36,16 @@ function getEventsDependencyKey(events: CalendarEvent[] | null): string {
 export function useNextClass({
     events,
     refreshIntervalMs = 60 * 1000,
-    nowProvider = () => new Date(),
+    nowProvider = defaultNowProvider,
 }: UseNextClassOptions): UseNextClassState {
     const [result, setResult] = useState<NextClassResult>({status: 'none'});
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
     const eventsDependencyKey = getEventsDependencyKey(events);
 
     useEffect(() => {
-        let active = true;
-
         const evaluate = () => {
             const now = nowProvider();
             const next = events ? getNextClass(events, now) : {status: 'none'} as const;
-
-            if (!active){
-                return;
-            }
             setResult(next);
             setLastChecked(now);
         };
@@ -57,15 +53,12 @@ export function useNextClass({
         evaluate();
 
         if(refreshIntervalMs <= 0) {
-            return () => {
-                active = false;
-            };
+            return;
         }
 
         const timer = setInterval(evaluate, refreshIntervalMs);
 
         return () => {
-            active = false;
             clearInterval(timer);
         };
     }, [eventsDependencyKey, refreshIntervalMs, nowProvider]);

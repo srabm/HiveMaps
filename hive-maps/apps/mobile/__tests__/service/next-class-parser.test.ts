@@ -155,5 +155,14 @@ describe('getNextClass', () => {
             expect(result.status).toBe('found');
             if (result.status === 'found') expect(result.event.id).toBe('good');
         });
+        it('skips events with a missing start value without throwing', () => {
+            const events: CalendarEvent[] = [
+                {id: 'bad', start: {dateTime: ''}, end: {dateTime: at(50)}, location: 'H-820'},
+                makeEvent('good', 30),
+            ];
+            const result = getNextClass(events, NOW);
+            expect(result.status).toBe('found');
+            if (result.status === 'found') expect(result.event.id).toBe('good');
+        });
     });
 });

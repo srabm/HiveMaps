@@ -15,10 +15,10 @@ export type NextClassResult =
 const ROOM_CODE_REGEX = /\b([A-Z]{1,6})-([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 
 export function parseRoomCode(location: string | null | undefined): string | null {
-    if (!location || !location.trim()) {
+    if (!location?.trim()) {
         return null;
     }   
-    const match = location.match(ROOM_CODE_REGEX);
+    const match = ROOM_CODE_REGEX.exec(location);
     if (!match) {
         return null;
     }
