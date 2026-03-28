@@ -57,6 +57,10 @@ describe('createClassroomSearchAdapter', () => {
         id: 'indoor-room:H8.835',
         name: 'H8.835',
         address: 'Room · Floor 8',
+        kind: 'classroom',
+        buildingCode: 'H',
+        floorId: '8',
+        indoorNodeId: 'H8.835',
       },
       {
         id: 'mapbox-1',

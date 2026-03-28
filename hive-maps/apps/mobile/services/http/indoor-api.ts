@@ -130,6 +130,13 @@ export async function fetchIndoorRooms(
     return getIndoorJson<IndoorNodeResponse[]>(path);
 }
 
+export async function fetchIndoorEntrances(
+    buildingCode: BuildingCode,
+): Promise<IndoorNodeResponse[]>{
+    const path = `/api/indoor-directions/building/${encodeURIComponent(buildingCode)}/entrances`;
+    return getIndoorJson<IndoorNodeResponse[]>(path);
+}
+
 export async function fetchIndoorDirections(
     buildingCode: BuildingCode,
     startNodeId: string,

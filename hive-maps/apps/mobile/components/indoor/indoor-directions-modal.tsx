@@ -33,6 +33,7 @@ export interface DirectionsModalProps {
     origin?: string;
     destination?: string;
     onClose: () => void;
+    onArrived?: () => void;
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
 }
@@ -54,6 +55,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                                                              origin = "Your location",
                                                              destination,
                                                              onClose,
+                                                             onArrived,
                                                              onCurrentNodeChange,
                                                              beeImageSource,
                                                          }) => {
@@ -72,6 +74,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight]   = useState(DEFAULT_HEIGHT);
+    const arrivalHandledRef = useRef(false);
 
     const fadeAnim      = useRef(new Animated.Value(1)).current;
     const sheetAnim     = useRef(new Animated.Value(DEFAULT_HEIGHT)).current;
@@ -118,6 +121,18 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
 
     useEffect(() => {
         if (!visible) setHasStarted(false);
+    }, [visible]);
+
+    useEffect(() => {
+        if (!visible || !hasStarted || !isLast || arrivalHandledRef.current) return;
+        arrivalHandledRef.current = true;
+        onArrived?.();
+    }, [hasStarted, isLast, onArrived, visible]);
+
+    useEffect(() => {
+        if (!visible) {
+            arrivalHandledRef.current = false;
+        }
     }, [visible]);
 
     // ── Drag handle pan responder ─────────────────────────────────────────────

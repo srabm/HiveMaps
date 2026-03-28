@@ -40,6 +40,10 @@ function formatIndoorLocation(node: IndoorNodeResponse): MapLocation {
     id: toIndoorResultId(node.id),
     name: node.id,
     address: `${node.label} · Floor ${node.floor}`,
+    kind: 'classroom',
+    buildingCode: node.building,
+    floorId: node.floor,
+    indoorNodeId: node.id,
   };
 }
 

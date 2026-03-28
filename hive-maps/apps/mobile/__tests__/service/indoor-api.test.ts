@@ -5,6 +5,7 @@ import {
     fetchNearestNode,
     normalizeIndoorBuildingCode,
     fetchIndoorRooms,
+    fetchIndoorEntrances,
     fetchIndoorDirections
 } from '@/services/http/indoor-api';
 
@@ -320,6 +321,20 @@ describe('fetchIndoorRooms', () => {
   it('throws on non-ok response', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
     await expect(fetchIndoorRooms('H', '8')).rejects.toThrow('Indoor API request failed (500)');
+  });
+});
+
+describe('fetchIndoorEntrances', () => {
+  it('calls correct endpoint with building', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+    await fetchIndoorEntrances('H');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://api.test/api/indoor-directions/building/H/entrances',
+      expect.any(Object),
+    );
   });
 });
 
