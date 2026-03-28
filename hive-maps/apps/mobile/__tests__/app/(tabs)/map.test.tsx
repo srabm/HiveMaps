@@ -976,6 +976,126 @@ describe('next class prompt', () => {
         expect(utils.getByText('H-920')).toBeTruthy();
         expect(setCampus).toHaveBeenCalledWith('SGW');
     });
+    it('shows a visible no-location status when the next class location is invalid', () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(getByText('No location found')).toBeTruthy();
+        expect(
+            getByText("We couldn't find a room in COMP 445 Tutorial. Update the event location to continue.")
+        ).toBeTruthy();
+    });
+    it('dismisses the no-location status card', async () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-no-location-dismiss'));
+        });
+
+        expect(utils.queryByText('No location found')).toBeNull();
+    });
+    it('does not render a prompt when the next class building cannot be resolved', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'XX-920',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'Unknown Building Class',
+                    location: 'XX-920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {queryByText} = render(<MapScreen />);
+
+        expect(queryByText('Your next class is coming up!')).toBeNull();
+    });
+    it('re-shows the next class prompt when a different event becomes active after dismissal', async () => {
+        let currentResult: any = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T09:30:00.000Z'),
+            event: {
+                id: 'event1',
+                summary: 'SOEN 341 Tutorial',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                end: { dateTime: '2025-01-15T10:20:00.000Z' },
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockImplementation(() => ({
+            result: currentResult,
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        }));
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-dismiss'));
+        });
+
+        expect(utils.queryByText('Your next class is coming up!')).toBeNull();
+
+        currentResult = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T10:30:00.000Z'),
+            event: {
+                id: 'event2',
+                summary: 'COMP 472 Lecture',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T10:30:00.000Z' },
+                end: { dateTime: '2025-01-15T11:45:00.000Z' },
+            },
+        };
+
+        utils.rerender(<MapScreen />);
+
+        expect(utils.getByText('Your next class is coming up!')).toBeTruthy();
+        expect(
+            utils.getByText('Navigate to COMP 472 Lecture. Your next class is in Room H-920, Hall Building.')
+        ).toBeTruthy();
+    });
 });
 /**
  * Full sequence to get NavigationOverlay mounted:

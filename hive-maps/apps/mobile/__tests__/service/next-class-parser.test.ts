@@ -34,6 +34,10 @@ describe('parseRoomCode', () => {
     describe('invalid or empty inputs', () => {
         it('returns null for online class', () => expect(parseRoomCode('Online - Async')).toBeNull());
         it('returns null for TBA', () => expect(parseRoomCode('TBA')).toBeNull());
+        it('returns null when a builder location has a room but no building name', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Rm 920')).toBeNull());
+        it('returns null when a builder location uses an unknown building name', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Imaginary Building Rm 920')).toBeNull());
         it('return null for empty string', () => expect(parseRoomCode('')).toBeNull());
         it('returns null for null input', () => expect(parseRoomCode(null)).toBeNull());
         it('returns null for undefined input', () => expect(parseRoomCode(undefined)).toBeNull());
