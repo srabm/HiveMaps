@@ -25,6 +25,10 @@ describe('parseRoomCode', () => {
         it('parses FG building room', () => expect(parseRoomCode('FG-B050')).toBe('FG-B050'));
         it('extracts room in a longer string', () => expect(parseRoomCode('SGW / MB-S2.330')).toBe('MB-S2.330'));
         it('uppercases the result', () => expect(parseRoomCode('h-820')).toBe('H-820'));
+        it('parses a Visual Schedule Builder hall location', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Hall Building Rm 920')).toBe('H-920'));
+        it('parses a Visual Schedule Builder location with an explicit building code', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Faubourg Tower (FB) Rm S150')).toBe('FB-S150'));
     });
 
     describe('invalid or empty inputs', () => {
@@ -113,6 +117,18 @@ describe('getNextClass', () => {
             const result = getNextClass(events, NOW);
             expect(result.status).toBe('found');
             if (result.status === 'found') expect(result.roomCode).toBe('MB-3.255');
+        });
+        it('handles the Visual Schedule Builder hall format', () => {
+            const events = [makeEvent('e1', 30, 'Sir George Williams Campus - Hall Building Rm 920')];
+            const result = getNextClass(events, NOW);
+            expect(result.status).toBe('found');
+            if (result.status === 'found') expect(result.roomCode).toBe('H-920');
+        });
+        it('handles the Visual Schedule Builder format with a building code in parentheses', () => {
+            const events = [makeEvent('e1', 30, 'Sir George Williams Campus - Faubourg Tower (FB) Rm S150')];
+            const result = getNextClass(events, NOW);
+            expect(result.status).toBe('found');
+            if (result.status === 'found') expect(result.roomCode).toBe('FB-S150');
         });
     });
 

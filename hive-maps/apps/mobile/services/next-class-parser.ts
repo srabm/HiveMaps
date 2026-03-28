@@ -13,6 +13,42 @@ export type NextClassResult =
     | {status: 'none'};
 
 const ROOM_CODE_REGEX = /\b([A-Z]{1,6})-([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
+const ROOM_REFERENCE_REGEX = /\bRM\.?\s+([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
+const BUILDING_CODE_REGEX = /\(([A-Z]{1,6})\)/i;
+const BUILDING_NAME_REGEX = /^(.+?)\s+RM\.?\s+[A-Z]?\d{1,4}(?:\.\d+)?$/i;
+
+const BUILDING_NAME_TO_CODE: Record<string, string> = {
+    'FAUBOURG TOWER': 'FB',
+    'HALL BUILDING': 'H',
+    'JOHN MOLSON BUILDING': 'MB',
+};
+
+function parseRoomCodeFromBuilderLocation(location: string): string | null {
+    const locationSegment = location.split(' - ').pop()?.trim() ?? location.trim();
+    const roomMatch = ROOM_REFERENCE_REGEX.exec(locationSegment);
+    if (!roomMatch) {
+        return null;
+    }
+
+    const buildingCodeMatch = BUILDING_CODE_REGEX.exec(locationSegment);
+    if (buildingCodeMatch) {
+        return `${buildingCodeMatch[1].toUpperCase()}-${roomMatch[1].toUpperCase()}`;
+    }
+
+    const buildingNameMatch = BUILDING_NAME_REGEX.exec(locationSegment);
+    if (!buildingNameMatch) {
+        return null;
+    }
+
+    const buildingName = buildingNameMatch[1].trim().toUpperCase();
+    const buildingCode = BUILDING_NAME_TO_CODE[buildingName];
+
+    if (!buildingCode) {
+        return null;
+    }
+
+    return `${buildingCode}-${roomMatch[1].toUpperCase()}`;
+}
 
 export function parseRoomCode(location: string | null | undefined): string | null {
     if (!location?.trim()) {
@@ -20,7 +56,7 @@ export function parseRoomCode(location: string | null | undefined): string | nul
     }   
     const match = ROOM_CODE_REGEX.exec(location);
     if (!match) {
-        return null;
+        return parseRoomCodeFromBuilderLocation(location);
     }
 
     return match[0].toUpperCase();

@@ -141,7 +141,7 @@ function resolveNextClassDestination(
     return {
         buildingName: matchingPoint.building.name,
         campus: matchingPoint.building.campus,
-        coordinates: matchingPoint.coordinate,
+        coordinates: matchingPoint.building.center,
         eventId,
         eventSummary: eventSummary ?? 'Your next class',
         roomCode,
