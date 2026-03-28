@@ -114,6 +114,26 @@ describe('google-calendar service', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it('uses the default now value when one is not provided', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-15T09:00:00.000Z'));
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ items: [] }),
+    });
+
+    await expect(
+      fetchUpcomingGoogleCalendarEvents('token', ['calendar-a'])
+    ).resolves.toEqual([]);
+
+    const [requestedUrl] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(String(requestedUrl)).toContain('timeMin=2025-01-15T09%3A00%3A00.000Z');
+    expect(String(requestedUrl)).toContain('timeMax=2025-01-15T11%3A00%3A00.000Z');
+
+    jest.useRealTimers();
+  });
+
   it('ignores malformed event items that are missing required fields', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,

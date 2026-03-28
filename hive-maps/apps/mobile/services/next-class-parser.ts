@@ -37,15 +37,6 @@ function getRoomMarkerIndex(locationSegment: string): number {
     return -1;
 }
 
-function getRoomNumberFromRoomCode(roomCode: string): string | null {
-    const separatorIndex = roomCode.indexOf('-');
-    if (separatorIndex < 0 || separatorIndex === roomCode.length - 1) {
-        return null;
-    }
-
-    return roomCode.slice(separatorIndex + 1).toUpperCase();
-}
-
 export function parseLocationReference(location: string | null | undefined): ParsedLocationReference | null {
     if (!location?.trim()) {
         return null;
@@ -53,12 +44,14 @@ export function parseLocationReference(location: string | null | undefined): Par
 
     const explicitRoomCodeMatch = ROOM_CODE_REGEX.exec(location);
     if (explicitRoomCodeMatch) {
-        const roomCode = explicitRoomCodeMatch[0].toUpperCase();
+        const buildingCode = explicitRoomCodeMatch[1].toUpperCase();
+        const roomNumber = explicitRoomCodeMatch[2].toUpperCase();
+        const roomCode = `${buildingCode}-${roomNumber}`;
         return {
-            buildingCode: roomCode.split('-')[0] ?? null,
+            buildingCode,
             buildingName: null,
             roomCode,
-            roomNumber: getRoomNumberFromRoomCode(roomCode),
+            roomNumber,
         };
     }
 

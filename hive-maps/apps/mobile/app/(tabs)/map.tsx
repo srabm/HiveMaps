@@ -122,12 +122,46 @@ function getBuildingCodeFromRoomCode(roomCode: string): string {
 }
 
 function normalizeBuildingName(value: string): string {
-    return value
-        .toUpperCase()
-        .replace(/\([^)]*\)/g, ' ')
-        .replace(/[^A-Z0-9]+/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
+    let normalized = '';
+    let inParentheses = false;
+    let previousWasSpace = true;
+
+    for (const character of value.toUpperCase()) {
+        if (character === '(') {
+            inParentheses = true;
+            if (!previousWasSpace && normalized.length > 0) {
+                normalized += ' ';
+                previousWasSpace = true;
+            }
+            continue;
+        }
+
+        if (character === ')') {
+            inParentheses = false;
+            continue;
+        }
+
+        if (inParentheses) {
+            continue;
+        }
+
+        const characterCode = character.charCodeAt(0);
+        const isAlphaNumeric =
+            (characterCode >= 48 && characterCode <= 57) ||
+            (characterCode >= 65 && characterCode <= 90);
+        if (isAlphaNumeric) {
+            normalized += character;
+            previousWasSpace = false;
+            continue;
+        }
+
+        if (!previousWasSpace && normalized.length > 0) {
+            normalized += ' ';
+            previousWasSpace = true;
+        }
+    }
+
+    return normalized.trim();
 }
 
 function findBuildingPointByName(

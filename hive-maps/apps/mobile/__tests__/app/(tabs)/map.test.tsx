@@ -1024,6 +1024,71 @@ describe('next class prompt', () => {
         expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
         expect(queryByText('No location found')).toBeNull();
     });
+    it('matches a dataset building name that contains the parsed builder-style name', () => {
+        const aliasPoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'Henry F. Hall Building',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [aliasPoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Henry F. Hall Building.')
+        ).toBeTruthy();
+    });
+    it('matches when the parsed builder-style name contains the dataset building name', () => {
+        const shortNamePoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'John Molson',
+                code: 'MB',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [shortNamePoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMM 305 Lecture',
+                    location: 'Sir George Williams Campus - John Molson School of Business Rm 2.130',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to COMM 305 Lecture. Your next class is in Room MB-2.130, John Molson.')
+        ).toBeTruthy();
+    });
     it('dismisses the no-location status card', async () => {
         (useNextClass as jest.Mock).mockReturnValue({
             result: {
