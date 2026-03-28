@@ -339,16 +339,20 @@ export default function MapScreen() {
         );
     }, [nextClassResult, points]);
 
+    const activeNextClassEventId = nextClassResult.status === 'none'
+        ? null
+        : nextClassResult.event.id;
+
     useEffect(() => {
-        if (!nextClassDestination) {
+        if (!activeNextClassEventId) {
             setDismissedNextClassEventId(null);
             return;
         }
 
-        if (dismissedNextClassEventId && dismissedNextClassEventId !== nextClassDestination.eventId) {
+        if (dismissedNextClassEventId && dismissedNextClassEventId !== activeNextClassEventId) {
             setDismissedNextClassEventId(null);
         }
-    }, [dismissedNextClassEventId, nextClassDestination]);
+    }, [activeNextClassEventId, dismissedNextClassEventId]);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -512,8 +516,17 @@ export default function MapScreen() {
         nextClassDestination &&
         dismissedNextClassEventId !== nextClassDestination.eventId
     );
+    const shouldShowNoLocationStatus = Boolean(
+        !isNavigating &&
+        !seeDirectionBar &&
+        nextClassResult.status === 'no_location' &&
+        dismissedNextClassEventId !== nextClassResult.event.id
+    );
     const nextClassPromptBody = nextClassDestination
         ? `Navigate to ${nextClassDestination.eventSummary}. Your next class is in Room ${nextClassDestination.roomCode}, ${nextClassDestination.buildingName}.`
+        : null;
+    const nextClassNoLocationBody = nextClassResult.status === 'no_location'
+        ? `We couldn't find a room in ${nextClassResult.event.summary ?? 'your next class'}. Update the event location to continue.`
         : null;
 
   // --- FEATURE BUILDER ---
@@ -950,6 +963,28 @@ export default function MapScreen() {
                 />
             ): null}
 
+            {shouldShowNoLocationStatus && nextClassNoLocationBody ? (
+                <View pointerEvents='box-none' style={styles.nextClassStatusContainer}>
+                    <ThemedView
+                        style={[
+                            styles.nextClassStatusCard,
+                            {backgroundColor: theme.background},
+                        ]}
+                    >
+                        <ThemedText style={styles.nextClassStatusTitle}>No location found</ThemedText>
+                        <ThemedText style={styles.nextClassStatusBody}>{nextClassNoLocationBody}</ThemedText>
+                        <Pressable
+                            accessibilityRole='button'
+                            onPress={() => setDismissedNextClassEventId(nextClassResult.status === 'no_location' ? nextClassResult.event.id : null)}
+                            style={styles.nextClassStatusButton}
+                            testID='next-class-no-location-dismiss'
+                        >
+                            <ThemedText style={styles.nextClassStatusButtonText}>Dismiss</ThemedText>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            ) : null}
+
             {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
                 <View style={styles.navigationBottomContainer}>
                     <NavigationBottom
@@ -1230,5 +1265,46 @@ const styles = StyleSheet.create({
         right: 4,
         bottom: 5,
         zIndex: 15,
+    },
+    nextClassStatusContainer: {
+        left: 16,
+        position: 'absolute',
+        right: 16,
+        top: '30%',
+        zIndex: 20,
+    },
+    nextClassStatusCard: {
+        borderRadius: 24,
+        elevation: 12,
+        paddingHorizontal: 22,
+        paddingVertical: 18,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 10},
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+    },
+    nextClassStatusTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 18,
+        textAlign: 'center',
+    },
+    nextClassStatusBody: {
+        fontSize: 15,
+        lineHeight: 22,
+        marginBottom: 18,
+        textAlign: 'center',
+    },
+    nextClassStatusButton: {
+        alignSelf: 'stretch',
+        backgroundColor: '#5b5b5b',
+        borderRadius: 14,
+        paddingVertical: 14,
+    },
+    nextClassStatusButtonText: {
+        color: '#ffffff',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
     },
 });
