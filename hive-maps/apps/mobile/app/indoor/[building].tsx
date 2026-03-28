@@ -402,7 +402,6 @@ export default function IndoorMapScreen() {
           onStepFloorChange={handleStepFloorChange}
           buildingCode={buildingCode || ''}
           floorId={activeFloorId || ''}
-          onError={setNoticeMessage}
         />
 
         {!!noticeMessage && (
