@@ -7,11 +7,19 @@ import {
   getGoogleCalendarAuthConfig,
 } from '@/hooks/google-calendar-auth-config';
 import {
+  clearGoogleCalendarSelection,
   clearGoogleCalendarSession,
+  loadGoogleCalendarSelection,
   loadGoogleCalendarSession,
+  saveGoogleCalendarSelection,
   saveGoogleCalendarSession,
   type GoogleCalendarSession,
 } from '@/storage/auth-storage';
+import {
+  fetchGoogleCalendars,
+  getDefaultSelectedCalendarIds,
+  type GoogleCalendar,
+} from '@/services/google-calendar';
 
 const PERMISSION_DENIED_MESSAGE =
   'Google Calendar permission was denied. Hive Maps cannot access your schedule unless you approve the request.';
@@ -19,6 +27,7 @@ const GOOGLE_SIGN_IN_MISCONFIGURED_MESSAGE =
   'Google Sign-In is misconfigured. Confirm the Android OAuth client matches com.anonymous.mobile and your app signing SHA-1, set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to the OAuth Web client id, then rebuild the app.';
 
 type AuthStatus = 'idle' | 'loading' | 'prompting' | 'connecting' | 'connected' | 'error';
+type CalendarStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
 GoogleSignin.configure(getGoogleCalendarAuthConfig().configureOptions);
 
@@ -99,6 +108,44 @@ export function useGoogleCalendarAuth() {
   const [session, setSession] = useState<GoogleCalendarSession | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus>('idle');
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
+
+  const syncCalendars = async (accessToken: string) => {
+    setCalendarStatus('loading');
+    setCalendarError(null);
+
+    try {
+      const [remoteCalendars, storedSelection] = await Promise.all([
+        fetchGoogleCalendars(accessToken),
+        loadGoogleCalendarSelection(),
+      ]);
+
+      const availableCalendarIds = new Set(remoteCalendars.map((calendar) => calendar.id));
+      const persistedSelection = (storedSelection?.selectedCalendarIds ?? []).filter((calendarId) =>
+        availableCalendarIds.has(calendarId)
+      );
+      const nextSelectedCalendarIds =
+        persistedSelection.length > 0
+          ? persistedSelection
+          : getDefaultSelectedCalendarIds(remoteCalendars);
+
+      setCalendars(remoteCalendars);
+      setSelectedCalendarIds(nextSelectedCalendarIds);
+      setCalendarStatus('loaded');
+
+      await saveGoogleCalendarSelection({ selectedCalendarIds: nextSelectedCalendarIds });
+    } catch (calendarLoadError: unknown) {
+      setCalendarStatus('error');
+      setCalendarError(
+        calendarLoadError instanceof Error
+          ? calendarLoadError.message
+          : 'Unable to load Google Calendars right now.'
+      );
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -125,6 +172,7 @@ export function useGoogleCalendarAuth() {
 
           setSession(nextSession);
           setStatus('connected');
+          await syncCalendars(nextSession.accessToken);
           return;
         }
       } catch (signInError: unknown) {
@@ -149,6 +197,9 @@ export function useGoogleCalendarAuth() {
 
       setSession(null);
       setStatus('idle');
+      setCalendars([]);
+      setSelectedCalendarIds([]);
+      setCalendarStatus('idle');
     })();
 
     return () => {
@@ -185,6 +236,7 @@ export function useGoogleCalendarAuth() {
       await saveGoogleCalendarSession(nextSession);
       setSession(nextSession);
       setStatus('connected');
+      await syncCalendars(nextSession.accessToken);
     } catch (signInError: unknown) {
       setError(getGoogleSignInErrorMessage(signInError));
       setStatus(getErrorStatus(session));
@@ -204,19 +256,56 @@ export function useGoogleCalendarAuth() {
       /* ignore sign-out failures and clear the local session anyway */
     }
 
+    await clearGoogleCalendarSelection();
     await clearGoogleCalendarSession();
     setSession(null);
     setError(null);
     setStatus('idle');
+    setCalendars([]);
+    setSelectedCalendarIds([]);
+    setCalendarError(null);
+    setCalendarStatus('idle');
+  };
+
+  const toggleCalendarSelection = async (calendarId: string) => {
+    const isSelected = selectedCalendarIds.includes(calendarId);
+    if (isSelected && selectedCalendarIds.length === 1) {
+      return;
+    }
+
+    const nextSelection = isSelected
+      ? selectedCalendarIds.filter((selectedId) => selectedId !== calendarId)
+      : [...selectedCalendarIds, calendarId];
+
+    setSelectedCalendarIds(nextSelection);
+    await saveGoogleCalendarSelection({ selectedCalendarIds: nextSelection });
+  };
+
+  const refreshCalendars = async () => {
+    if (!session?.accessToken) {
+      setCalendars([]);
+      setSelectedCalendarIds([]);
+      setCalendarStatus('idle');
+      setCalendarError(null);
+      return;
+    }
+
+    await syncCalendars(session.accessToken);
   };
 
   return {
+    calendarError,
+    calendarStatus,
+    calendars,
     connect,
     disconnect,
     error,
     isConfigured: getGoogleCalendarAuthConfig().isConfigured,
     isReady: true,
+    refreshCalendars,
+    selectedCalendarIds,
     session,
     status,
+    toggleCalendarSelection,
   };
 }

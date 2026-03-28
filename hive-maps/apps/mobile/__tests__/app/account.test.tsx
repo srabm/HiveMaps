@@ -1,4 +1,5 @@
 import React from 'react';
+import { Linking } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 import AccountScreen from '@/app/account';
@@ -11,40 +12,96 @@ jest.mock('@/hooks/use-google-calendar-auth', () => ({
 const mockedUseGoogleCalendarAuth = useGoogleCalendarAuth as jest.MockedFunction<
   typeof useGoogleCalendarAuth
 >;
+const mockOpenURL = Linking.openURL as jest.MockedFunction<typeof Linking.openURL>;
 
 describe('AccountScreen', () => {
   beforeEach(() => {
+    mockOpenURL.mockImplementation(async (_url: string) => {});
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error: null,
       isConfigured: true,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'idle',
+      toggleCalendarSelection: jest.fn(),
     });
   });
 
   it('renders the Google Calendar connect button', () => {
-    const { getByText } = render(<AccountScreen />);
+    const { getByText, queryByText } = render(<AccountScreen />);
 
     expect(getByText('Connect Google Calendar')).toBeTruthy();
     expect(getByText('Status: Not connected')).toBeTruthy();
+    expect(
+      queryByText("Don't have your Concordia course schedule in Google Calendar yet?")
+    ).toBeNull();
+    expect(queryByText('Export it with the Visual Schedule Builder extension')).toBeNull();
     expect(
       getByText('Google Calendar is not connected. Link your account to let Hive Maps use your schedule.')
     ).toBeTruthy();
   });
 
+  it('opens the Concordia schedule export extension link', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'loaded',
+      calendars: [
+        {
+          id: 'primary-calendar',
+          summary: 'Personal',
+          primary: true,
+          description: null,
+          backgroundColor: null,
+        },
+      ],
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: ['primary-calendar'],
+      session: {
+        accessToken: 'token',
+        email: 'student@example.edu',
+        obtainedAt: Date.now(),
+      },
+      status: 'connected',
+      toggleCalendarSelection: jest.fn(),
+    });
+
+    const { getByRole } = render(<AccountScreen />);
+
+    fireEvent.press(getByRole('link'));
+
+    expect(mockOpenURL).toHaveBeenCalledWith(
+      'https://chromewebstore.google.com/detail/visual-schedule-builder-e/nbapggbchldhdjckbhdhkhlodokjdoha'
+    );
+  });
+
   it('starts the Google connection flow from the button', () => {
     const connect = jest.fn();
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect,
       disconnect: jest.fn(),
       error: null,
       isConfigured: true,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'idle',
+      toggleCalendarSelection: jest.fn(),
     });
 
     const { getByText } = render(<AccountScreen />);
@@ -55,14 +112,20 @@ describe('AccountScreen', () => {
 
   it('shows the permission denied message from the auth hook', () => {
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error:
         'Google Calendar permission was denied. Hive Maps cannot access your schedule unless you approve the request.',
       isConfigured: true,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'error',
+      toggleCalendarSelection: jest.fn(),
     });
 
     const { getByText } = render(<AccountScreen />);
@@ -76,21 +139,44 @@ describe('AccountScreen', () => {
 
   it('shows connected account details and a disconnect action', () => {
     const disconnect = jest.fn();
+    const refreshCalendars = jest.fn();
+    const toggleCalendarSelection = jest.fn();
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'loaded',
+      calendars: [
+        {
+          id: 'primary-calendar',
+          summary: 'Personal',
+          primary: true,
+          description: null,
+          backgroundColor: null,
+        },
+        {
+          id: 'classes-calendar',
+          summary: 'Classes',
+          primary: false,
+          description: 'Concordia schedule',
+          backgroundColor: null,
+        },
+      ],
       connect: jest.fn(),
       disconnect,
       error: null,
       isConfigured: true,
       isReady: true,
+      refreshCalendars,
+      selectedCalendarIds: ['classes-calendar'],
       session: {
         accessToken: 'token',
         email: 'student@example.edu',
         obtainedAt: Date.now(),
       },
       status: 'connected',
+      toggleCalendarSelection,
     });
 
-    const { getByText, queryByText } = render(<AccountScreen />);
+    const { getByRole, getByText, queryByText } = render(<AccountScreen />);
 
     expect(getByText('Status: Connected')).toBeTruthy();
     expect(getByText('student@example.edu')).toBeTruthy();
@@ -103,20 +189,40 @@ describe('AccountScreen', () => {
         'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.'
       )
     ).toBeNull();
+    expect(getByText('Course Schedule Calendars')).toBeTruthy();
+    expect(
+      getByText("Don't have your Concordia course schedule in Google Calendar yet?")
+    ).toBeTruthy();
+    expect(getByText('Export it with the Visual Schedule Builder extension')).toBeTruthy();
+    expect(getByText('Personal (Primary)')).toBeTruthy();
+    expect(getByText('Classes')).toBeTruthy();
+    expect(getByText('Concordia schedule')).toBeTruthy();
 
     fireEvent.press(getByText('Disconnect'));
     expect(disconnect).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(getByText('Refresh'));
+    expect(refreshCalendars).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(getByRole('checkbox', { name: 'Classes' }));
+    expect(toggleCalendarSelection).toHaveBeenCalledWith('classes-calendar');
   });
 
   it('renders the loading and prompting status labels while connect is unavailable', () => {
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error: null,
       isConfigured: false,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'loading',
+      toggleCalendarSelection: jest.fn(),
     });
 
     const { getByText, rerender } = render(<AccountScreen />);
@@ -124,13 +230,19 @@ describe('AccountScreen', () => {
     expect(getByText('Status: Checking connection...')).toBeTruthy();
 
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error: null,
       isConfigured: true,
       isReady: false,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'prompting',
+      toggleCalendarSelection: jest.fn(),
     });
 
     rerender(<AccountScreen />);
@@ -140,13 +252,19 @@ describe('AccountScreen', () => {
 
   it('shows setup guidance when Google Sign-In is not configured', () => {
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error: null,
       isConfigured: false,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'idle',
+      toggleCalendarSelection: jest.fn(),
     });
 
     const { getByText } = render(<AccountScreen />);
@@ -160,17 +278,76 @@ describe('AccountScreen', () => {
 
   it('renders the connecting status label', () => {
     mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'idle',
+      calendars: [],
       connect: jest.fn(),
       disconnect: jest.fn(),
       error: null,
       isConfigured: true,
       isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
       session: null,
       status: 'connecting',
+      toggleCalendarSelection: jest.fn(),
     });
 
     const { getByText } = render(<AccountScreen />);
 
     expect(getByText('Status: Securing session...')).toBeTruthy();
+  });
+
+  it('shows loading and error states for the calendar section', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: 'Unable to load Google Calendars right now.',
+      calendarStatus: 'loading',
+      calendars: [],
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
+      session: {
+        accessToken: 'token',
+        email: 'student@example.edu',
+        obtainedAt: Date.now(),
+      },
+      status: 'connected',
+      toggleCalendarSelection: jest.fn(),
+    });
+
+    const { getByText } = render(<AccountScreen />);
+
+    expect(getByText('Loading calendars...')).toBeTruthy();
+    expect(getByText('Unable to load Google Calendars right now.')).toBeTruthy();
+  });
+
+  it('shows the empty state when no calendars are available for a connected account', () => {
+    mockedUseGoogleCalendarAuth.mockReturnValue({
+      calendarError: null,
+      calendarStatus: 'loaded',
+      calendars: [],
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      error: null,
+      isConfigured: true,
+      isReady: true,
+      refreshCalendars: jest.fn(),
+      selectedCalendarIds: [],
+      session: {
+        accessToken: 'token',
+        email: 'student@example.edu',
+        obtainedAt: Date.now(),
+      },
+      status: 'connected',
+      toggleCalendarSelection: jest.fn(),
+    });
+
+    const { getByText } = render(<AccountScreen />);
+
+    expect(getByText('No calendars were found for this Google account.')).toBeTruthy();
   });
 });

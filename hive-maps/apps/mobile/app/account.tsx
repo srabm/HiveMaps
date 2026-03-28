@@ -1,10 +1,13 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGoogleCalendarAuth } from '@/hooks/use-google-calendar-auth';
+
+const CONCORDIA_CALENDAR_EXTENSION_URL =
+  'https://chromewebstore.google.com/detail/visual-schedule-builder-e/nbapggbchldhdjckbhdhkhlodokjdoha';
 
 function getStatusLabel(status: ReturnType<typeof useGoogleCalendarAuth>['status']) {
   switch (status) {
@@ -26,7 +29,21 @@ function getStatusLabel(status: ReturnType<typeof useGoogleCalendarAuth>['status
 export default function AccountScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const { connect, disconnect, error, isConfigured, isReady, session, status } = useGoogleCalendarAuth();
+  const {
+    calendarError,
+    calendarStatus,
+    calendars,
+    connect,
+    disconnect,
+    error,
+    isConfigured,
+    isReady,
+    refreshCalendars,
+    selectedCalendarIds,
+    session,
+    status,
+    toggleCalendarSelection,
+  } = useGoogleCalendarAuth();
 
   const isBusy = status === 'loading' || status === 'connecting' || status === 'prompting';
   const isDisconnected = !session;
@@ -35,6 +52,14 @@ export default function AccountScreen() {
     : isConfigured
       ? 'Google Calendar is not connected. Link your account to let Hive Maps use your schedule.'
       : 'Google Sign-In must be configured with both Android and Web OAuth client IDs. The Android client must match this package name and SHA-1, then the app must be rebuilt as a development build.';
+
+  const openConcordiaCalendarExtension = async () => {
+    try {
+      await Linking.openURL(CONCORDIA_CALENDAR_EXTENSION_URL);
+    } catch (error: unknown) {
+      console.warn('[account] Failed to open Concordia calendar extension link', error);
+    }
+  };
 
   return (
     <ThemedView style={styles.screen}>
@@ -54,7 +79,6 @@ export default function AccountScreen() {
           {session?.email ? <ThemedText>{session.email}</ThemedText> : null}
           {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
           <ThemedText style={styles.helperText}>{helperMessage}</ThemedText>
-
           {isDisconnected ? (
             <Pressable
               accessibilityRole="button"
@@ -77,6 +101,89 @@ export default function AccountScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {session ? (
+          <View style={[styles.card, { borderColor: theme.icon }]}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionCopy}>
+                <ThemedText type="subtitle">Course Schedule Calendars</ThemedText>
+                <ThemedText style={styles.helperText}>
+                  Choose which calendars Hive Maps can use when looking for your next class.
+                </ThemedText>
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={calendarStatus === 'loading'}
+                onPress={refreshCalendars}
+                style={[
+                  styles.refreshButton,
+                  { borderColor: theme.icon, opacity: calendarStatus === 'loading' ? 0.6 : 1 },
+                ]}>
+                <ThemedText style={styles.refreshButtonText}>Refresh</ThemedText>
+              </Pressable>
+            </View>
+
+            {calendarStatus === 'loading' ? (
+              <ThemedText>Loading calendars...</ThemedText>
+            ) : null}
+
+            {calendarError ? <ThemedText style={styles.errorText}>{calendarError}</ThemedText> : null}
+
+            {calendarStatus === 'loaded' && calendars.length === 0 ? (
+              <ThemedText>No calendars were found for this Google account.</ThemedText>
+            ) : null}
+
+            {calendars.map((calendar) => {
+              const selected = selectedCalendarIds.includes(calendar.id);
+
+              return (
+                <Pressable
+                  key={calendar.id}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => toggleCalendarSelection(calendar.id)}
+                  style={[
+                    styles.calendarRow,
+                    {
+                      borderColor: selected ? theme.tint : theme.icon,
+                      backgroundColor: colorScheme === 'dark' ? '#1c1f24' : '#faf7f2',
+                    },
+                  ]}>
+                  <View
+                    style={[
+                      styles.checkbox,
+                      { borderColor: selected ? theme.tint : theme.icon, backgroundColor: selected ? theme.tint : 'transparent' },
+                    ]}>
+                    {selected ? <ThemedText style={styles.checkboxLabel}>X</ThemedText> : null}
+                  </View>
+
+                  <View style={styles.calendarCopy}>
+                    <ThemedText style={styles.calendarTitle}>
+                      {calendar.summary}
+                      {calendar.primary ? ' (Primary)' : ''}
+                    </ThemedText>
+                    {calendar.description ? (
+                      <ThemedText style={styles.calendarDescription}>{calendar.description}</ThemedText>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+
+            <ThemedText style={styles.linkPrompt}>
+              Don&apos;t have your Concordia course schedule in Google Calendar yet?
+            </ThemedText>
+            <Pressable
+              accessibilityRole="link"
+              onPress={openConcordiaCalendarExtension}
+              style={styles.inlineLink}>
+              <ThemedText style={[styles.linkText, { color: theme.tint }]}>
+                Export it with the Visual Schedule Builder extension
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
     </ThemedView>
   );
@@ -108,11 +215,31 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
+  sectionHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  sectionCopy: {
+    flex: 1,
+    gap: 4,
+  },
   statusText: {
     fontWeight: '600',
   },
   helperText: {
     opacity: 0.8,
+  },
+  linkPrompt: {
+    opacity: 0.85,
+  },
+  inlineLink: {
+    alignSelf: 'flex-start',
+  },
+  linkText: {
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   errorText: {
     color: '#b42318',
@@ -136,5 +263,46 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontWeight: '600',
+  },
+  refreshButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  refreshButtonText: {
+    fontWeight: '600',
+  },
+  calendarRow: {
+    alignItems: 'flex-start',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+  },
+  checkbox: {
+    alignItems: 'center',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    height: 22,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 22,
+  },
+  checkboxLabel: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  calendarCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  calendarTitle: {
+    fontWeight: '700',
+  },
+  calendarDescription: {
+    opacity: 0.75,
   },
 });

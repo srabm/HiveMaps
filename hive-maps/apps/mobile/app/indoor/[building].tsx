@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -65,6 +65,29 @@ function getFallbackFloorId(
     (floor) => floor.id !== currentFloorId && !unavailableFloorIds.has(floor.id),
   );
   return fallback?.id || null;
+}
+
+export function getNumericFloor(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/-?\d+/);
+  if (!match) return null;
+  return Number(match[0]);
+}
+
+export function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFloor: string): string | null {
+  const directMatch = getRequestedFloorMatch(availableFloors, stepFloor);
+  if (directMatch) return directMatch.id;
+
+  const stepFloorNumber = getNumericFloor(stepFloor);
+  if (stepFloorNumber === null) return null;
+
+  const numericMatch = availableFloors.find((floor) => {
+    const idNumber = getNumericFloor(floor.id);
+    const labelNumber = getNumericFloor(floor.label);
+    return idNumber === stepFloorNumber || labelNumber === stepFloorNumber;
+  });
+
+  return numericMatch?.id || null;
 }
 
 export default function IndoorMapScreen() {
@@ -329,6 +352,16 @@ export default function IndoorMapScreen() {
     setActiveFloorId(nextFloorId);
   };
 
+  const handleStepFloorChange = useCallback((stepFloor: string) => {
+    if (!stepFloor || floors.length === 0) return;
+    const resolvedFloorId = resolveTraversalFloorId(floors, stepFloor);
+    if (!resolvedFloorId || resolvedFloorId === activeFloorId) return;
+
+    setErrorMessage(null);
+    setNoticeMessage(null);
+    setActiveFloorId(resolvedFloorId);
+  }, [activeFloorId, floors]);
+
   const renderMainContent = () => {
     if (isLoadingFloors && floors.length === 0) {
       return (
@@ -366,6 +399,7 @@ export default function IndoorMapScreen() {
           selectedRoomId={selectedRoomId}
           onPressRoom={setSelectedRoomId}
           onDirectionsActiveChange={setDirectionsActive}
+          onStepFloorChange={handleStepFloorChange}
           buildingCode={buildingCode || ''}
           floorId={activeFloorId || ''}
         />

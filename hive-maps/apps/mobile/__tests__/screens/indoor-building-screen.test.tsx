@@ -30,13 +30,16 @@ jest.mock('@/components/indoor/floor-plan-viewer', () => {
   const { Pressable, Text, View } = require('react-native');
 
   return {
-    FloorPlanViewer: ({ planGeometry, rooms, selectedRoomId, onPressRoom }: any) => (
+    FloorPlanViewer: ({ planGeometry, rooms, selectedRoomId, onPressRoom, onStepFloorChange }: any) => (
       <View testID="mock-floor-plan-viewer">
         <Text>{`PlanType:${planGeometry?.type ?? 'none'}`}</Text>
         <Text>{`RoomCount:${rooms?.features?.length ?? 0}`}</Text>
         <Text>{`Selected:${selectedRoomId ?? 'none'}`}</Text>
         <Pressable testID="mock-room-press" onPress={() => onPressRoom?.('R-101')}>
           <Text>Select Room</Text>
+        </Pressable>
+        <Pressable testID="mock-step-floor-change" onPress={() => onStepFloorChange?.('2')}>
+          <Text>Step Floor 2</Text>
         </Pressable>
       </View>
     ),
@@ -249,6 +252,29 @@ describe('Indoor building screen', () => {
     await waitFor(() => {
       expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
       expect(getByText('Selected:none')).toBeTruthy();
+    });
+  });
+
+  it('auto-switches selected floor when turn-by-turn step reports another floor', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([
+      { id: '1', label: 'L1', sortOrder: 1 },
+      { id: '2', label: 'L2', sortOrder: 2 },
+    ]);
+    mockFetchFloorDetails.mockImplementation(
+      async (_campusId: string, _buildingCode: string, floorId: string) => makeFloorDetails(floorId, `L${floorId}`)
+    );
+
+    const { getByTestId } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
+    });
+
+    fireEvent.press(getByTestId('mock-step-floor-change'));
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
+      expect(getByTestId('floor-chip-2-active')).toBeTruthy();
     });
   });
 
