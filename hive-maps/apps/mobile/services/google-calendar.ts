@@ -115,34 +115,26 @@ export async function fetchUpcomingGoogleCalendarEvents(
 
       const payload = (await response.json()) as GoogleCalendarEventsResponse;
       return (payload.items ?? [])
-        .filter(
-          (
-            item
-          ): item is GoogleCalendarEventItem & {
-            id: string;
-            start: NonNullable<GoogleCalendarEventItem['start']>;
-            end: NonNullable<GoogleCalendarEventItem['end']>;
-          } => {
-            return (
-              typeof item.id === 'string' &&
-              typeof item.start === 'object' &&
-              item.start !== null &&
-              typeof item.end === 'object' &&
-              item.end !== null
-            );
-          }
-        )
+        .filter((item): item is Required<Pick<CalendarEvent, 'id' | 'start' | 'end'>> & CalendarEvent => {
+          return (
+            typeof item.id === 'string' &&
+            typeof item.start === 'object' &&
+            item.start !== null &&
+            typeof item.end === 'object' &&
+            item.end !== null
+          );
+        })
         .map((item) => ({
           id: item.id,
           summary: item.summary,
           location: item.location ?? null,
           start: {
             dateTime: item.start.dateTime ?? '',
-            date: item.start.date ?? null,
+            date: item.start.date,
           },
           end: {
             dateTime: item.end.dateTime ?? '',
-            date: item.end.date ?? null,
+            date: item.end.date,
           },
         }));
     })

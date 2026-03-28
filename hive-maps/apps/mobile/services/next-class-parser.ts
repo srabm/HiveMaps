@@ -15,7 +15,7 @@ export type NextClassResult =
 const ROOM_CODE_REGEX = /\b([A-Z]{1,6})-([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 const ROOM_REFERENCE_REGEX = /\bRM\.?\s+([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 const BUILDING_CODE_REGEX = /\(([A-Z]{1,6})\)/i;
-const BUILDING_NAME_REGEX = /^(.+?)\s+RM\.?\s+[A-Z]?\d{1,4}(?:\.\d+)?$/i;
+const ROOM_MARKER_REGEX = /\s+RM\.?\s+/i;
 
 const BUILDING_NAME_TO_CODE: Record<string, string> = {
     'FAUBOURG TOWER': 'FB',
@@ -35,12 +35,12 @@ function parseRoomCodeFromBuilderLocation(location: string): string | null {
         return `${buildingCodeMatch[1].toUpperCase()}-${roomMatch[1].toUpperCase()}`;
     }
 
-    const buildingNameMatch = BUILDING_NAME_REGEX.exec(locationSegment);
-    if (!buildingNameMatch) {
+    const roomMarkerMatch = ROOM_MARKER_REGEX.exec(locationSegment);
+    if (!roomMarkerMatch || roomMarkerMatch.index <= 0) {
         return null;
     }
 
-    const buildingName = buildingNameMatch[1].trim().toUpperCase();
+    const buildingName = locationSegment.slice(0, roomMarkerMatch.index).trim().toUpperCase();
     const buildingCode = BUILDING_NAME_TO_CODE[buildingName];
 
     if (!buildingCode) {

@@ -89,7 +89,7 @@ export function useGoogleCalendarEvents({
             mounted = false;
             clearInterval(timer);
         };
-    }, [defaultNowProvider, refreshIntervalMs]);
+    }, [nowProvider, refreshIntervalMs]);
 
     return {events, error, status};
 }
