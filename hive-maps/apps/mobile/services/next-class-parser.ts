@@ -12,54 +12,90 @@ export type NextClassResult =
     | {status: 'no_location'; event: CalendarEvent; startsAt: Date}
     | {status: 'none'};
 
+export type ParsedLocationReference = {
+    buildingCode: string | null;
+    buildingName: string | null;
+    roomCode: string | null;
+    roomNumber: string | null;
+};
+
 const ROOM_CODE_REGEX = /\b([A-Z]{1,6})-([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 const ROOM_REFERENCE_REGEX = /\bRM\.?\s+([A-Z]?\d{1,4}(?:\.\d+)?)\b/i;
 const BUILDING_CODE_REGEX = /\(([A-Z]{1,6})\)/i;
-const ROOM_MARKER_REGEX = /\s+RM\.?\s+/i;
 
-const BUILDING_NAME_TO_CODE: Record<string, string> = {
-    'FAUBOURG TOWER': 'FB',
-    'HALL BUILDING': 'H',
-    'JOHN MOLSON BUILDING': 'MB',
-};
+function getRoomMarkerIndex(locationSegment: string): number {
+    const upperSegment = locationSegment.toUpperCase();
+    const candidates = [' RM. ', ' RM '];
 
-function parseRoomCodeFromBuilderLocation(location: string): string | null {
+    for (const marker of candidates) {
+        const markerIndex = upperSegment.indexOf(marker);
+        if (markerIndex > 0) {
+            return markerIndex;
+        }
+    }
+
+    return -1;
+}
+
+function getRoomNumberFromRoomCode(roomCode: string): string | null {
+    const separatorIndex = roomCode.indexOf('-');
+    if (separatorIndex < 0 || separatorIndex === roomCode.length - 1) {
+        return null;
+    }
+
+    return roomCode.slice(separatorIndex + 1).toUpperCase();
+}
+
+export function parseLocationReference(location: string | null | undefined): ParsedLocationReference | null {
+    if (!location?.trim()) {
+        return null;
+    }
+
+    const explicitRoomCodeMatch = ROOM_CODE_REGEX.exec(location);
+    if (explicitRoomCodeMatch) {
+        const roomCode = explicitRoomCodeMatch[0].toUpperCase();
+        return {
+            buildingCode: roomCode.split('-')[0] ?? null,
+            buildingName: null,
+            roomCode,
+            roomNumber: getRoomNumberFromRoomCode(roomCode),
+        };
+    }
+
     const locationSegment = location.split(' - ').pop()?.trim() ?? location.trim();
     const roomMatch = ROOM_REFERENCE_REGEX.exec(locationSegment);
     if (!roomMatch) {
         return null;
     }
 
+    const roomNumber = roomMatch[1].toUpperCase();
+
     const buildingCodeMatch = BUILDING_CODE_REGEX.exec(locationSegment);
     if (buildingCodeMatch) {
-        return `${buildingCodeMatch[1].toUpperCase()}-${roomMatch[1].toUpperCase()}`;
+        const buildingCode = buildingCodeMatch[1].toUpperCase();
+        return {
+            buildingCode,
+            buildingName: null,
+            roomCode: `${buildingCode}-${roomNumber}`,
+            roomNumber,
+        };
     }
 
-    const roomMarkerMatch = ROOM_MARKER_REGEX.exec(locationSegment);
-    if (!roomMarkerMatch || roomMarkerMatch.index <= 0) {
+    const roomMarkerIndex = getRoomMarkerIndex(locationSegment);
+    if (roomMarkerIndex <= 0) {
         return null;
     }
 
-    const buildingName = locationSegment.slice(0, roomMarkerMatch.index).trim().toUpperCase();
-    const buildingCode = BUILDING_NAME_TO_CODE[buildingName];
-
-    if (!buildingCode) {
-        return null;
-    }
-
-    return `${buildingCode}-${roomMatch[1].toUpperCase()}`;
+    return {
+        buildingCode: null,
+        buildingName: locationSegment.slice(0, roomMarkerIndex).trim(),
+        roomCode: null,
+        roomNumber,
+    };
 }
 
 export function parseRoomCode(location: string | null | undefined): string | null {
-    if (!location?.trim()) {
-        return null;
-    }   
-    const match = ROOM_CODE_REGEX.exec(location);
-    if (!match) {
-        return parseRoomCodeFromBuilderLocation(location);
-    }
-
-    return match[0].toUpperCase();
+    return parseLocationReference(location)?.roomCode ?? null;
 } 
 
 function parseEventStart(event: CalendarEvent): Date | null {

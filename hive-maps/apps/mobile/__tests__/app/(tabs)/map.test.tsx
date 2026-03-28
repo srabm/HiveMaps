@@ -999,6 +999,31 @@ describe('next class prompt', () => {
             getByText("We couldn't find a room in COMP 445 Tutorial. Update the event location to continue.")
         ).toBeTruthy();
     });
+    it('renders a prompt for a builder-style location by resolving the building from points', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText, queryByText} = render(<MapScreen />);
+
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+        expect(queryByText('No location found')).toBeNull();
+    });
     it('dismisses the no-location status card', async () => {
         (useNextClass as jest.Mock).mockReturnValue({
             result: {

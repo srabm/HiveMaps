@@ -38,6 +38,7 @@ import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-na
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
 import { useNextClass } from '@/hooks/use-next-class';
+import { parseLocationReference, type NextClassResult } from '@/services/next-class-parser';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -120,30 +121,72 @@ function getBuildingCodeFromRoomCode(roomCode: string): string {
     return roomCode.split('-')[0]?.toUpperCase() ?? '';
 }
 
+function normalizeBuildingName(value: string): string {
+    return value
+        .toUpperCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/[^A-Z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function findBuildingPointByName(
+    buildingName: string,
+    points: ReturnType<typeof useNavigationController>['points']
+): ReturnType<typeof useNavigationController>['points'][number] | undefined {
+    const normalizedTarget = normalizeBuildingName(buildingName);
+
+    return points.find((point) => {
+        const normalizedCandidate = normalizeBuildingName(point.building.name);
+        return (
+            normalizedCandidate === normalizedTarget ||
+            normalizedCandidate.includes(normalizedTarget) ||
+            normalizedTarget.includes(normalizedCandidate)
+        );
+    });
+}
+
 function resolveNextClassDestination(
-    roomCode: string,
-    eventId: string,
-    eventSummary: string | undefined,
+    nextClassResult: NextClassResult,
     points: ReturnType<typeof useNavigationController>['points']
 ): ResolvedNextClassDestination | null {
-    const buildingCode = getBuildingCodeFromRoomCode(roomCode);
-    if (!buildingCode) {
+    if (nextClassResult.status === 'none') {
         return null;
     }
 
-    const matchingPoint = points.find(
-        (point) => point.building.code.toUpperCase() === buildingCode
-    );
+    const parsedLocation = nextClassResult.status === 'found'
+        ? {
+            buildingCode: getBuildingCodeFromRoomCode(nextClassResult.roomCode),
+            buildingName: null,
+            roomCode: nextClassResult.roomCode,
+            roomNumber: nextClassResult.roomCode.split('-').slice(1).join('-') || null,
+        }
+        : parseLocationReference(nextClassResult.event.location);
+
+    if (!parsedLocation?.roomNumber) {
+        return null;
+    }
+
+    const matchingPoint = parsedLocation.buildingCode
+        ? points.find(
+            (point) => point.building.code.toUpperCase() === parsedLocation.buildingCode
+        )
+        : parsedLocation.buildingName
+            ? findBuildingPointByName(parsedLocation.buildingName, points)
+            : undefined;
+
     if (!matchingPoint) {
         return null;
     }
+
+    const roomCode = parsedLocation.roomCode ?? `${matchingPoint.building.code.toUpperCase()}-${parsedLocation.roomNumber}`;
 
     return {
         buildingName: matchingPoint.building.name,
         campus: matchingPoint.building.campus,
         coordinates: matchingPoint.building.center,
-        eventId,
-        eventSummary: eventSummary ?? 'Your next class',
+        eventId: nextClassResult.event.id,
+        eventSummary: nextClassResult.event.summary ?? 'Your next class',
         roomCode,
     };
 }
@@ -327,16 +370,7 @@ export default function MapScreen() {
     } | null>(null);
 
     const nextClassDestination = useMemo(() => {
-        if (nextClassResult.status !== 'found') {
-            return null;
-        }
-
-        return resolveNextClassDestination(
-            nextClassResult.roomCode,
-            nextClassResult.event.id,
-            nextClassResult.event.summary,
-            points
-        );
+        return resolveNextClassDestination(nextClassResult, points);
     }, [nextClassResult, points]);
 
     const activeNextClassEventId = nextClassResult.status === 'none'
@@ -520,6 +554,7 @@ export default function MapScreen() {
         !isNavigating &&
         !seeDirectionBar &&
         nextClassResult.status === 'no_location' &&
+        !nextClassDestination &&
         dismissedNextClassEventId !== nextClassResult.event.id
     );
     const nextClassPromptBody = nextClassDestination

@@ -52,6 +52,13 @@ describe('useNextClass', () => {
         );
         expect(result.current.result.status).toBe('no_location');
     });
+    it('returns no_location for a builder-style location that needs building dataset resolution', () => {
+        const events = [makeEvent('e1', 30, 'Sir George Williams Campus - Hall Building Rm 920')];
+        const {result} = renderHook(() =>
+            useNextClass({events, nowProvider: fixedNow, refreshIntervalMs: 0})
+        );
+        expect(result.current.result.status).toBe('no_location');
+    });
     it('re-evaluates when the events array changes', () => {
         const {result, rerender} = renderHook(
             ({evts}: {evts: CalendarEvent[] | null}) =>

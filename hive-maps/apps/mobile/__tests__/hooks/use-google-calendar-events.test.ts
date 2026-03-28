@@ -2,6 +2,7 @@ import {act, renderHook, waitFor} from '@testing-library/react-native';
 
 import {useGoogleCalendarEvents} from '@/hooks/use-google-calendar-events';
 import {fetchUpcomingGoogleCalendarEvents} from '@/services/google-calendar';
+import type {CalendarEvent} from '@/services/next-class-parser';
 import {
     loadGoogleCalendarSelection,
     loadGoogleCalendarSession,
@@ -86,6 +87,28 @@ describe('useGoogleCalendarEvents', () => {
         expect(fetchUpcomingGoogleCalendarEvents).not.toHaveBeenCalled();
     });
 
+    it('does nothing if the session request resolves after unmount', async () => {
+        let resolveSession!: (value: {accessToken: string} | null) => void;
+        (loadGoogleCalendarSession as jest.Mock).mockReturnValue(
+            new Promise((resolve) => {
+                resolveSession = resolve;
+            })
+        );
+
+        const {unmount} = renderHook(() =>
+            useGoogleCalendarEvents({nowProvider, refreshIntervalMs: 0})
+        );
+
+        unmount();
+
+        await act(async () => {
+            resolveSession({accessToken: 'token'});
+            await Promise.resolve();
+        });
+
+        expect(fetchUpcomingGoogleCalendarEvents).not.toHaveBeenCalled();
+    });
+
     it('returns an empty result when no calendars are selected', async () => {
         (loadGoogleCalendarSelection as jest.Mock).mockResolvedValue({
             selectedCalendarIds: [],
@@ -120,6 +143,30 @@ describe('useGoogleCalendarEvents', () => {
         expect(result.current.error).toBe('Unable to load upcoming Google Calendar events right now.');
     });
 
+    it('does not update state if the events request resolves after unmount', async () => {
+        let resolveEvents!: (value: CalendarEvent[]) => void;
+        (fetchUpcomingGoogleCalendarEvents as jest.Mock).mockReturnValue(
+            new Promise((resolve) => {
+                resolveEvents = resolve;
+            })
+        );
+
+        const {unmount} = renderHook(() =>
+            useGoogleCalendarEvents({nowProvider, refreshIntervalMs: 0})
+        );
+
+        await waitFor(() => {
+            expect(fetchUpcomingGoogleCalendarEvents).toHaveBeenCalledTimes(1);
+        });
+
+        unmount();
+
+        await act(async () => {
+            resolveEvents([]);
+            await Promise.resolve();
+        });
+    });
+
     it('uses the fallback error message for unknown failures', async () => {
         (fetchUpcomingGoogleCalendarEvents as jest.Mock).mockRejectedValue('boom');
 
@@ -132,6 +179,30 @@ describe('useGoogleCalendarEvents', () => {
         });
 
         expect(result.current.error).toBe('Unable to load upcoming Google Calendar events right now.');
+    });
+
+    it('does not update state if the events request fails after unmount', async () => {
+        let rejectEvents!: (reason?: unknown) => void;
+        (fetchUpcomingGoogleCalendarEvents as jest.Mock).mockReturnValue(
+            new Promise((_, reject) => {
+                rejectEvents = reject;
+            })
+        );
+
+        const {unmount} = renderHook(() =>
+            useGoogleCalendarEvents({nowProvider, refreshIntervalMs: 0})
+        );
+
+        await waitFor(() => {
+            expect(fetchUpcomingGoogleCalendarEvents).toHaveBeenCalledTimes(1);
+        });
+
+        unmount();
+
+        await act(async () => {
+            rejectEvents(new Error('late failure'));
+            await Promise.resolve();
+        });
     });
 
     it('does not create a polling interval when refreshIntervalMs is 0', async () => {
