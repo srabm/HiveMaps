@@ -13,7 +13,7 @@ interface MapSearchBarProps {
     onClear?: () => void;
 }
 
-const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,onClear}) => {
+const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placeholder = "Search building, address, or classroom",onChangeText,onSelectBuilding,onClickButton,onClear}) => {
     const [listAppearance, setListAppearance] = useState<boolean>(true);
     const [suggestions, setSuggestions] = useState<MapLocation[]>([]);
     const sessionToken = useRef(Date.now().toString());

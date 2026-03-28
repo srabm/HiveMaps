@@ -39,7 +39,7 @@ describe('MapSearchBar tests', () => {
       <MapSearchBar toValue="Hall" />
     );
 
-    const input = getByPlaceholderText('Search building or address');
+    const input = getByPlaceholderText('Search building, address, or classroom');
     expect(input.props.value).toBe('Hall');
   });
 
@@ -51,7 +51,7 @@ describe('MapSearchBar tests', () => {
     );
 
     fireEvent.changeText(
-      getByPlaceholderText('Search building or address'),
+      getByPlaceholderText('Search building, address, or classroom'),
       'Hall'
     );
 
