@@ -35,7 +35,7 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
-import {POI,POICategory} from "@/components/ui/POICategory";
+import {POICategory,type POI} from "@/components/ui/POICategory";
 import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
 
 
@@ -862,8 +862,8 @@ export default function MapScreen() {
                     <POICategory
                         userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
                         radius={0.8}
-                        onSelectCategory={(category, pois) => setPoiMarkers(pois)}
-                        onClearCategory={() => setPoiMarkers([])}
+                        onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
+                        onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
                         marginTop={seeDirectionBar ? 11 : 65}
                     />
 

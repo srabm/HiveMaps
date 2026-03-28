@@ -78,6 +78,7 @@ export function POICategory({
 
         try{
             if (!userLocation ) return;
+            if(minLat === 0 && minLon === 0 && maxLat === 0 && maxLon === 0 ) return;
             const pois:POI[] | null = await mapboxMapsAdapter.categorySearch(category.id,userLocation,minLat,minLon,maxLat,maxLon);
             if(!pois)return;
             setActiveCategory(category.id);
