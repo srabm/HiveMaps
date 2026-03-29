@@ -21,6 +21,10 @@ export type FloorPlanViewerProps = Readonly<{
     onStepFloorChange?: (floor: string) => void
     buildingCode: string
     floorId: string
+    initialFromQuery?: string
+    initialToQuery?: string
+    initialFromNodeId?: string | null
+    initialToNodeId?: string | null
 }>
 
 type RoomFeatureProperties = {
@@ -372,7 +376,11 @@ export function FloorPlanViewer({
                                     onDirectionsActiveChange,
                                     onStepFloorChange,
                                     buildingCode,
-                                    floorId
+                                    floorId,
+                                    initialFromQuery = '',
+                                    initialToQuery = '',
+                                    initialFromNodeId = null,
+                                    initialToNodeId = null,
                                 }: FloorPlanViewerProps) {
       
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
@@ -380,10 +388,10 @@ export function FloorPlanViewer({
     const { accessible, setAccessible } = useIndoorNavigationState();
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
     const cameraRef = useRef<MapboxGL.Camera>(null);
-    const [fromQuery, setFromQuery] = useState('');
-    const [toQuery, setToQuery] = useState('');
-    const [fromNodeId, setFromNodeId] = useState<string | null>(null);
-    const [toNodeId, setToNodeId] = useState<string | null>(null);
+    const [fromQuery, setFromQuery] = useState(initialFromQuery);
+    const [toQuery, setToQuery] = useState(initialToQuery);
+    const [fromNodeId, setFromNodeId] = useState<string | null>(initialFromNodeId);
+    const [toNodeId, setToNodeId] = useState<string | null>(initialToNodeId);
     const [indoorSteps, setIndoorSteps] = useState<IndoorDirectionsResponse[] | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
@@ -408,7 +416,7 @@ export function FloorPlanViewer({
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
-    const nearestNodeResolvedRef = useRef(false);
+    const nearestNodeResolvedRef = useRef(Boolean(initialFromNodeId));
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
@@ -434,6 +442,10 @@ export function FloorPlanViewer({
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
+        if (fromNodeId) {
+            nearestNodeResolvedRef.current = true;
+            return;
+        }
         if (indoorSteps) return;
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
@@ -441,7 +453,7 @@ export function FloorPlanViewer({
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(coords[0], coords[1]);
         }
-    }, [buildingCode, floorId, indoorSteps, resolveNearestNode]);
+    }, [buildingCode, floorId, fromNodeId, indoorSteps, resolveNearestNode]);
 
     useEffect(() => {
         if (!fromNodeId || !toNodeId) {
@@ -475,12 +487,12 @@ export function FloorPlanViewer({
         const latitude: number = coords.latitude;
         userCoordsRef.current = [longitude, latitude];
         // Only trigger nearest-node once per floor load
-        if (!nearestNodeResolvedRef.current && !indoorSteps) {
+        if (!nearestNodeResolvedRef.current && !indoorSteps && !fromNodeId) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
         setUserLocation([longitude, latitude]);
-    }, [indoorSteps, resolveNearestNode]);
+    }, [fromNodeId, indoorSteps, resolveNearestNode]);
 
 
 

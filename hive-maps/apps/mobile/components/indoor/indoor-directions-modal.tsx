@@ -10,10 +10,10 @@ const MUTED       = "#AAAAAA";
 const BORDER      = "#EFEFEF";
 
 const { height: SCREEN_H } = Dimensions.get("window");
-const MIN_HEIGHT   = SCREEN_H * 0.3;
-const DEFAULT_HEIGHT = SCREEN_H * 0.5;
-const MAX_HEIGHT   = SCREEN_H * 0.85;
 const FIXED_H      = 195;
+const MIN_HEIGHT   = FIXED_H;
+const DEFAULT_HEIGHT = FIXED_H;
+const MAX_HEIGHT   = SCREEN_H * 0.85;
 
 
 const DIRECTION_IMAGES: Record<string, any> = {

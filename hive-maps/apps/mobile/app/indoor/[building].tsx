@@ -91,10 +91,14 @@ export function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFlo
 }
 
 export default function IndoorMapScreen() {
-  const { building, floor, campus } = useLocalSearchParams<{
+  const { building, floor, campus, fromNode, toNode, fromLabel, toLabel } = useLocalSearchParams<{
     building: string;
     floor?: string | string[];
     campus?: string | string[];
+    fromNode?: string | string[];
+    toNode?: string | string[];
+    fromLabel?: string | string[];
+    toLabel?: string | string[];
   }>();
   const router = useRouter();
 
@@ -104,6 +108,10 @@ export default function IndoorMapScreen() {
   );
   const campusParam = useMemo(() => normalizeFloorParam(campus), [campus]);
   const requestedFloor = useMemo(() => normalizeFloorParam(floor), [floor]);
+  const initialFromNodeId = useMemo(() => normalizeFloorParam(fromNode), [fromNode]);
+  const initialToNodeId = useMemo(() => normalizeFloorParam(toNode), [toNode]);
+  const initialFromQuery = useMemo(() => normalizeFloorParam(fromLabel) ?? '', [fromLabel]);
+  const initialToQuery = useMemo(() => normalizeFloorParam(toLabel) ?? '', [toLabel]);
 
   const [floors, setFloors] = useState<FloorSummary[]>([]);
   const [resolvedBuilding, setResolvedBuilding] = useState<SupportedIndoorBuilding | null>(null);
@@ -402,6 +410,10 @@ export default function IndoorMapScreen() {
           onStepFloorChange={handleStepFloorChange}
           buildingCode={buildingCode || ''}
           floorId={activeFloorId || ''}
+          initialFromQuery={initialFromQuery}
+          initialToQuery={initialToQuery}
+          initialFromNodeId={initialFromNodeId}
+          initialToNodeId={initialToNodeId}
         />
 
         {!!noticeMessage && (

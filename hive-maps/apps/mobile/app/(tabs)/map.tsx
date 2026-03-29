@@ -118,6 +118,14 @@ type ClassroomOrigin = {
 
 const ENTRANCE_PROXIMITY_METERS = 20;
 
+function getIndoorRouteEndpoints(steps: IndoorDirectionsResponse[]): { fromNodeId: string; toNodeId: string } | null {
+    const firstNode = steps[0]?.nodes?.[0];
+    const lastStep = steps[steps.length - 1];
+    const lastNode = lastStep?.nodes?.[lastStep.nodes.length - 1];
+    if (!firstNode || !lastNode) return null;
+    return { fromNodeId: firstNode.id, toNodeId: lastNode.id };
+}
+
 function getSelectedLocationLabel(mapLocation: MapLocation): string {
     if (mapLocation.kind === 'classroom') return mapLocation.name;
     return mapLocation.name + (mapLocation.address ? `, ${mapLocation.address}` : '');
@@ -222,6 +230,7 @@ function NavigationOverlay({
     const [isRecalculating, setIsRecalculating] = useState(false);
     const recalcInFlightRef = useRef(false);
     const initialLockDone = useRef(false);
+    const arrivalHandledRef = useRef(false);
 
     // Stable refs so the recalc effect doesn't re-fire when callbacks change identity
     const onRecalculatedRef = useRef(onRecalculated);
@@ -293,7 +302,12 @@ function NavigationOverlay({
     }, [followLiveLocation, stepNav.isOffRoute]);
 
     useEffect(() => {
-        if (!stepNav.arrived) return;
+        if (!stepNav.arrived) {
+            arrivalHandledRef.current = false;
+            return;
+        }
+        if (arrivalHandledRef.current) return;
+        arrivalHandledRef.current = true;
         onArrived?.();
     }, [onArrived, stepNav.arrived]);
 
@@ -365,7 +379,7 @@ export default function MapScreen() {
     const [navigationOrigin, setNavigationOrigin] = useState<Coordinates | null>(null);
     const [navigationUsesLiveLocation, setNavigationUsesLiveLocation] = useState(false);
     const activeDestinationCoordinates = routeToCoordinates ?? toCoordinates;
-    const destinationEntranceTarget = routeFromCoordinates ?? fromCoordinates;
+    const destinationEntranceTarget = navigationOrigin ?? routeFromCoordinates ?? fromCoordinates;
     // Snapshotted at onStartPress — never mutated by live hook re-fetches during navigation.
     const [activeSteps, setActiveSteps] = useState<Step[]>([]);
     const [activeShuttlePhaseBoundaries, setActiveShuttlePhaseBoundaries] = useState<ShuttlePhaseBoundaries | undefined>(undefined);
@@ -738,11 +752,33 @@ export default function MapScreen() {
         setIsNavigating(true);
     }, [activeIndoorSegment, directions, fromCoordinates, selectedMode, shuttleRouting]);
 
+    const openDestinationIndoorMap = useCallback(() => {
+        if (!classroomDestination || !destinationIndoorSteps) return;
+        const endpoints = getIndoorRouteEndpoints(destinationIndoorSteps);
+        if (!endpoints) return;
+
+        const startFloor = destinationIndoorSteps[0]?.nodes?.[0]?.floor;
+        const campusId = campusMeta?.id;
+        const campusQuery = campusId ? `&campus=${encodeURIComponent(campusId)}` : '';
+        const floorQuery = startFloor ? `?floor=${encodeURIComponent(startFloor)}${campusQuery}` : campusId ? `?campus=${encodeURIComponent(campusId)}` : '';
+        const fromLabel = encodeURIComponent('Building entrance');
+        const toLabel = encodeURIComponent(to);
+
+        setActiveIndoorSegment(null);
+        setIsNavigating(false);
+        setIndoorBeeCoordinates(null);
+        setSeeDirectionBar(false);
+
+        router.push(
+            `/indoor/${encodeURIComponent(classroomDestination.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}` as Href
+        );
+    }, [campusMeta, classroomDestination, destinationIndoorSteps, router, to]);
+
     const handleStartPress = useCallback(() => {
         const isShuttleMode = selectedMode === 'Shuttle';
         if (shouldStartDestinationIndoorOnly) {
             if (!destinationIndoorSteps) return;
-            setActiveIndoorSegment('destination');
+            openDestinationIndoorMap();
             return;
         }
         if (!isShuttleMode && !directions) return;
@@ -756,7 +792,7 @@ export default function MapScreen() {
         }
 
         beginOutdoorNavigation();
-    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
+    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
 
     const handleNavigationExit = useCallback(() => {
         setIsNavigating(false);
@@ -1195,8 +1231,7 @@ export default function MapScreen() {
                         if (!destinationIndoorSteps) return;
                         if (destinationIndoorHandoffDoneRef.current) return;
                         destinationIndoorHandoffDoneRef.current = true;
-                        setActiveIndoorSegment('destination');
-                        setIsNavigating(false);
+                        openDestinationIndoorMap();
                     }}
                     onRecalculated={(newDirections) => {
                         setDirections(newDirections);
@@ -1226,52 +1261,34 @@ export default function MapScreen() {
                 />
             )}
 
-            {activeIndoorSegment === 'destination' && destinationIndoorSteps && (
-                <DirectionsModal
-                    visible={true}
-                    steps={destinationIndoorSteps}
-                    origin="Building entrance"
-                    destination={to}
-                    onArrived={() => {
-                        setActiveIndoorSegment(null);
-                        handleNavigationExit();
-                    }}
-                    onCurrentNodeChange={(node) => {
-                        setIndoorBeeCoordinates([node.longitude, node.latitude]);
-                    }}
-                    onClose={() => {
-                        setActiveIndoorSegment(null);
-                        setIndoorBeeCoordinates(null);
+            {!activeIndoorSegment && (
+                <LocateMeButton
+                    style={styles.locateButton}
+                    onPress={async () => {
+                        if (cameraRef.current && userLocation) {
+                            cameraRef.current.setCamera({
+                                centerCoordinate: userLocation,
+                                zoomLevel: Math.max(campusMeta.zoom, 17),
+                                animationDuration: 600,
+                            });
+                            return;
+                        }
+                        if (
+                            Platform.OS === 'android' &&
+                            locationPermissionStatus !== 'granted' &&
+                            typeof MapboxGL.requestAndroidLocationPermissions === 'function'
+                        ) {
+                            const granted = await MapboxGL.requestAndroidLocationPermissions();
+                            if (granted) {
+                                setLocationPermissionStatus('granted');
+                                return;
+                            }
+                            setLocationPermissionStatus('denied');
+                        }
+                        setShowLocationPrompt(true);
                     }}
                 />
             )}
-
-            <LocateMeButton
-                style={styles.locateButton}
-                onPress={async () => {
-                    if (cameraRef.current && userLocation) {
-                        cameraRef.current.setCamera({
-                            centerCoordinate: userLocation,
-                            zoomLevel: Math.max(campusMeta.zoom, 17),
-                            animationDuration: 600,
-                        });
-                        return;
-                    }
-                    if (
-                        Platform.OS === 'android' &&
-                        locationPermissionStatus !== 'granted' &&
-                        typeof MapboxGL.requestAndroidLocationPermissions === 'function'
-                    ) {
-                        const granted = await MapboxGL.requestAndroidLocationPermissions();
-                        if (granted) {
-                            setLocationPermissionStatus('granted');
-                            return;
-                        }
-                        setLocationPermissionStatus('denied');
-                    }
-                    setShowLocationPrompt(true);
-                }}
-            />
 
             <Modal
                 transparent
