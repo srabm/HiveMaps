@@ -359,6 +359,32 @@ describe('mapboxMapsAdapter.categorySearch', () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
+    it('returns null when the api coordinates is returned as null', async () => {
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: true,
+            json: jest.fn().mockResolvedValue({
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": { "coordinates": null, "type": "Point" },
+                        "properties": {
+                            "name": "Stonehouse Cellars",
+                            "full_address": "500 Old Long Valley Rd, Clearlake Oaks, California 95423, United States of America",
+                            "coordinates": { "latitude": 39.029528, "longitude": -122.582748 },
+                            "metadata": { "phone": "+1-123-456-7890" }
+                        }
+                    }
+                ]
+            }),
+        });
+
+        const result = await mapboxMapsAdapter.categorySearch(mockCategoryID, mockUserCoordinates, minLat, minLon, maxLat, maxLon);
+
+        expect(result).toEqual([null]);
+        expect(global.fetch).toHaveBeenCalled();
+    });
+
     it('returns null when features array is missing', async () => {
         (global.fetch as jest.Mock).mockResolvedValue({
             ok: true,

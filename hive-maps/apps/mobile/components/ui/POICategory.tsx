@@ -117,6 +117,20 @@ export function POICategory({
                         <Text style={styles.chipClearLabel}>✕</Text>
                     </TouchableOpacity>
                 )}
+                <View style={styles.radiusChip}>
+                    <Text style={styles.radiusUnit}>km</Text>
+                    <TextInput
+                        style={styles.radiusInput}
+                        value={radiusKm}
+                        onChangeText={handleRadiusChange}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                        placeholder="1"
+                        placeholderTextColor="#aaa"
+                        selectTextOnFocus
+                        testID="radius-input"
+                    />
+                </View>
                 {CATEGORIES.map((category) => {
                     const isActive = activeCategory === category.id;
                     return (
@@ -132,20 +146,7 @@ export function POICategory({
                         </TouchableOpacity>
                     );
                 })}
-                <View style={styles.radiusChip}>
-                    <Text style={styles.radiusUnit}>km</Text>
-                    <TextInput
-                        style={styles.radiusInput}
-                        value={radiusKm}
-                        onChangeText={handleRadiusChange}
-                        keyboardType="number-pad"
-                        maxLength={3}
-                        placeholder="1"
-                        placeholderTextColor="#aaa"
-                        selectTextOnFocus
-                        testID="radius-input"
-                    />
-                </View>
+
             </ScrollView>
         </View>
     );

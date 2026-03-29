@@ -858,14 +858,14 @@ export default function MapScreen() {
                         }}
                     />
                 }
-
+                    {(!isNavigating && !toCoordinates && !fromCoordinates) &&
                     <POICategory
                         userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
                         radius={0.8}
                         onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
                         onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
                         marginTop={seeDirectionBar ? 11 : 65}
-                    />
+                    />}
 
                 </>
                 )}
