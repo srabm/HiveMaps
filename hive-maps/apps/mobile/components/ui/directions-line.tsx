@@ -8,6 +8,7 @@ type Position = [number, number];
 
 interface DirectionsDisplayProps {
     directions: DirectionsResponse;
+    coordinatesOverride?: Position[];
     sourceId?: string;
     layerId?: string;
     endpointId?: string;
@@ -85,6 +86,7 @@ const dedupeConsecutiveCoordinates = (points: Position[]): Position[] => {
 
 export function DirectionsLine({
                                    directions,
+                                   coordinatesOverride,
                                    sourceId = 'directions-source',
                                    layerId = 'directions-layer',
                                    endpointId,
@@ -100,6 +102,10 @@ export function DirectionsLine({
 
 
     const coordinates = useMemo(() => {
+        if (coordinatesOverride?.length) {
+            return dedupeConsecutiveCoordinates(coordinatesOverride);
+        }
+
         if (useIndoorData && IndoorDirections) {
             return dedupeConsecutiveCoordinates(IndoorDirections.flatMap((step) =>
                 step.nodes.map((node) => [node.longitude, node.latitude] as [number, number])
@@ -111,7 +117,7 @@ export function DirectionsLine({
         }
 
         return [];
-    }, [directions, IndoorDirections, useIndoorData]);
+    }, [coordinatesOverride, directions, IndoorDirections, useIndoorData]);
 
     const featureCollection = useMemo(
         () => {

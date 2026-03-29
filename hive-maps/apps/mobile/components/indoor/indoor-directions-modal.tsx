@@ -83,7 +83,11 @@ function getThenLabel(nextStep: IndoorDirectionsResponse | null): string {
     }
 
     const distanceLabel = nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : "";
-    return `Then: ${nextStep.description}${distanceLabel}`;
+    return `Then: ${stripTrailingDistance(nextStep.description)}${distanceLabel}`;
+}
+
+function stripTrailingDistance(description: string): string {
+    return description.replace(/\s+\d+(?:\.\d+)?m$/i, '').trim();
 }
 
 function renderExpandedSteps(
@@ -100,7 +104,7 @@ function renderExpandedSteps(
                 />
             </View>
             <View style={styles.stepTextWrap}>
-                <Text style={styles.stepTitle}>{step.description}</Text>
+                <Text style={styles.stepTitle}>{stripTrailingDistance(step.description)}</Text>
                 {step.distance > 0 ? <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text> : null}
                 {step.nodes[0]?.floor ? (
                     <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} - {step.nodes[0].building}</Text>
@@ -272,7 +276,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                         />
                     </View>
                     <View style={styles.stepTextWrap}>
-                        <Text style={styles.stepTitle}>{currentStep.description}</Text>
+                        <Text style={styles.stepTitle}>{stripTrailingDistance(currentStep.description)}</Text>
                         {currentStep.distance > 0 ? <Text style={styles.stepSub}>{currentStep.distance.toFixed(1)} m</Text> : null}
                         {currentStep.nodes[0]?.floor ? (
                             <Text style={styles.stepFloor}>Floor {currentStep.nodes[0].floor} - {currentStep.nodes[0].building}</Text>
@@ -449,7 +453,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#EEEEEE",
     },
-    thenText: { flex: 1, fontSize: 14, color: MUTED, fontWeight: "600" },
+    thenText: { flex: 1, fontSize: 14, color: "#4B5563", fontWeight: "600" },
     thenChevron: { fontSize: 14, color: MUTED, fontWeight: "700" },
     expandedSteps: { maxHeight: 240 },
     preStartContainer: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 12 },

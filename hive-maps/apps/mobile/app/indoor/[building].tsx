@@ -91,7 +91,7 @@ export function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFlo
 }
 
 export default function IndoorMapScreen() {
-  const { building, floor, campus, fromNode, toNode, fromLabel, toLabel } = useLocalSearchParams<{
+  const { building, floor, campus, fromNode, toNode, fromLabel, toLabel, resumeSession, completeSession } = useLocalSearchParams<{
     building: string;
     floor?: string | string[];
     campus?: string | string[];
@@ -99,6 +99,8 @@ export default function IndoorMapScreen() {
     toNode?: string | string[];
     fromLabel?: string | string[];
     toLabel?: string | string[];
+    resumeSession?: string | string[];
+    completeSession?: string | string[];
   }>();
   const router = useRouter();
 
@@ -112,6 +114,8 @@ export default function IndoorMapScreen() {
   const initialToNodeId = useMemo(() => normalizeFloorParam(toNode), [toNode]);
   const initialFromQuery = useMemo(() => normalizeFloorParam(fromLabel) ?? '', [fromLabel]);
   const initialToQuery = useMemo(() => normalizeFloorParam(toLabel) ?? '', [toLabel]);
+  const resumeSessionId = useMemo(() => normalizeFloorParam(resumeSession), [resumeSession]);
+  const completeSessionId = useMemo(() => normalizeFloorParam(completeSession), [completeSession]);
 
   const [floors, setFloors] = useState<FloorSummary[]>([]);
   const [resolvedBuilding, setResolvedBuilding] = useState<SupportedIndoorBuilding | null>(null);
@@ -414,6 +418,8 @@ export default function IndoorMapScreen() {
           initialToQuery={initialToQuery}
           initialFromNodeId={initialFromNodeId}
           initialToNodeId={initialToNodeId}
+          resumeSessionId={resumeSessionId}
+          completeSessionId={completeSessionId}
         />
 
         {!!noticeMessage && (

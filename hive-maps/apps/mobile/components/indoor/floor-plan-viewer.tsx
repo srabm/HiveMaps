@@ -11,6 +11,8 @@ import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
+import { markDestinationIndoorSessionCompleted, markOriginIndoorSessionCompleted } from '@/state/indoor-route-handoff';
+import { useRouter } from 'expo-router';
 
 export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
@@ -25,6 +27,8 @@ export type FloorPlanViewerProps = Readonly<{
     initialToQuery?: string
     initialFromNodeId?: string | null
     initialToNodeId?: string | null
+    resumeSessionId?: string | null
+    completeSessionId?: string | null
 }>
 
 type RoomFeatureProperties = {
@@ -381,8 +385,10 @@ export function FloorPlanViewer({
                                     initialToQuery = '',
                                     initialFromNodeId = null,
                                     initialToNodeId = null,
+                                    resumeSessionId = null,
+                                    completeSessionId = null,
                                 }: FloorPlanViewerProps) {
-      
+  const router = useRouter();
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
   
     const { accessible, setAccessible } = useIndoorNavigationState();
@@ -433,6 +439,7 @@ export function FloorPlanViewer({
         try {
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId, accessible);
             setIndoorSteps(steps);
+            setCurrentNode(steps[0]?.nodes?.[0] ?? null);
         } catch (err) {
             console.warn('[IndoorDirections] No directions found:', err);
             setIndoorSteps(null);
@@ -765,6 +772,7 @@ export function FloorPlanViewer({
                   iconSize: 0.25,
                   iconAllowOverlap: true,
                   iconAnchor: 'center',
+                  iconOffset: [8, 8],
                 }}
               />
             </MapboxGL.ShapeSource>
@@ -832,6 +840,16 @@ export function FloorPlanViewer({
                 });
             }}
             onClose={() => {
+                if (resumeSessionId) {
+                    markOriginIndoorSessionCompleted(resumeSessionId);
+                    router.back();
+                    return;
+                }
+                if (completeSessionId) {
+                    markDestinationIndoorSessionCompleted(completeSessionId);
+                    router.back();
+                    return;
+                }
                 setFromQuery(toQuery);
                 setFromNodeId(toNodeId);
                 setToQuery('');

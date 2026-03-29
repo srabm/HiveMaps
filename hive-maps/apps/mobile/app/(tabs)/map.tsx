@@ -29,7 +29,6 @@ import {
     getDirections,
 } from '@/services/maps/directions-api-adapter';
 import {fetchIndoorDirections, fetchIndoorEntrances, type IndoorDirectionsResponse, type IndoorNodeResponse} from '@/services/http/indoor-api';
-import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, getNearestCampus, type ValidationResult} from '@/services/maps/route-validator';
@@ -37,6 +36,8 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import { useFocusEffect } from '@react-navigation/native';
+import { consumeCompletedDestinationIndoorSession, consumeCompletedOriginIndoorSession } from '@/state/indoor-route-handoff';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -377,6 +378,9 @@ export default function MapScreen() {
     const [pendingStartSegment, setPendingStartSegment] = useState<'origin' | null>(null);
     const fromCoordinatesIsUserLocation = useRef(false);
     const destinationIndoorHandoffDoneRef = useRef(false);
+    const originIndoorSessionIdRef = useRef<string | null>(null);
+    const destinationIndoorSessionIdRef = useRef<string | null>(null);
+    const resumeOutdoorFromIndoorRef = useRef(false);
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
@@ -461,9 +465,11 @@ export default function MapScreen() {
 
         async function resolveOriginIndoorLeg() {
             setOriginIndoorSteps(null);
-            setRouteFromCoordinates((current) => (areCoordinatesEqual(current, fromCoordinates) ? current : fromCoordinates));
 
-            if (!classroomOrigin || !fromCoordinates) return;
+            if (!classroomOrigin || !fromCoordinates) {
+                setRouteFromCoordinates((current) => (areCoordinatesEqual(current, fromCoordinates) ? current : fromCoordinates));
+                return;
+            }
 
             try {
                 const entrances = await fetchIndoorEntrances(classroomOrigin.buildingCode);
@@ -499,9 +505,11 @@ export default function MapScreen() {
 
         async function resolveDestinationIndoorLeg() {
             setDestinationIndoorSteps(null);
-            setRouteToCoordinates((current) => (areCoordinatesEqual(current, toCoordinates) ? current : toCoordinates));
 
-            if (!classroomDestination || !toCoordinates) return;
+            if (!classroomDestination || !toCoordinates) {
+                setRouteToCoordinates((current) => (areCoordinatesEqual(current, toCoordinates) ? current : toCoordinates));
+                return;
+            }
 
             try {
                 const entrances = await fetchIndoorEntrances(classroomDestination.buildingCode);
@@ -531,14 +539,6 @@ export default function MapScreen() {
             active = false;
         };
     }, [classroomDestination, destinationEntranceTarget, toCoordinates]);
-
-    useEffect(() => {
-        if (pendingStartSegment !== 'origin') return;
-        if (!originIndoorSteps) return;
-
-        setPendingStartSegment(null);
-        setActiveIndoorSegment('origin');
-    }, [originIndoorSteps, pendingStartSegment]);
 
     useEffect(() => {
         const indoorSteps =
@@ -577,6 +577,35 @@ export default function MapScreen() {
         if (!routeFromCoordinates || !routeToCoordinates) return false;
         return Boolean(directions) || shouldStartDestinationIndoorOnly;
     }, [activeIndoorSegment, directions, isNavigating, routeFromCoordinates, routeToCoordinates, shouldStartDestinationIndoorOnly]);
+
+    const showOutdoorConnectors = useMemo(() => {
+        if (selectedMode !== 'Drive' || activeIndoorSegment) return false;
+        return Boolean(directions) && (showRouteOverview || isNavigating);
+    }, [activeIndoorSegment, directions, isNavigating, selectedMode, showRouteOverview]);
+
+    const originOutdoorConnector = useMemo(() => {
+        if (!showOutdoorConnectors || !directions) return null;
+        const originIndoorEndNode = originIndoorSteps?.at(-1)?.nodes?.at(-1);
+        if (!originIndoorEndNode) return null;
+        const originIndoorEndCoordinates: Coordinates = [originIndoorEndNode.longitude, originIndoorEndNode.latitude];
+        const outdoorStartStep = directions.steps[0];
+        if (!outdoorStartStep) return null;
+        const outdoorStartCoordinates: Coordinates = [outdoorStartStep.startLocation.longitude, outdoorStartStep.startLocation.latitude];
+        if (areCoordinatesEqual(originIndoorEndCoordinates, outdoorStartCoordinates)) return null;
+        return [originIndoorEndCoordinates, outdoorStartCoordinates] as Coordinates[];
+    }, [directions, originIndoorSteps, showOutdoorConnectors]);
+
+    const destinationOutdoorConnector = useMemo(() => {
+        if (!showOutdoorConnectors || !directions) return null;
+        const destinationIndoorStartNode = destinationIndoorSteps?.[0]?.nodes?.[0];
+        if (!destinationIndoorStartNode) return null;
+        const destinationIndoorStartCoordinates: Coordinates = [destinationIndoorStartNode.longitude, destinationIndoorStartNode.latitude];
+        const outdoorEndStep = directions.steps[directions.steps.length - 1];
+        if (!outdoorEndStep) return null;
+        const outdoorEndCoordinates: Coordinates = [outdoorEndStep.endLocation.longitude, outdoorEndStep.endLocation.latitude];
+        if (areCoordinatesEqual(outdoorEndCoordinates, destinationIndoorStartCoordinates)) return null;
+        return [outdoorEndCoordinates, destinationIndoorStartCoordinates] as Coordinates[];
+    }, [destinationIndoorSteps, directions, showOutdoorConnectors]);
 
     const shuttleRouting = useShuttleRouting({
         enabled: selectedMode === 'Shuttle' && !isSameCampusRoute && !isNavigating,
@@ -743,7 +772,8 @@ export default function MapScreen() {
         setIndoorBeeCoordinates(null);
         destinationIndoorHandoffDoneRef.current = false;
         setNavigationOrigin(routeFromCoordinates ?? fromCoordinates);
-        setNavigationUsesLiveLocation(fromCoordinatesIsUserLocation.current || activeIndoorSegment === 'origin');
+        setNavigationUsesLiveLocation(fromCoordinatesIsUserLocation.current || activeIndoorSegment === 'origin' || resumeOutdoorFromIndoorRef.current);
+        resumeOutdoorFromIndoorRef.current = false;
         setActiveSteps(steps);
         setActiveShuttlePhaseBoundaries(
             isShuttleMode
@@ -765,6 +795,28 @@ export default function MapScreen() {
         setIsNavigating(true);
     }, [activeIndoorSegment, directions, fromCoordinates, routeFromCoordinates, selectedMode, shuttleRouting]);
 
+    const openOriginIndoorMap = useCallback(() => {
+        if (!classroomOrigin || !originIndoorSteps) return;
+        const endpoints = getIndoorRouteEndpoints(originIndoorSteps);
+        if (!endpoints) return;
+
+        const startFloor = originIndoorSteps[0]?.nodes?.[0]?.floor;
+        const campusId = campusMeta?.id;
+        const campusQuery = campusId ? `&campus=${encodeURIComponent(campusId)}` : '';
+        const floorQuery = startFloor ? `?floor=${encodeURIComponent(startFloor)}${campusQuery}` : campusId ? `?campus=${encodeURIComponent(campusId)}` : '';
+        const fromLabel = encodeURIComponent(from);
+        const toLabel = encodeURIComponent('Building exit');
+        const sessionId = `${Date.now()}`;
+
+        originIndoorSessionIdRef.current = sessionId;
+        setIndoorBeeCoordinates(null);
+        setSeeDirectionBar(false);
+
+        router.push(
+            `/indoor/${encodeURIComponent(classroomOrigin.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&resumeSession=${encodeURIComponent(sessionId)}` as Href
+        );
+    }, [campusMeta, classroomOrigin, from, originIndoorSteps, router]);
+
     const openDestinationIndoorMap = useCallback(() => {
         if (!classroomDestination || !destinationIndoorSteps) return;
         const endpoints = getIndoorRouteEndpoints(destinationIndoorSteps);
@@ -776,16 +828,26 @@ export default function MapScreen() {
         const floorQuery = startFloor ? `?floor=${encodeURIComponent(startFloor)}${campusQuery}` : campusId ? `?campus=${encodeURIComponent(campusId)}` : '';
         const fromLabel = encodeURIComponent('Building entrance');
         const toLabel = encodeURIComponent(to);
+        const sessionId = `${Date.now()}`;
 
         setActiveIndoorSegment(null);
         setIsNavigating(false);
         setIndoorBeeCoordinates(null);
         setSeeDirectionBar(false);
+        destinationIndoorSessionIdRef.current = sessionId;
 
         router.push(
-            `/indoor/${encodeURIComponent(classroomDestination.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}` as Href
+            `/indoor/${encodeURIComponent(classroomDestination.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&completeSession=${encodeURIComponent(sessionId)}` as Href
         );
     }, [campusMeta, classroomDestination, destinationIndoorSteps, router, to]);
+
+    useEffect(() => {
+        if (pendingStartSegment !== 'origin') return;
+        if (!originIndoorSteps) return;
+
+        setPendingStartSegment(null);
+        openOriginIndoorMap();
+    }, [openOriginIndoorMap, originIndoorSteps, pendingStartSegment]);
 
     const handleStartPress = useCallback(() => {
         const isShuttleMode = selectedMode === 'Shuttle';
@@ -795,7 +857,7 @@ export default function MapScreen() {
             return;
         }
         if (classroomOrigin && originIndoorSteps) {
-            setActiveIndoorSegment('origin');
+            openOriginIndoorMap();
             return;
         }
         if (classroomOrigin) {
@@ -805,7 +867,17 @@ export default function MapScreen() {
         if (!isShuttleMode && !directions) return;
 
         beginOutdoorNavigation();
-    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
+    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, openOriginIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!consumeCompletedOriginIndoorSession(originIndoorSessionIdRef.current)) return undefined;
+            resumeOutdoorFromIndoorRef.current = true;
+            beginOutdoorNavigation();
+            originIndoorSessionIdRef.current = null;
+            return undefined;
+        }, [beginOutdoorNavigation]),
+    );
 
     const handleNavigationExit = useCallback(() => {
         setIsNavigating(false);
@@ -836,6 +908,15 @@ export default function MapScreen() {
 
     // Mid-route "End" — stop navigating but restore the pre-filled search state
     // so the user lands back on the NavigationBottom with their origin/destination intact.
+    useFocusEffect(
+        useCallback(() => {
+            if (!consumeCompletedDestinationIndoorSession(destinationIndoorSessionIdRef.current)) return undefined;
+            destinationIndoorSessionIdRef.current = null;
+            handleNavigationExit();
+            return undefined;
+        }, [handleNavigationExit]),
+    );
+
     const handleNavigationExitMidRoute = useCallback(() => {
         setIsNavigating(false);
         if (toCoordinates) {
@@ -1022,6 +1103,34 @@ export default function MapScreen() {
                         showEndpoints={false}
                         useIndoorData={true}
                         IndoorDirections={destinationIndoorSteps}
+                    />
+                )}
+                {originOutdoorConnector && (
+                    <DirectionsLine
+                        directions={buildIndoorSummary(originIndoorSteps ?? [])}
+                        coordinatesOverride={originOutdoorConnector}
+                        sourceId="origin-outdoor-connector-source"
+                        layerId="origin-outdoor-connector-layer"
+                        endpointId="origin-outdoor-connector-endpoints"
+                        lineColor="#9ca3af"
+                        lineWidth={3}
+                        lineDasharray={[1.5, 1.5]}
+                        showInfoCard={false}
+                        showEndpoints={false}
+                    />
+                )}
+                {destinationOutdoorConnector && (
+                    <DirectionsLine
+                        directions={buildIndoorSummary(destinationIndoorSteps ?? [])}
+                        coordinatesOverride={destinationOutdoorConnector}
+                        sourceId="destination-outdoor-connector-source"
+                        layerId="destination-outdoor-connector-layer"
+                        endpointId="destination-outdoor-connector-endpoints"
+                        lineColor="#9ca3af"
+                        lineWidth={3}
+                        lineDasharray={[1.5, 1.5]}
+                        showInfoCard={false}
+                        showEndpoints={false}
                     />
                 )}
                 {selectedMode === 'Shuttle' && (
@@ -1248,26 +1357,6 @@ export default function MapScreen() {
                         setActiveSteps(newDirections.steps ?? []);
                     }}
                     onExit={handleNavigationExitMidRoute}
-                />
-            )}
-
-            {activeIndoorSegment === 'origin' && originIndoorSteps && (
-                <DirectionsModal
-                    visible={true}
-                    steps={originIndoorSteps}
-                    origin={from}
-                    destination="Building exit"
-                    onArrived={() => {
-                        setActiveIndoorSegment(null);
-                        beginOutdoorNavigation();
-                    }}
-                    onCurrentNodeChange={(node) => {
-                        setIndoorBeeCoordinates([node.longitude, node.latitude]);
-                    }}
-                    onClose={() => {
-                        setActiveIndoorSegment(null);
-                        setIndoorBeeCoordinates(null);
-                    }}
                 />
             )}
 
