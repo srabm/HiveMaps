@@ -37,7 +37,6 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
-import type { CampusId } from '@/types/campus';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -96,7 +95,7 @@ type BuildingDetails = {
 
 type SelectedBuilding = {
     code?: string;
-    campus?: CampusId;
+    campus?: string;
     name?: string;
     addresses?: string[];
     coordinates?: Coordinates;
@@ -312,6 +311,7 @@ function NavigationOverlay({
             isRecalculating={isRecalculating}
             shuttlePhase={stepNav.shuttlePhase}
             onExit={() => { onExit(); stepNav.reset(); }}
+            onArrived={() => { onArrived?.(); stepNav.reset(); }}
         />
     );
 }
@@ -781,6 +781,20 @@ export default function MapScreen() {
         setActiveShuttleLegs(null);
     }, [activeDestinationCoordinates, campusMetaById, setCampus]);
 
+    // Mid-route "End" — stop navigating but restore the pre-filled search state
+    // so the user lands back on the NavigationBottom with their origin/destination intact.
+    const handleNavigationExitMidRoute = useCallback(() => {
+        setIsNavigating(false);
+        if (toCoordinates) {
+            const nearest = getNearestCampus(toCoordinates[0], toCoordinates[1], campusMetaById);
+            if (nearest) setCampus(nearest);
+        }
+        setSeeDirectionBar(true);
+        setActiveSteps([]);
+        setActiveShuttlePhaseBoundaries(undefined);
+        setActiveShuttleLegs(null);
+        // from, fromCoordinates, to, toCoordinates, directions — intentionally preserved
+    }, [toCoordinates, campusMetaById, setCampus]);
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
         const f = e.features[0];
@@ -978,6 +992,13 @@ export default function MapScreen() {
              {!isNavigating && !activeIndoorSegment && (
                   <View style={styles.topBar}>
                       <CampusBadge campus={campusMeta}/>
+                      <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push('/account' as Href)}
+                          style={[styles.accountButton, {backgroundColor: theme.background}]}
+                      >
+                          <Text style={[styles.accountButtonText, {color: theme.text}]}>Calendar</Text>
+                      </Pressable>
                   </View>
               )}
 
@@ -1181,7 +1202,7 @@ export default function MapScreen() {
                         setDirections(newDirections);
                         setActiveSteps(newDirections.steps ?? []);
                     }}
-                    onExit={handleNavigationExit}
+                    onExit={handleNavigationExitMidRoute}
                 />
             )}
 
@@ -1386,6 +1407,20 @@ const styles = StyleSheet.create({
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
+    },
+    accountButton: {
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    accountButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     switchContainer: {
         position: 'absolute',

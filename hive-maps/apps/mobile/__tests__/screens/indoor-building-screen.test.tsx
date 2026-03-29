@@ -30,13 +30,16 @@ jest.mock('@/components/indoor/floor-plan-viewer', () => {
   const { Pressable, Text, View } = require('react-native');
 
   return {
-    FloorPlanViewer: ({ planGeometry, rooms, selectedRoomId, onPressRoom }: any) => (
+    FloorPlanViewer: ({ planGeometry, rooms, selectedRoomId, onPressRoom, onStepFloorChange }: any) => (
       <View testID="mock-floor-plan-viewer">
         <Text>{`PlanType:${planGeometry?.type ?? 'none'}`}</Text>
         <Text>{`RoomCount:${rooms?.features?.length ?? 0}`}</Text>
         <Text>{`Selected:${selectedRoomId ?? 'none'}`}</Text>
         <Pressable testID="mock-room-press" onPress={() => onPressRoom?.('R-101')}>
           <Text>Select Room</Text>
+        </Pressable>
+        <Pressable testID="mock-step-floor-change" onPress={() => onStepFloorChange?.('2')}>
+          <Text>Step Floor 2</Text>
         </Pressable>
       </View>
     ),
@@ -252,6 +255,29 @@ describe('Indoor building screen', () => {
     });
   });
 
+  it('auto-switches selected floor when turn-by-turn step reports another floor', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([
+      { id: '1', label: 'L1', sortOrder: 1 },
+      { id: '2', label: 'L2', sortOrder: 2 },
+    ]);
+    mockFetchFloorDetails.mockImplementation(
+      async (_campusId: string, _buildingCode: string, floorId: string) => makeFloorDetails(floorId, `L${floorId}`)
+    );
+
+    const { getByTestId } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '1');
+    });
+
+    fireEvent.press(getByTestId('mock-step-floor-change'));
+
+    await waitFor(() => {
+      expect(mockFetchFloorDetails).toHaveBeenCalledWith('SGW', 'H', '2');
+      expect(getByTestId('floor-chip-2-active')).toBeTruthy();
+    });
+  });
+
   it('switches to another available floor when the current floor details are missing', async () => {
     mockFetchBuildingFloors.mockResolvedValue([
       { id: '1', label: 'L1', sortOrder: 1 },
@@ -354,6 +380,35 @@ describe('Indoor building screen', () => {
     await waitFor(() => {
       expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
       expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
+    });
+  });
+  it('shows floor-details error when selected floor request fails', async () => {
+    mockFetchBuildingFloors.mockResolvedValue([{ id: '1', label: 'L1', sortOrder: 1 }]);
+    mockFetchFloorDetails.mockRejectedValue(new Error('network'));
+
+    const { getByText } = render(<IndoorMapScreen />);
+
+    await waitFor(() => {
+      expect(mockFetchSupportedIndoorBuildings).toHaveBeenCalled();
+      expect(getByText('Could not load floor 1. Please try again.')).toBeTruthy();
+    });
+  });
+
+  it('calls router.back() when the back button is pressed', () => {
+    const { getByTestId } = render(<IndoorMapScreen />);
+  
+    fireEvent.press(getByTestId('indoor-back-button'));
+    
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers handleMissingBuilding when buildingCode is completely unsupported', async () => {
+    mockFetchSupportedIndoorBuildings.mockResolvedValue([]);
+    
+    const { getByText } = render(<IndoorMapScreen />);
+    
+    await waitFor(() => {
+       expect(getByText('This building does not currently support indoor maps.')).toBeTruthy();
     });
   });
 });

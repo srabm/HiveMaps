@@ -1,10 +1,10 @@
 import type * as GeoJSON from 'geojson'
 import { MapboxGL } from '@/services/mapbox'
 
-export type RoomLabelLayerProps = {
+export type RoomLabelLayerProps = Readonly<{
   rooms?: GeoJSON.FeatureCollection | null
   selectedRoomId?: string | null
-}
+}>
 
 export function RoomLabelLayer({ rooms, selectedRoomId }: RoomLabelLayerProps) {
   if (!rooms) return null

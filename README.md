@@ -217,6 +217,8 @@ Frontend (`hive-maps/apps/mobile/.env`):
 - `EXPO_PUBLIC_MAPBOX_TOKEN`: Mapbox access token (required to render maps + geocode markers).
 - `RNMAPBOX_MAPS_DOWNLOAD_TOKEN`: Mapbox "downloads:read" token (required for native builds with `@rnmapbox/maps`).
 - `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`: Google Maps api key (same as `GOOGLE_PLACES_API_KEY`)
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: Google OAuth Web client ID for Google Sign-In and Calendar access.
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`: Google OAuth Android client ID. This must match the app package name and signing SHA-1 used for the build.
 
 Backend (`hive-maps/services/api/.env`):
 

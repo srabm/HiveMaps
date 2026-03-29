@@ -1,7 +1,5 @@
-export type CampusId = string;
-
 export type CampusMeta = {
-  id: CampusId;
+  id: string;
   label: string;
   name: string;
   center: [number, number];
@@ -9,7 +7,7 @@ export type CampusMeta = {
 };
 
 export type Building = {
-  campus: CampusId;
+  campus: string;
   code: string;
   name: string;
   location?: any;
@@ -18,4 +16,4 @@ export type Building = {
   hasIndoorMap: boolean;
 };
 
-export type CampusMetaById = Record<CampusId, CampusMeta>;
+export type CampusMetaById = Record<string, CampusMeta>;

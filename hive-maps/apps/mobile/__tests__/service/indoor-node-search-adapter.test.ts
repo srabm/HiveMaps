@@ -22,13 +22,13 @@ describe('createIndoorNodeSearchAdapter', () => {
   });
 
   it('returns empty array when query is empty', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('', null, '');
     expect(results).toEqual([]);
   });
 
 it('filters nodes by id matching query', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('H8.835', null, 'token');
     expect(results).not.toBeNull();
     expect(results!).toHaveLength(1);
@@ -36,13 +36,13 @@ it('filters nodes by id matching query', async () => {
 });
 
   it('returns multiple matches for partial query', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('H8', null, 'token');
     expect(results).toHaveLength(3);
   });
 
 it('search is case insensitive', async () => {
-  const adapter = createIndoorNodeSearchAdapter('H', '8');
+  const adapter = createIndoorNodeSearchAdapter('H');
   const results = await adapter.search('h8.835', null, 'token');
   expect(results).not.toBeNull();
   expect(results!).toHaveLength(1);
@@ -50,13 +50,13 @@ it('search is case insensitive', async () => {
 });
 
   it('returns empty array when no nodes match', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('ZZZZ', null, 'token');
     expect(results).toEqual([]);
   });
 
     it('maps node to MapLocation shape', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('H8.835', null, 'token');
     expect(results).not.toBeNull();
     expect(results![0]).toEqual({
@@ -67,29 +67,29 @@ it('search is case insensitive', async () => {
     });
 
   it('retrieves coordinates for a known node id', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const coords = await adapter.retrieve('H8.835', 'token');
     expect(coords).toEqual([-73.57926, 45.49727]);
   });
 
   it('returns null for unknown node id', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const coords = await adapter.retrieve('UNKNOWN', 'token');
     expect(coords).toBeNull();
   });
 
   it('caches nodes and only calls fetchIndoorRooms once', async () => {
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     await adapter.search('H8', null, 'token');
     await adapter.search('H8.835', null, 'token');
     await adapter.retrieve('H8.841', 'token');
     expect(fetchIndoorRooms).toHaveBeenCalledTimes(1);
   });
 
-  it('calls fetchIndoorRooms with correct building and floor', async () => {
-    const adapter = createIndoorNodeSearchAdapter('LB', '2');
+  it('calls fetchIndoorRooms with correct building', async () => {
+    const adapter = createIndoorNodeSearchAdapter('LB');
     await adapter.search('LB2', null, 'token');
-    expect(fetchIndoorRooms).toHaveBeenCalledWith('LB', '2');
+    expect(fetchIndoorRooms).toHaveBeenCalledWith('LB');
   });
 
   it('limits results to 10', async () => {
@@ -103,14 +103,14 @@ it('search is case insensitive', async () => {
       latitude: 45.497,
     }));
     (fetchIndoorRooms as jest.Mock).mockResolvedValue(manyNodes);
-    const adapter = createIndoorNodeSearchAdapter('H', '8');
+    const adapter = createIndoorNodeSearchAdapter('H');
     const results = await adapter.search('H8', null, 'token');
     expect(results).toHaveLength(10);
   });
 
   it('returns empty array when fetchIndoorRooms fails', async () => {
   (fetchIndoorRooms as jest.Mock).mockRejectedValue(new Error('network error'));
-  const adapter = createIndoorNodeSearchAdapter('H', '8');
+  const adapter = createIndoorNodeSearchAdapter('H');
   let results: MapLocation[] | null = null;
   try {
     results = await adapter.search('H8', null, 'token');

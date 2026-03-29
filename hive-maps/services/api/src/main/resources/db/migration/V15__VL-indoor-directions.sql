@@ -158,7 +158,10 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VL_J15', 'Junction', true, '2', 'VL', -73.63849282264711, 45.45889190974692),
 ('VL_J16', 'Junction', true, '2', 'VL', -73.63836944103242, 45.45883924087693),
 ('VL_J17', 'Junction', true, '2', 'VL', -73.63830372691156, 45.45896715090443),
-('VL_J18', 'Junction', true, '2', 'VL', -73.63795772194862, 45.45913268109754);
+('VL_J18', 'Junction', true, '2', 'VL', -73.63795772194862, 45.45913268109754),
+
+-- interfloor node --
+('VL_2_Stairs', 'VL_2_Stairs', true, '2', 'VL', -73.63859072327615, 45.45884479636212);
 
 INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
 
@@ -602,7 +605,13 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('E107', 'E107', true, 'VL2.297-1_1', 'VL_J1', 'VL', 3.6813989133804443),
 ('E108', 'E108', true, 'VL_J1', 'VL2.297-1_1', 'VL', 3.6813989133804443),
 ('E109', 'E109', true, 'VL2.203-3', 'VL_J3', 'VL', 2.6763225515055797),
-('E110', 'E110', true, 'VL_J3', 'VL2.203-3', 'VL', 2.6763225515055797);
+('E110', 'E110', true, 'VL_J3', 'VL2.203-3', 'VL', 2.6763225515055797),
+
+-- interfloor edges --
+('E349', 'stairs', false, 'VL1_J53', 'VL_2_Stairs', 'VL', 1.1754968331297317),
+('E350', 'stairs', false, 'VL_2_Stairs', 'VL1_J53', 'VL', 1.1754968331297317),
+('E347', 'hallway', true, 'VL_2_Stairs', 'VL_J15', 'VL', 9.260061291058113),
+('E348', 'hallway', true, 'VL_J15', 'VL_2_Stairs', 'VL', 9.260061291058113);
 
 
 

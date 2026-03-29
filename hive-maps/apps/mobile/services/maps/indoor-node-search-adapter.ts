@@ -3,13 +3,12 @@ import { fetchIndoorRooms, type IndoorNodeResponse } from '@/services/http/indoo
 
 export function createIndoorNodeSearchAdapter(
   buildingCode: string,
-  floorId: string,
 ): MapsProviderPort {
   let cache: IndoorNodeResponse[] | null = null;
 
   async function getNodes(): Promise<IndoorNodeResponse[]> {
     if (cache) return cache;
-    cache = await fetchIndoorRooms(buildingCode, floorId);
+    cache = await fetchIndoorRooms(buildingCode);
     return cache;
   }
 
