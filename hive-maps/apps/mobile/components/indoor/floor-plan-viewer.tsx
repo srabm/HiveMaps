@@ -832,6 +832,8 @@ export function FloorPlanViewer({
                 });
             }}
             onClose={() => {
+                setFromQuery(toQuery);
+                setFromNodeId(toNodeId);
                 setToQuery('');
                 setToNodeId(null);
                 invalidatePendingPoiSelection();

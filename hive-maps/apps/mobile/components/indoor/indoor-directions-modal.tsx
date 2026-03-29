@@ -10,7 +10,7 @@ const MUTED       = "#AAAAAA";
 const BORDER      = "#EFEFEF";
 
 const { height: SCREEN_H } = Dimensions.get("window");
-const FIXED_H      = 195;
+const FIXED_H      = 158;
 const MIN_HEIGHT   = FIXED_H;
 const DEFAULT_HEIGHT = FIXED_H;
 const MAX_HEIGHT   = SCREEN_H * 0.85;
@@ -452,8 +452,8 @@ const styles = StyleSheet.create({
     thenText: { flex: 1, fontSize: 14, color: MUTED, fontWeight: "600" },
     thenChevron: { fontSize: 14, color: MUTED, fontWeight: "700" },
     expandedSteps: { maxHeight: 240 },
-    preStartContainer: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
-    preStartHeader: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+    preStartContainer: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 12 },
+    preStartHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
     preStartLabel: { fontSize: 16, fontWeight: "600", color: DARK },
     preStartRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     preStartEta: { alignItems: "center", minWidth: 36 },
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     preStartInfo: { flex: 1 },
     preStartArrive: { fontSize: 14, fontWeight: "600", color: DARK },
     preStartDist: { fontSize: 12, color: MUTED, marginTop: 2 },
-    startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
+    startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 9, paddingHorizontal: 18 },
     startBtnText: { color: BG, fontSize: 14, fontWeight: "700" },
     bottomBar: {
         position: "absolute",

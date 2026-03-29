@@ -15,6 +15,7 @@ interface DirectionsDisplayProps {
     lineWidth?: number;
     infoCardPosition?: 'top' | 'bottom';
     showInfoCard?: boolean;
+    showEndpoints?: boolean;
     lineDasharray?: number[];
     useIndoorData?:boolean;
     IndoorDirections?: IndoorDirectionsResponse[];
@@ -68,6 +69,20 @@ const formatDuration = (seconds: number) => {
     return hours ? `${hours} hr ${minutes} min` : `${minutes} min`;
 };
 
+const dedupeConsecutiveCoordinates = (points: Position[]): Position[] => {
+    if (points.length === 0) return points;
+
+    const deduped: Position[] = [points[0]];
+    for (let index = 1; index < points.length; index += 1) {
+        const current = points[index];
+        const previous = deduped[deduped.length - 1];
+        if (current[0] === previous[0] && current[1] === previous[1]) continue;
+        deduped.push(current);
+    }
+
+    return deduped;
+};
+
 export function DirectionsLine({
                                    directions,
                                    sourceId = 'directions-source',
@@ -77,6 +92,7 @@ export function DirectionsLine({
                                    lineWidth = 10,
                                    infoCardPosition = 'bottom',
                                    showInfoCard = true,
+                                   showEndpoints = true,
                                    lineDasharray,
                                    useIndoorData = false,
                                    IndoorDirections,
@@ -85,9 +101,9 @@ export function DirectionsLine({
 
     const coordinates = useMemo(() => {
         if (useIndoorData && IndoorDirections) {
-            return IndoorDirections.flatMap((step) =>
+            return dedupeConsecutiveCoordinates(IndoorDirections.flatMap((step) =>
                 step.nodes.map((node) => [node.longitude, node.latitude] as [number, number])
-            );
+            ));
         }
 
         if (directions) {
@@ -165,17 +181,19 @@ export function DirectionsLine({
                 />
             </MapboxGL.ShapeSource>
 
-            <MapboxGL.ShapeSource id={`${sourceId}-endpoints`} shape={endpointsCollection}>
-                <MapboxGL.CircleLayer
-                    id={endpointId || `${layerId}-endpoints`}
-                    style={{
-                        circleColor: lineColor,
-                        circleRadius: 8,
-                        circleStrokeColor: '#ffffff',
-                        circleStrokeWidth: 2,
-                    }}
-                />
-            </MapboxGL.ShapeSource>
+            {showEndpoints && (
+                <MapboxGL.ShapeSource id={`${sourceId}-endpoints`} shape={endpointsCollection}>
+                    <MapboxGL.CircleLayer
+                        id={endpointId || `${layerId}-endpoints`}
+                        style={{
+                            circleColor: lineColor,
+                            circleRadius: 8,
+                            circleStrokeColor: '#ffffff',
+                            circleStrokeWidth: 2,
+                        }}
+                    />
+                </MapboxGL.ShapeSource>
+            )}
 
             {showInfoCard && (
                 <View

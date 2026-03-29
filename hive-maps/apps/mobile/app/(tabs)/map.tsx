@@ -163,6 +163,11 @@ function getStraightLineDistance(start: Coordinates, end: Coordinates): number {
     return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function areCoordinatesEqual(left: Coordinates | null, right: Coordinates | null): boolean {
+    if (!left || !right) return left === right;
+    return left[0] === right[0] && left[1] === right[1];
+}
+
 function pickClosestEntrance(entrances: IndoorNodeResponse[], target: Coordinates | null): IndoorNodeResponse | null {
     if (entrances.length === 0) return null;
     if (!target) return entrances[0];
@@ -456,7 +461,7 @@ export default function MapScreen() {
 
         async function resolveOriginIndoorLeg() {
             setOriginIndoorSteps(null);
-            setRouteFromCoordinates(fromCoordinates);
+            setRouteFromCoordinates((current) => (areCoordinatesEqual(current, fromCoordinates) ? current : fromCoordinates));
 
             if (!classroomOrigin || !fromCoordinates) return;
 
@@ -465,7 +470,8 @@ export default function MapScreen() {
                 const chosenEntrance = pickClosestEntrance(entrances, activeDestinationCoordinates);
                 if (!active || !chosenEntrance) return;
 
-                setRouteFromCoordinates([chosenEntrance.longitude, chosenEntrance.latitude]);
+                const entranceCoordinates: Coordinates = [chosenEntrance.longitude, chosenEntrance.latitude];
+                setRouteFromCoordinates((current) => (areCoordinatesEqual(current, entranceCoordinates) ? current : entranceCoordinates));
 
                 const indoorSteps = await fetchIndoorDirections(
                     classroomOrigin.buildingCode,
@@ -477,7 +483,7 @@ export default function MapScreen() {
             } catch (error) {
                 if (!active) return;
                 console.warn('Failed to load indoor origin directions', error);
-                setRouteFromCoordinates(fromCoordinates);
+                setRouteFromCoordinates((current) => (areCoordinatesEqual(current, fromCoordinates) ? current : fromCoordinates));
             }
         }
 
@@ -493,7 +499,7 @@ export default function MapScreen() {
 
         async function resolveDestinationIndoorLeg() {
             setDestinationIndoorSteps(null);
-            setRouteToCoordinates(toCoordinates);
+            setRouteToCoordinates((current) => (areCoordinatesEqual(current, toCoordinates) ? current : toCoordinates));
 
             if (!classroomDestination || !toCoordinates) return;
 
@@ -502,7 +508,8 @@ export default function MapScreen() {
                 const chosenEntrance = pickClosestEntrance(entrances, destinationEntranceTarget);
                 if (!active || !chosenEntrance) return;
 
-                setRouteToCoordinates([chosenEntrance.longitude, chosenEntrance.latitude]);
+                const entranceCoordinates: Coordinates = [chosenEntrance.longitude, chosenEntrance.latitude];
+                setRouteToCoordinates((current) => (areCoordinatesEqual(current, entranceCoordinates) ? current : entranceCoordinates));
 
                 const indoorSteps = await fetchIndoorDirections(
                     classroomDestination.buildingCode,
@@ -514,7 +521,7 @@ export default function MapScreen() {
             } catch (error) {
                 if (!active) return;
                 console.warn('Failed to load indoor destination directions', error);
-                setRouteToCoordinates(toCoordinates);
+                setRouteToCoordinates((current) => (areCoordinatesEqual(current, toCoordinates) ? current : toCoordinates));
             }
         }
 
@@ -564,6 +571,12 @@ export default function MapScreen() {
         if (!classroomDestination || !fromCoordinates || !routeToCoordinates) return false;
         return getStraightLineDistance(fromCoordinates, routeToCoordinates) <= ENTRANCE_PROXIMITY_METERS;
     }, [classroomDestination, fromCoordinates, routeToCoordinates]);
+
+    const showRouteOverview = useMemo(() => {
+        if (isNavigating || activeIndoorSegment) return false;
+        if (!routeFromCoordinates || !routeToCoordinates) return false;
+        return Boolean(directions) || shouldStartDestinationIndoorOnly;
+    }, [activeIndoorSegment, directions, isNavigating, routeFromCoordinates, routeToCoordinates, shouldStartDestinationIndoorOnly]);
 
     const shuttleRouting = useShuttleRouting({
         enabled: selectedMode === 'Shuttle' && !isSameCampusRoute && !isNavigating,
@@ -729,7 +742,7 @@ export default function MapScreen() {
 
         setIndoorBeeCoordinates(null);
         destinationIndoorHandoffDoneRef.current = false;
-        setNavigationOrigin(fromCoordinates);
+        setNavigationOrigin(routeFromCoordinates ?? fromCoordinates);
         setNavigationUsesLiveLocation(fromCoordinatesIsUserLocation.current || activeIndoorSegment === 'origin');
         setActiveSteps(steps);
         setActiveShuttlePhaseBoundaries(
@@ -750,7 +763,7 @@ export default function MapScreen() {
                 : null
         );
         setIsNavigating(true);
-    }, [activeIndoorSegment, directions, fromCoordinates, selectedMode, shuttleRouting]);
+    }, [activeIndoorSegment, directions, fromCoordinates, routeFromCoordinates, selectedMode, shuttleRouting]);
 
     const openDestinationIndoorMap = useCallback(() => {
         if (!classroomDestination || !destinationIndoorSteps) return;
@@ -781,7 +794,6 @@ export default function MapScreen() {
             openDestinationIndoorMap();
             return;
         }
-        if (!isShuttleMode && !directions) return;
         if (classroomOrigin && originIndoorSteps) {
             setActiveIndoorSegment('origin');
             return;
@@ -790,6 +802,7 @@ export default function MapScreen() {
             setPendingStartSegment('origin');
             return;
         }
+        if (!isShuttleMode && !directions) return;
 
         beginOutdoorNavigation();
     }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
@@ -800,9 +813,13 @@ export default function MapScreen() {
             const nearest = getNearestCampus(activeDestinationCoordinates[0], activeDestinationCoordinates[1], campusMetaById);
             if (nearest) setCampus(nearest);
         }
-        setSeeDirectionBar(false);
-        setFrom('');
-        setFromCoordinates(null);
+        setSeeDirectionBar(true);
+        setFrom(to);
+        setFromCoordinates(toCoordinates);
+        setRouteFromCoordinates(toCoordinates);
+        setIndoorBeeCoordinates(toCoordinates);
+        setClassroomOrigin(classroomDestination);
+        setOriginIndoorSteps(null);
         fromCoordinatesIsUserLocation.current = false;
         setTo('');
         setToCoordinates(null);
@@ -815,7 +832,7 @@ export default function MapScreen() {
         setActiveSteps([]);
         setActiveShuttlePhaseBoundaries(undefined);
         setActiveShuttleLegs(null);
-    }, [activeDestinationCoordinates, campusMetaById, setCampus]);
+    }, [activeDestinationCoordinates, campusMetaById, classroomDestination, setCampus, to, toCoordinates]);
 
     // Mid-route "End" — stop navigating but restore the pre-filled search state
     // so the user lands back on the NavigationBottom with their origin/destination intact.
@@ -961,16 +978,6 @@ export default function MapScreen() {
                         />
                     </MapboxGL.ShapeSource>
                 )}
-                {fromCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='fromPoint'
-                        id='fromPoint'
-                        coordinate={fromCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
-
                 {toCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='toPoint'
@@ -986,9 +993,10 @@ export default function MapScreen() {
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                        showEndpoints={false}
                     />
                 )}
-                {originIndoorSteps && (activeIndoorSegment === 'origin' || (!isNavigating && !activeIndoorSegment)) && (
+                {originIndoorSteps && (activeIndoorSegment === 'origin' || showRouteOverview) && (
                     <DirectionsLine
                         directions={buildIndoorSummary(originIndoorSteps)}
                         sourceId="origin-indoor-source"
@@ -997,11 +1005,12 @@ export default function MapScreen() {
                         lineColor="#9d1e30"
                         lineWidth={6}
                         showInfoCard={false}
+                        showEndpoints={false}
                         useIndoorData={true}
                         IndoorDirections={originIndoorSteps}
                     />
                 )}
-                {destinationIndoorSteps && (activeIndoorSegment === 'destination' || (!isNavigating && !activeIndoorSegment)) && (
+                {destinationIndoorSteps && showRouteOverview && (
                     <DirectionsLine
                         directions={buildIndoorSummary(destinationIndoorSteps)}
                         sourceId="destination-indoor-source"
@@ -1010,6 +1019,7 @@ export default function MapScreen() {
                         lineColor="#9d1e30"
                         lineWidth={6}
                         showInfoCard={false}
+                        showEndpoints={false}
                         useIndoorData={true}
                         IndoorDirections={destinationIndoorSteps}
                     />
