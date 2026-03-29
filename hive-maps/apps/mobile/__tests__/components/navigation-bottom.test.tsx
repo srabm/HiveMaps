@@ -97,6 +97,7 @@ const destination = {latitude: 45.4583, longitude: -73.6406};
 jest.useFakeTimers();
 
 beforeEach(() => {
+    jest.setSystemTime(new Date('2026-02-23T12:00:00.000Z'));
     getCurrentTimeISO.mockReturnValue('2026-02-23T12:00:00.000Z');
     formatISOToTime.mockImplementation((iso: string) => new Date(iso).toISOString().slice(11, 16));
     validateCampusRoute.mockReturnValue({
@@ -136,6 +137,16 @@ describe('NavigationBottom rendering', () => {
             <NavigationBottom origin = {origin} destination = {destination}/>
         );
         expect(getByText('Start')).toBeTruthy();
+        await waitFor(() => {});
+    });
+
+    it('renders the depart-at control and refresh button', async () => {
+        const {getByTestId} = render(
+            <NavigationBottom origin = {origin} destination = {destination}/>
+        );
+
+        expect(getByTestId('depart-at-button')).toBeTruthy();
+        expect(getByTestId('refresh-time-filter-button')).toBeTruthy();
         await waitFor(() => {});
     });
 
@@ -236,6 +247,85 @@ describe('NavigationBottom callbacks', () => {
             );
         });
     });
+
+    it('refreshes the displayed time when the refresh button is pressed', async () => {
+        getCurrentTimeISO
+            .mockReturnValueOnce('2026-02-23T12:00:00.000Z')
+            .mockReturnValueOnce('2026-02-23T12:05:00.000Z');
+
+        const {getByTestId, getByText} = render(
+            <NavigationBottom origin = {origin} destination = {destination}/>
+        );
+
+        expect(getByText('12:00')).toBeTruthy();
+
+        fireEvent.press(getByTestId('refresh-time-filter-button'));
+
+        await waitFor(() => {
+            expect(getByText('12:05')).toBeTruthy();
+        });
+    });
+
+    it('keeps the default time current while no custom time is selected', async () => {
+        getCurrentTimeISO
+            .mockReturnValueOnce('2026-02-23T12:00:00.000Z')
+            .mockReturnValueOnce('2026-02-23T12:01:00.000Z');
+
+        const {getByText} = render(
+            <NavigationBottom origin = {origin} destination = {destination}/>
+        );
+
+        expect(getByText('12:00')).toBeTruthy();
+
+        await act(async () => {
+            jest.advanceTimersByTime(60_000);
+        });
+
+        await waitFor(() => {
+            expect(getByText('12:01')).toBeTruthy();
+        });
+    });
+});
+
+describe('NavigationBottom shuttle compact layout', () => {
+    it('renders the compact shuttle card with see schedule action', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            schedule: {departures: {sgw: [], loyola: []}},
+            departureTimes: ['12:20', '13:00'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '12:20',
+                    departureDate: new Date('2026-02-23T12:20:00.000Z'),
+                    minutesUntil: 20,
+                    minutesFromFilter: 20,
+                },
+            ],
+        });
+
+        const {getByText, getByTestId, queryByTestId} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        await waitFor(() => {
+            expect(getByText('Start')).toBeTruthy();
+        });
+
+        expect(getByTestId('navigation-bottom-shuttle')).toBeTruthy();
+        expect(getByTestId('shuttle-see-schedule-button')).toBeTruthy();
+        expect(queryByTestId('navigation-minimize-button')).toBeNull();
+    });
 });
 // task 2.5.4: route filtering option with arrival time using first transit step departure time and remaining legs
 describe('NavigationBottom transit timing details', () => {
@@ -304,7 +394,7 @@ describe('NavigationBottom transit timing details', () => {
             jest.advanceTimersByTime(1000);
         });
 
-        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('depart-at-button'));
         fireEvent.press(getByTestId('confirm-arrive-time'));
 
         await act(async () => {
@@ -378,7 +468,7 @@ describe('NavigationBottom transit timing details', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Transit" />
         );
 
-        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('depart-at-button'));
         fireEvent.press(getByTestId('confirm-arrive-time'));
 
         await act(async () => {
@@ -448,7 +538,7 @@ describe('NavigationBottom helper-path coverage', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Walk" />
         );
 
-        fireEvent.press(getByText(/Depart at:/));
+        fireEvent.press(getByTestId('depart-at-button'));
         fireEvent.press(getByTestId('confirm-arrive-time'));
 
         await act(async () => {
@@ -571,9 +661,10 @@ describe('NavigationBottom shuttle additions', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
 
+        fireEvent.press(getByText('See schedule'));
+
         await waitFor(() => {
-            expect(getByText('in 1 hr 30 min')).toBeTruthy();
-            expect(getByText('in 2 hr 10 min')).toBeTruthy();
+            expect(getByText('Shuttle Schedule')).toBeTruthy();
         });
     });
     // task 2.6.5: verifies that in shuttle mode, when all 3 legs are present, total duration is sum of legs, total distance is sum of legs and arrival label uses shuttle-computed label (not normal directions label)
@@ -615,7 +706,7 @@ describe('NavigationBottom shuttle additions', () => {
         });
     });
 
-    it('filters unreachable departures in arrive mode using shuttle and final walk time', async () => {
+    it('shows the see schedule action in shuttle mode', async () => {
         useShuttleRouting.mockReturnValue({
             walkToStop: {durationSeconds: 600, distanceMeters: 200},
             shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
@@ -626,41 +717,116 @@ describe('NavigationBottom shuttle additions', () => {
         useShuttleSchedule.mockReturnValue({
             serviceDate: new Date('2026-02-23T00:00:00.000Z'),
             schedule: {departures: {sgw: [], loyola: []}},
-            departureTimes: [],
+            departureTimes: ['12:20', '13:00'],
             directionLabel: 'SGW -> Loyola',
             showNextServiceLabel: false,
             isNextServiceDay: false,
             showSeeMoreButton: false,
             departures: [
                 {
-                    time: '12:40',
-                    departureDate: new Date('2026-02-23T12:40:00.000Z'),
-                    minutesUntil: 40,
-                    minutesFromFilter: -10,
-                },
-                {
                     time: '12:20',
                     departureDate: new Date('2026-02-23T12:20:00.000Z'),
                     minutesUntil: 20,
-                    minutesFromFilter: -25,
+                    minutesFromFilter: 20,
                 },
             ],
         });
 
-        const {getByText, getByTestId} = render(
+        const {getByText} = render(
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
 
-        fireEvent.press(getByText(/Depart at:/));
-        fireEvent.press(getByTestId('confirm-arrive-time'));
-
         await waitFor(() => {
-            const lastSectionProps = ShuttleScheduleSection.mock.calls[ShuttleScheduleSection.mock.calls.length - 1][0];
-            expect(lastSectionProps.departures).toHaveLength(1);
-            expect(lastSectionProps.departures[0].etaLabel).toBe('Now');
+            expect(getByText('See schedule')).toBeTruthy();
         });
     });
-    // task-2.6.7: fallback to alternative modes when unavailable
+
+    it('keeps the shuttle schedule modal open after the delayed directions effect runs', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            schedule: {departures: {sgw: [], loyola: []}},
+            departureTimes: ['12:20', '13:00'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '12:20',
+                    departureDate: new Date('2026-02-23T12:20:00.000Z'),
+                    minutesUntil: 20,
+                    minutesFromFilter: 20,
+                },
+            ],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        fireEvent.press(getByText('See schedule'));
+
+        await waitFor(() => {
+            expect(getByText('Shuttle Schedule')).toBeTruthy();
+        });
+
+        await act(async () => {
+            jest.advanceTimersByTime(1100);
+        });
+
+        expect(getByText('Shuttle Schedule')).toBeTruthy();
+    });
+
+    it('shows both shuttle direction tabs in the schedule modal', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            schedule: {
+                departures: {
+                    sgw: ['12:20', '13:00'],
+                    loyola: ['12:40', '13:20'],
+                },
+            },
+            departureTimes: ['12:20', '13:00'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '12:20',
+                    departureDate: new Date('2026-02-23T12:20:00.000Z'),
+                    minutesUntil: 20,
+                    minutesFromFilter: 20,
+                },
+            ],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        fireEvent.press(getByText('See schedule'));
+
+        await waitFor(() => {
+            expect(getByText('To Loyola')).toBeTruthy();
+            expect(getByText('To SGW')).toBeTruthy();
+        });
+    });
+
     it('falls back to Transit when shuttle is unavailable', async () => {
         const onModeChange = jest.fn();
         useShuttleRouting.mockReturnValue({
@@ -691,7 +857,6 @@ describe('NavigationBottom shuttle additions', () => {
         );
 
         fireEvent.press(getByText('Check Transit'));
-
         expect(onModeChange).toHaveBeenCalledWith('Transit');
     });
 
@@ -722,63 +887,7 @@ describe('NavigationBottom shuttle additions', () => {
         );
 
         fireEvent.press(getByText('Switch to Walk'));
-
         expect(onModeChange).toHaveBeenCalledWith('Walk');
-    });
-
-    it('suggests Transit when arrive-by time is much later than last practical shuttle', async () => {
-        const onModeChange = jest.fn();
-        useShuttleRouting.mockReturnValue({
-            walkToStop: {durationSeconds: 600, distanceMeters: 200},
-            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
-            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
-            stopsForTrip: null,
-            stopMarkers: [],
-        });
-        useShuttleSchedule.mockReturnValue({
-            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
-            schedule: {departures: {sgw: [], loyola: []}},
-            departureTimes: [],
-            directionLabel: 'SGW -> Loyola',
-            showNextServiceLabel: false,
-            isNextServiceDay: false,
-            showSeeMoreButton: false,
-            departures: [
-                {
-                    time: '17:30',
-                    departureDate: new Date('2026-02-23T17:30:00.000Z'),
-                    minutesUntil: -80,
-                    minutesFromFilter: -140,
-                },
-                {
-                    time: '18:00',
-                    departureDate: new Date('2026-02-23T18:00:00.000Z'),
-                    minutesUntil: -50,
-                    minutesFromFilter: -110,
-                },
-            ],
-        });
-
-        const {getByText, getByTestId, queryByText} = render(
-            <NavigationBottom
-                origin={origin}
-                destination={destination}
-                initialMode="Shuttle"
-                onModeChange={onModeChange}
-            />
-        );
-
-        fireEvent.press(getByText(/Depart at:/));
-        fireEvent.press(getByTestId('confirm-arrive-time'));
-
-        await waitFor(() => {
-            const lastSectionProps = ShuttleScheduleSection.mock.calls[ShuttleScheduleSection.mock.calls.length - 1][0];
-            expect(lastSectionProps.departures).toHaveLength(0);
-        });
-        expect(queryByText('Start')).toBeNull();
-
-        fireEvent.press(getByText('Check Transit'));
-        expect(onModeChange).toHaveBeenCalledWith('Transit');
     });
 
     it('flags when the recommended option is the last shuttle for the day', async () => {

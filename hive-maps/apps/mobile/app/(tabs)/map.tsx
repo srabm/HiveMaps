@@ -1,6 +1,6 @@
 import { Href, useRouter } from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
+import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform, LayoutChangeEvent} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -279,6 +279,7 @@ export default function MapScreen() {
         destinationStopName: string;
         shuttleDurationSeconds: number;
     } | null>(null);
+    const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -542,6 +543,19 @@ export default function MapScreen() {
     }, [toCoordinates, campusMetaById, setCampus]);
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
+        const tapPoint = (e as { point?: { x?: number; y?: number } }).point;
+        const blockingFrame = navigationBottomFrame.current;
+        if (
+            tapPoint?.x != null &&
+            tapPoint?.y != null &&
+            blockingFrame &&
+            tapPoint.x >= blockingFrame.x &&
+            tapPoint.x <= blockingFrame.x + blockingFrame.width &&
+            tapPoint.y >= blockingFrame.y &&
+            tapPoint.y <= blockingFrame.y + blockingFrame.height
+        ) {
+            return;
+        }
         const f = e.features[0];
         const point = points.find(p => p.id === f.properties?.id);
         const details = point?.details as BuildingDetails | undefined;
@@ -559,6 +573,10 @@ export default function MapScreen() {
             hasIndoorMap: !!point?.building?.hasIndoorMap,
         });
     }, [isNavigating, points]);
+
+    const handleNavigationBottomLayout = useCallback((event: LayoutChangeEvent) => {
+        navigationBottomFrame.current = event.nativeEvent.layout;
+    }, []);
 
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
@@ -847,7 +865,11 @@ export default function MapScreen() {
             </View>
 
             {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
-                <View style={styles.navigationBottomContainer}>
+                <View
+                    testID="navigation-bottom-container"
+                    style={styles.navigationBottomContainer}
+                >
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
                     <NavigationBottom
                         campuses={campusMetaById}
                         origin={{
@@ -861,6 +883,7 @@ export default function MapScreen() {
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
+                        onCardLayout={handleNavigationBottomLayout}
                         onStartPress={handleStartPress}
                     />
                 </View>
@@ -970,7 +993,6 @@ export default function MapScreen() {
         }
     }}
         onDirections={navigateToSelectedBuilding}
-        onStart={navigateToSelectedBuilding} //temporary implementation
       />
 
             <Modal

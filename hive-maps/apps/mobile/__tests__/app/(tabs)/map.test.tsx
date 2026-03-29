@@ -132,12 +132,11 @@ jest.mock('@/components/directions-bars', () => () => null);
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
     return {
-        BuildingInfoModal: ({ onDirections, onClose, onIndoorMap, onStart }: any) => (
+        BuildingInfoModal: ({ onDirections, onClose, onIndoorMap }: any) => (
             <View>
                 <Pressable testID="building-directions-btn" onPress={onDirections} />
                 <Pressable testID="building-close-btn" onPress={onClose} />
                 <Pressable testID="building-indoor-btn" onPress={onIndoorMap} />
-                <Pressable testID="building-start-btn" onPress={onStart} />
             </View>
         ),
     };
@@ -962,23 +961,6 @@ describe('setStartingPointAsUserCoordinates', () => {
         });
     });
 
-    it('also called by building "Start" button (onStart)', async () => {
-        const utils = renderWithBuilding();
-        await act(async () => {
-            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
-        });
-        await act(async () => {
-            mockShapeSourceOnPress?.({
-                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
-            });
-        });
-        await act(async () => {
-            fireEvent.press(utils.getByTestId('building-start-btn'));
-        });
-        await waitFor(() => {
-            expect(utils.getByTestId('start-btn')).toBeTruthy();
-        });
-    });
 });
 
 // ─── navigateToSelectedBuilding ──────────────────────────────────────────────

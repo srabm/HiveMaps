@@ -1,5 +1,5 @@
 import React, {useState, useRef, useEffect, useMemo} from 'react';
-import {View, Text, Pressable, StyleSheet, Animated} from 'react-native';
+import {View, Text, Pressable, StyleSheet, Animated, LayoutChangeEvent} from 'react-native';
 import {
     getDirections,
     TransportMode,
@@ -15,7 +15,6 @@ import {formatISOToTime, getCurrentTimeISO} from '@/utils/timeFormatter';
 import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleScheduleModal} from '@/components/ui/shuttle-schedule-modal';
-import {ShuttleScheduleSection} from '@/components/ui/shuttle-schedule-section';
 import type { CampusMetaById } from '@/types/campus';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Shuttle';
@@ -28,6 +27,7 @@ interface NavigationBottomProps {
     onStartPress?: () => void;
     onModeChange?: (mode: TransportModeLabel) => void;
     onTimeFilterChange?: (timeFilter: string, timeFilterMode: TimeFilterMode) => void;
+    onCardLayout?: (event: LayoutChangeEvent) => void;
     initialMode?: TransportModeLabel;
 }
 
@@ -259,6 +259,7 @@ export function NavigationBottom({
     onStartPress,
     onModeChange,
     onTimeFilterChange,
+    onCardLayout,
     initialMode = 'Drive',
 }: Readonly<NavigationBottomProps>) {
     const [selectedMode, setSelectedMode] = useState<TransportModeLabel>(initialMode);
@@ -291,7 +292,6 @@ export function NavigationBottom({
 
         const fetchDirections = async () => {
             setDirections(null);
-            setShowScheduleModal(false);
 
             if (selectedMode === 'Shuttle') {
                 return;
@@ -336,6 +336,24 @@ export function NavigationBottom({
         onDirectionsChange,
     ]);
 
+    useEffect(() => {
+        if (selectedMode !== 'Shuttle' && showScheduleModal) {
+            setShowScheduleModal(false);
+        }
+    }, [selectedMode, showScheduleModal]);
+
+    useEffect(() => {
+        if (isCustomFilter) {
+            return;
+        }
+
+        const intervalId = setInterval(() => {
+            setTimeFilter(getCurrentTimeISO());
+        }, 60_000);
+
+        return () => clearInterval(intervalId);
+    }, [isCustomFilter]);
+
     // Calculate arrival/departure details for non-shuttle modes.
     useEffect(() => {
         if (!directions) {
@@ -377,6 +395,12 @@ export function NavigationBottom({
         setTimeFilterMode(mode);
         setTimePickerVisible(false);
         onTimeFilterChange?.(time, mode);
+    };
+
+    const handleRefreshTimeFilter = () => {
+        const nowIso = getCurrentTimeISO();
+        setTimeFilter(nowIso);
+        onTimeFilterChange?.(nowIso, timeFilterMode);
     };
 
     const indicatorWidth = slideAnim.interpolate({
@@ -562,121 +586,214 @@ export function NavigationBottom({
         return formatDepartureTime(date);
     };
 
+    const shuttleScheduleTabs = useMemo(() => {
+        if (!shuttleScheduleContext?.schedule) return [];
+
+        const buildTabItems = (times: string[], directionKey: string) => {
+            const now = new Date();
+            let nextFound = false;
+            return times.map((time) => {
+                const [hoursStr, minutesStr] = time.split(':');
+                const departureDate = new Date(
+                    shuttleScheduleContext.serviceDate.getFullYear(),
+                    shuttleScheduleContext.serviceDate.getMonth(),
+                    shuttleScheduleContext.serviceDate.getDate(),
+                    Number(hoursStr),
+                    Number(minutesStr),
+                    0,
+                    0,
+                );
+                const isPast = departureDate.getTime() < now.getTime();
+                const isNext = !isPast && !nextFound;
+                if (isNext) nextFound = true;
+                return {
+                    key: `${directionKey}-${time}`,
+                    timeLabel: formatDepartureTime(departureDate),
+                    isPast,
+                    isNext,
+                };
+            });
+        };
+
+        return [
+            {
+                key: 'to-loyola',
+                label: 'To Loyola',
+                items: buildTabItems(shuttleScheduleContext.schedule.departures.sgw, 'to-loyola'),
+            },
+            {
+                key: 'to-sgw',
+                label: 'To SGW',
+                items: buildTabItems(shuttleScheduleContext.schedule.departures.loyola, 'to-sgw'),
+            },
+        ];
+    }, [shuttleScheduleContext]);
+
+    const initialShuttleScheduleTabKey = useMemo(() => {
+        if (!shuttleScheduleContext?.directionLabel) return 'to-loyola';
+        return shuttleScheduleContext.directionLabel.startsWith('SGW') ? 'to-loyola' : 'to-sgw';
+    }, [shuttleScheduleContext?.directionLabel]);
+
+    const showSameCampusRedirect = selectedMode === 'Shuttle' && isSameCampus;
+    const showTransitSuggestion =
+        selectedMode === 'Shuttle' &&
+        !isSameCampus &&
+        (!shuttleScheduleContext?.schedule || !!shuttleScheduleContext?.isNextServiceDay || reachableDepartures.length === 0);
+    let shuttleSuggestionText = 'No more departures today — need a ride now?';
+    if (!shuttleScheduleContext?.schedule) {
+        shuttleSuggestionText = 'Service currently unavailable.';
+    } else if (shuttleScheduleContext?.isNextServiceDay) {
+        shuttleSuggestionText = 'Not running today — need a ride now?';
+    }
+
     return (
         <>
-            <View style={styles.navCard}>
-                <View style={styles.navHeaderRow}>
-                    <Text style={styles.navHeaderText}>{selectedMode}</Text>
-                    <Pressable
-                        style={styles.departAtButton}
-                        onPress={() => setTimePickerVisible(true)}
-                    >
-                        <Text style={styles.departAtButtonText}>{timeModeLabel}: {displayDepartureTime}</Text>
-                    </Pressable>
+            <View
+                style={styles.navCard}
+                onLayout={onCardLayout}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+            >
+                <View style={styles.cardControls}>
+                    <View style={styles.cardHandle} />
                 </View>
 
-                <View style={styles.modeBarContainer}>
-                    <Animated.View
-                        style={[
-                            styles.modeIndicator,
-                            {
-                                width: indicatorWidth,
-                                left: indicatorLeft,
-                                backgroundColor: MODE_META[selectedMode].indicatorColor,
-                            },
-                        ]}
-                    />
-                    {MODES.map((mode, index) => (
-                        <Pressable
-                            key={mode}
-                            onPress={() => handleModeChange(mode)}
-                            style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
-                        >
-                            <Text
-                                style={[
-                                    styles.modeOptionText,
-                                    selectedMode === mode && styles.modeOptionTextActive,
-                                ]}
+                <View testID={selectedMode === 'Shuttle' ? 'navigation-bottom-shuttle' : 'navigation-bottom-expanded'}>
+                    <View style={styles.navHeaderRow}>
+                        <Text style={styles.navHeaderText}>{selectedMode}</Text>
+                        <View style={styles.timeControls}>
+                            <Pressable
+                                style={styles.departAtButton}
+                                onPress={() => setTimePickerVisible(true)}
+                                testID="depart-at-button"
                             >
-                                {MODE_META[mode].label}
-                            </Text>
-                        </Pressable>
-                    ))}
-                </View>
-
-                {!hideMetricsRow && (
-                    <View style={styles.metricsRow}>
-                        <View style={[styles.metricCell, styles.durationCell]}>
-                            <Text style={styles.durationValue}>{durationValue}</Text>
-                            <Text style={styles.durationUnit}>{durationUnit}</Text>
-                        </View>
-
-                        <View style={[styles.metricCell, styles.middleCell]}>
-                            <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                                {displayedArrivalText}
-                            </Text>
-                            <View style={styles.distanceRow}>
-                                <Text style={styles.distanceText}>{distanceText}</Text>
-                                {showShuttleLastWarningInline ? (
-                                    <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
-                                ) : null}
-                            </View>
-                        </View>
-
-                        <View style={[styles.metricCell, styles.startCell]}>
-                            <Pressable style={styles.startButton} onPress={onStartPress}>
-                                <Text style={styles.startButtonText}>Start</Text>
+                                <View style={styles.departAtButtonTopRow}>
+                                    <Text style={styles.departAtButtonLabel}>{timeModeLabel}</Text>
+                                    <Text style={styles.departAtButtonIcon}>▼</Text>
+                                </View>
+                                <Text style={styles.departAtButtonText}>{displayDepartureTime}</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.refreshButton}
+                                onPress={handleRefreshTimeFilter}
+                                testID="refresh-time-filter-button"
+                                accessibilityLabel="Refresh departure time"
+                            >
+                                <Text style={styles.refreshButtonIcon}>↻</Text>
                             </Pressable>
                         </View>
                     </View>
-                )}
 
-                {selectedMode === 'Shuttle' && (
-                    <ShuttleScheduleSection
-                        directionLabel={shuttleScheduleContext?.directionLabel ?? 'Shuttle'}
-                        validPeriod={shuttleScheduleContext?.schedule?.validPeriod}
-                        hasSchedule={!!shuttleScheduleContext?.schedule}
-                        showNextServiceLabel={!!shuttleScheduleContext?.showNextServiceLabel}
-                        nextServiceLabel={
-                            shuttleScheduleContext?.showNextServiceLabel
-                                ? shuttleScheduleContext?.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})
-                                : undefined
-                        }
-                        departures={
-                            reachableDepartures.slice(0, 3).map((item) => ({
-                                key: `${shuttleScheduleContext?.directionLabel}-${item.time}`,
-                                timeLabel: formatDepartureTime(item.departureDate),
-                                // Use filter-relative minutes when a custom time is selected so
-                                // labels like "in 15 min" make sense relative to that chosen time.
-                                etaLabel: shuttleScheduleContext?.isNextServiceDay
-                                    ? `on ${shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {weekday: 'long'})}`
-                                    : formatMinutesUntil(pickDisplayMinutes(item, isCustomFilter)),
-                            }))
-                        }
-                        showSeeMoreButton={
-                            !!shuttleScheduleContext?.showSeeMoreButton ||
-                            reachableDepartures.length > 3
-                        }
-                        onOpenModal={() => setShowScheduleModal(true)}
-                        onFallbackPress={() => handleModeChange('Transit')}
-                        showSameCampusRedirect={isSameCampus}
-                        onSameCampusRedirect={() => handleModeChange('Walk')}
-                        noTopSpacing={hideMetricsRow}
-                        inlineMetrics={
-                            showInlineShuttleMetrics && shuttleMetrics
-                                ? {
-                                      durationText: formatDuration(shuttleMetrics.totalDurationSeconds),
-                                      distanceText: formatDistance(shuttleMetrics.totalDistanceMeters),
-                                      arrivalLabel: shuttleMetrics.arrivalLabel,
-                                  }
-                                : null
-                        }
-                    />
-                )}
+                    <View style={styles.modeBarContainer}>
+                        <Animated.View
+                            style={[
+                                styles.modeIndicator,
+                                {
+                                    width: indicatorWidth,
+                                    left: indicatorLeft,
+                                    backgroundColor: MODE_META[selectedMode].indicatorColor,
+                                },
+                            ]}
+                        />
+                        {MODES.map((mode, index) => (
+                            <Pressable
+                                key={mode}
+                                onPress={() => handleModeChange(mode)}
+                                style={[styles.modeOption, index !== MODES.length - 1 && styles.modeBorder]}
+                            >
+                                <Text
+                                    style={[
+                                        styles.modeOptionText,
+                                        selectedMode === mode && styles.modeOptionTextActive,
+                                    ]}
+                                >
+                                    {MODE_META[mode].label}
+                                </Text>
+                            </Pressable>
+                        ))}
+                    </View>
+
+                    {selectedMode === 'Shuttle' ? (
+                        <>
+                            {!showSameCampusRedirect && !showTransitSuggestion ? (
+                            <View style={styles.minimizedMetricsRow}>
+                                <View style={[styles.metricCell, styles.durationCell]}>
+                                    <Text style={styles.durationValue}>{durationValue}</Text>
+                                    <Text style={styles.durationUnit}>{durationUnit}</Text>
+                                </View>
+
+                                <View style={[styles.metricCell, styles.middleCell]}>
+                                    <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                                        {displayedArrivalText}
+                                    </Text>
+                                    <View style={styles.distanceRow}>
+                                        <Text style={styles.distanceText}>{distanceText}</Text>
+                                        {showShuttleLastWarningInline ? (
+                                            <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
+                                        ) : null}
+                                    </View>
+                                    <Pressable testID="shuttle-see-schedule-button" onPress={() => setShowScheduleModal(true)} style={styles.seeScheduleButton}>
+                                        <Text style={styles.seeScheduleLink}>See schedule</Text>
+                                    </Pressable>
+                                </View>
+
+                                <View style={[styles.metricCell, styles.startCell]}>
+                                    <Pressable style={styles.startButton} onPress={onStartPress}>
+                                        <Text style={styles.startButtonText}>Start</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                            ) : null}
+
+                            {showTransitSuggestion ? (
+                                <Pressable style={styles.shuttleNoticeRow} onPress={() => handleModeChange('Transit')}>
+                                    <Text style={styles.shuttleNoticeText}>{shuttleSuggestionText}</Text>
+                                    <Text style={styles.shuttleNoticeLink}>Check Transit</Text>
+                                </Pressable>
+                            ) : null}
+
+                            {showSameCampusRedirect ? (
+                                <Pressable style={styles.shuttleNoticeRow} onPress={() => handleModeChange('Walk')}>
+                                    <Text style={styles.shuttleNoticeText}>Both locations are on the same campus.</Text>
+                                    <Text style={styles.shuttleNoticeLink}>Switch to Walk</Text>
+                                </Pressable>
+                            ) : null}
+                        </>
+                    ) : (
+                        <>
+                            {!hideMetricsRow && (
+                                <View style={styles.metricsRow}>
+                                    <View style={[styles.metricCell, styles.durationCell]}>
+                                        <Text style={styles.durationValue}>{durationValue}</Text>
+                                        <Text style={styles.durationUnit}>{durationUnit}</Text>
+                                    </View>
+
+                                    <View style={[styles.metricCell, styles.middleCell]}>
+                                        <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                                            {displayedArrivalText}
+                                        </Text>
+                                        <View style={styles.distanceRow}>
+                                            <Text style={styles.distanceText}>{distanceText}</Text>
+                                            {showShuttleLastWarningInline ? (
+                                                <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
+                                            ) : null}
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.metricCell, styles.startCell]}>
+                                        <Pressable style={styles.startButton} onPress={onStartPress}>
+                                            <Text style={styles.startButtonText}>Start</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            )}
+
+                        </>
+                    )}
+                </View>
 
                 <ShuttleScheduleModal
                     visible={showScheduleModal}
-                    directionLabel={shuttleScheduleContext?.directionLabel ?? 'Shuttle'}
                     serviceDateLabel={
                         shuttleScheduleContext?.schedule
                             ? shuttleScheduleContext.serviceDate.toLocaleDateString(undefined, {
@@ -686,11 +803,8 @@ export function NavigationBottom({
                               })
                             : undefined
                     }
-                    times={
-                        shuttleScheduleContext?.departureTimes?.map((time) =>
-                            formatTimeLabel(time, shuttleScheduleContext.serviceDate),
-                        ) ?? []
-                    }
+                    tabs={shuttleScheduleTabs}
+                    initialTabKey={initialShuttleScheduleTabKey}
                     onClose={() => setShowScheduleModal(false)}
                 />
             </View>
@@ -708,10 +822,7 @@ export function NavigationBottom({
 
 const styles = StyleSheet.create({
     navCard: {
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 20,
+        width: '100%',
         padding: 14,
         borderRadius: 16,
         backgroundColor: '#FFFFFF',
@@ -721,6 +832,44 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         elevation: 6,
     },
+    cardControls: {
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    cardHandle: {
+        width: 40,
+        height: 5,
+        borderRadius: 999,
+        backgroundColor: '#D1D5DB',
+    },
+    cardControlsRight: {
+        position: 'absolute',
+        right: 0,
+        top: -4,
+    },
+    shuttleMinimizeRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginTop: 4,
+        marginBottom: 6,
+    },
+    cardControlButton: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F3F4F6',
+    },
+    cardControlButtonDisabled: {
+        opacity: 0.45,
+    },
+    cardControlText: {
+        fontSize: 16,
+        lineHeight: 18,
+        fontWeight: '700',
+        color: '#6B7280',
+    },
     navHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -729,15 +878,61 @@ const styles = StyleSheet.create({
     },
     navHeaderText: {fontSize: 16, fontWeight: '700', color: '#111827'},
     navArrival: {fontSize: 12, color: '#10B981', fontWeight: '600'},
+    timeControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     departAtButton: {
-        backgroundColor: '#F5F3FF',
-        borderRadius: 8,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        minWidth: 118,
+        backgroundColor: '#FFF4D6',
+        borderRadius: 10,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#F2D28B',
+        shadowColor: '#9d1e30',
+        shadowOpacity: 0.08,
+        shadowOffset: {width: 0, height: 2},
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    departAtButtonTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginBottom: 1,
+    },
+    departAtButtonLabel: {
+        color: '#8A5A00',
+        fontWeight: '700',
+        fontSize: 9,
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+    },
+    departAtButtonIcon: {
+        color: '#A16207',
+        fontWeight: '700',
+        fontSize: 9,
+    },
+    departAtButtonText: {color: '#111827', fontWeight: '700', fontSize: 12},
+    refreshButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: '#FFF5F5',
+        borderWidth: 1,
+        borderColor: '#F3C5CC',
     },
-    departAtButtonText: {color: '#111827', fontWeight: '600', fontSize: 12},
+    refreshButtonIcon: {
+        color: '#9d1e30',
+        fontWeight: '700',
+        fontSize: 13,
+    },
     modeBarContainer: {
         position: 'relative',
         flexDirection: 'row',
@@ -765,6 +960,31 @@ const styles = StyleSheet.create({
     },
     modeOptionText: {fontSize: 13, fontWeight: '600', color: '#FFFFFF'},
     modeOptionTextActive: {color: '#111827'},
+    minimizedMetricsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginTop: 4,
+    },
+    shuttleNoticeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        marginTop: 4,
+        paddingVertical: 6,
+    },
+    shuttleNoticeText: {
+        flex: 1,
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    shuttleNoticeLink: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#9d1e30',
+    },
     metricsRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -793,6 +1013,21 @@ const styles = StyleSheet.create({
     distanceRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4},
     distanceText: {fontSize: 12, color: '#6B7280'},
     lastShuttleInlineWarning: {fontSize: 11, fontWeight: '700', color: '#B91C1C'},
+    seeScheduleButton: {
+        alignSelf: 'flex-start',
+        marginTop: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 10,
+        backgroundColor: 'rgba(157, 30, 48, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(157, 30, 48, 0.2)',
+    },
+    seeScheduleLink: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#9d1e30',
+    },
     startButton: {
         backgroundColor: '#9d1e30',
         borderRadius: 12,
@@ -803,4 +1038,11 @@ const styles = StyleSheet.create({
         minWidth: 90,
     },
     startButtonText: {color: '#FFFFFF', fontWeight: '700', fontSize: 14},
+    shuttleFooterRow: {
+        marginTop: 10,
+    },
+    shuttleDivider: {
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
 });

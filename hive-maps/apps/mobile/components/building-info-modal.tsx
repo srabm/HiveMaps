@@ -1,4 +1,14 @@
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  LayoutAnimation,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  UIManager,
+  View,
+} from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -24,8 +34,6 @@ type BuildingInfoModalProps = {
   building: BuildingInfo | null;
   onClose: () => void;
   onDirections?: () => void;
-  onStart?: () => void;
-  onFavorite?: () => void;
   onIndoorMap?: () => void;
 };
 
@@ -47,167 +55,223 @@ export function BuildingInfoModal({
   building,
   onClose,
   onDirections,
-  onStart,
-  onFavorite,
   onIndoorMap,
 }: Readonly<BuildingInfoModalProps>) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const [isMinimized, setIsMinimized] = useState(false);
   const noop = () => {};
   const accessibilityItems = building?.accessibility?.length
     ? building.accessibility
     : FALLBACK_ACCESSIBILITY;
 
   const hasIndoorMap = !!building?.hasIndoorMap;
+  const animateSheetLayout = () => {
+    LayoutAnimation.configureNext({
+      duration: 650,
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+      },
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+    });
+  };
+  const setMinimizedState = (nextState: boolean) => {
+    animateSheetLayout();
+    setIsMinimized(nextState);
+  };
+  const toggleMinimized = () => setMinimizedState(!isMinimized);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) setIsMinimized(false);
+  }, [visible, building?.name]);
+
+  const dragHandleResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 24) {
+            setMinimizedState(true);
+            return;
+          }
+          if (gestureState.dy < -24) {
+            setMinimizedState(false);
+          }
+        },
+      }),
+    [isMinimized]
+  );
+
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View pointerEvents="box-none" style={styles.sheetRoot}>
+        {!isMinimized ? <Pressable style={styles.modalBackdrop} onPress={onClose} /> : null}
+        <View pointerEvents="box-none" style={styles.sheetContainer}>
         <ThemedView style={[styles.modalCard, { backgroundColor: theme.background }]}>
-          <View style={styles.handle} />
-
-          <ThemedText type="subtitle" style={styles.title}>
-            {building?.name ?? 'Selected Building'}
-          </ThemedText>
-
-          <View style={styles.addressRow}>
-            <View style={styles.locationIcon}>
-              <MaterialIcons name="place" size={16} color="#9d1e30" />
+          <View style={styles.sheetHeader} {...dragHandleResponder.panHandlers}>
+            <View style={styles.handle} />
+            <View style={styles.sheetActions}>
+              <Pressable testID="building-minimize-button" onPress={toggleMinimized} style={styles.sheetActionButton}>
+                <MaterialIcons
+                  name={isMinimized ? 'keyboard-arrow-up' : 'remove'}
+                  size={20}
+                  color="#6b7280"
+                />
+              </Pressable>
+              <Pressable testID="building-close-button" onPress={onClose} style={styles.sheetActionButton}>
+                <MaterialIcons name="close" size={18} color="#6b7280" />
+              </Pressable>
             </View>
-            <ThemedText style={styles.addressText}>
-              {building?.addresses?.[0] ?? 'Address unavailable'}
-            </ThemedText>
           </View>
 
-          {building?.campus ? (
-            <ThemedText style={styles.campusText}>{building.campus}</ThemedText>
-          ) : null}
+          <View testID={isMinimized ? 'building-modal-minimized' : 'building-modal-expanded'}>
+            <ThemedText type="subtitle" style={styles.title}>
+              {building?.name ?? 'Selected Building'}
+            </ThemedText>
 
-          <View style={styles.actionsRow}>
-            <Pressable
-              style={[styles.actionButton, styles.actionPrimary]}
-              onPress={onDirections ?? noop}
-            >
-              <View style={styles.actionButtonContent}>
-                <MaterialIcons name="directions" size={14} color="#ffffff" />
-                <ThemedText style={styles.actionText}>Directions</ThemedText>
+            <View style={styles.addressRow}>
+              <View style={styles.locationIcon}>
+                <MaterialIcons name="place" size={16} color="#9d1e30" />
               </View>
-            </Pressable>
-            <Pressable
-              style={[styles.actionButton, styles.actionSecondary]}
-              onPress={onStart ?? noop}
-            >
-              <View style={styles.actionButtonContent}>
-                <MaterialIcons name="navigation" size={14} color="#ffffff" />
-                <ThemedText style={styles.actionText}>Start</ThemedText>
-              </View>
-            </Pressable>
+              <ThemedText style={styles.addressText}>
+                {building?.addresses?.[0] ?? 'Address unavailable'}
+              </ThemedText>
+            </View>
 
-            {hasIndoorMap && (
+            {building?.campus ? (
+              <ThemedText style={styles.campusText}>{building.campus}</ThemedText>
+            ) : null}
+
+            <View style={styles.actionsRow}>
               <Pressable
-                style={[styles.actionButton, styles.actionSecondary]}
-                onPress={onIndoorMap ?? noop}
+                style={[styles.actionButton, styles.actionPrimary]}
+                onPress={onDirections ?? noop}
               >
                 <View style={styles.actionButtonContent}>
-                  <MaterialIcons name="map" size={14} color="#ffffff" />
-                  <ThemedText style={styles.actionText}>Indoor</ThemedText>
+                  <MaterialIcons name="directions" size={14} color="#ffffff" />
+                  <ThemedText style={styles.actionText}>Directions</ThemedText>
                 </View>
               </Pressable>
-            )}
 
-            <Pressable
-              style={[styles.actionButton, styles.actionSecondary]}
-              onPress={onFavorite ?? noop}
-            >
-              <View style={styles.actionButtonContent}>
-                <MaterialIcons name="star" size={14} color="#ffffff" />
-                <ThemedText style={styles.actionText}>Favourites</ThemedText>
-              </View>
-            </Pressable>
-          </View>
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <MaterialIcons name="schedule" size={18} color="#9d1e30" />
+              {hasIndoorMap && (
+                <Pressable
+                  style={[styles.actionButton, styles.actionPrimary]}
+                  onPress={onIndoorMap ?? noop}
+                >
+                  <View style={styles.actionButtonContent}>
+                    <MaterialIcons name="map" size={14} color="#ffffff" />
+                    <ThemedText style={styles.actionText}>Indoor</ThemedText>
+                  </View>
+                </Pressable>
+              )}
             </View>
-            <View style={styles.detailTextWrap}>
-              <ThemedText style={styles.detailLabel}>Hours</ThemedText>
-                {Array.isArray((building as any)?.allHours) ? (
-                  (building as any).allHours.map((day: string) => (
-                    <ThemedText key={day} style={[styles.detailValue, { fontSize: 11}]}>
-                      {day}
-                    </ThemedText>
-                  ))
-                ) : (
+          </View>
+
+          {!isMinimized ? (
+            <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator={false}>
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <MaterialIcons name="schedule" size={18} color="#9d1e30" />
+                </View>
+                <View style={styles.detailTextWrap}>
+                  <ThemedText style={styles.detailLabel}>Hours</ThemedText>
+                    {Array.isArray((building as any)?.allHours) ? (
+                      (building as any).allHours.map((day: string) => (
+                        <ThemedText key={day} style={[styles.detailValue, { fontSize: 11}]}>
+                          {day}
+                        </ThemedText>
+                      ))
+                    ) : (
+                      <ThemedText style={styles.detailValue}>
+                        {building?.hours ?? 'Hours not listed'}
+                      </ThemedText>
+                    )}
+                </View>
+              </View>
+
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <MaterialIcons name="phone" size={18} color="#9d1e30" />
+                </View>
+                <View style={styles.detailTextWrap}>
+                  <ThemedText style={styles.detailLabel}>Phone</ThemedText>
                   <ThemedText style={styles.detailValue}>
-                    {building?.hours ?? 'Hours not listed'}
+                    {building?.phone ?? 'Phone not listed'}
                   </ThemedText>
-                )}
-            </View>
-          </View>
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <MaterialIcons name="phone" size={18} color="#9d1e30" />
-            </View>
-            <View style={styles.detailTextWrap}>
-              <ThemedText style={styles.detailLabel}>Phone</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {building?.phone ?? 'Phone not listed'}
-              </ThemedText>
-            </View>
-          </View>
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <MaterialIcons name="public" size={18} color="#9d1e30" />
-            </View>
-            <View style={styles.detailTextWrap}>
-              <ThemedText style={styles.detailLabel}>Website</ThemedText>
-              <ThemedText style={styles.detailValue}>
-                {building?.website ?? 'Website not listed'}
-              </ThemedText>
-            </View>
-          </View>
-
-          <View style={styles.sectionHeaderCompact}>
-            <ThemedText style={styles.sectionTitle}>Accessibility</ThemedText>
-          </View>
-
-          {accessibilityItems?.map((item, index) => (
-            <View key={`${item.label}-${index}`} style={styles.accessibilityRow}>
-              <View style={styles.accessibilityIcon}>
-                <MaterialIcons
-                  name={(item.iconName as any) ?? 'accessible'}
-                  size={18}
-                  color="#ffffff"
-                />
+                </View>
               </View>
-              <View style={styles.accessibilityTextWrap}>
-                <ThemedText style={styles.accessibilityLabel}>{item.label}</ThemedText>
-                {item.description ? (
-                  <ThemedText style={styles.accessibilityDescription}>
-                    {item.description}
+
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <MaterialIcons name="public" size={18} color="#9d1e30" />
+                </View>
+                <View style={styles.detailTextWrap}>
+                  <ThemedText style={styles.detailLabel}>Website</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {building?.website ?? 'Website not listed'}
                   </ThemedText>
-                ) : null}
+                </View>
               </View>
-            </View>
-          ))}
+
+              <View style={styles.sectionHeaderCompact}>
+                <ThemedText style={styles.sectionTitle}>Accessibility</ThemedText>
+              </View>
+
+              {accessibilityItems?.map((item, index) => (
+                <View key={`${item.label}-${index}`} style={styles.accessibilityRow}>
+                  <View style={styles.accessibilityIcon}>
+                    <MaterialIcons
+                      name={(item.iconName as any) ?? 'accessible'}
+                      size={18}
+                      color="#ffffff"
+                    />
+                  </View>
+                  <View style={styles.accessibilityTextWrap}>
+                    <ThemedText style={styles.accessibilityLabel}>{item.label}</ThemedText>
+                    {item.description ? (
+                      <ThemedText style={styles.accessibilityDescription}>
+                        {item.description}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
         </ThemedView>
+        </View>
       </View>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1200,
+  },
   modalBackdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheetContainer: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
@@ -219,6 +283,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 18,
     paddingHorizontal: 18,
+    maxHeight: '78%',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.08)',
     shadowColor: '#000',
@@ -227,13 +292,31 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 12,
   },
+  sheetHeader: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   handle: {
     alignSelf: 'center',
     width: 44,
     height: 5,
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.18)',
-    marginBottom: 12,
+    marginBottom: 6,
+  },
+  sheetActions: {
+    position: 'absolute',
+    right: -4,
+    top: -2,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sheetActionButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 18,
@@ -266,7 +349,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   actionButton: {
     borderRadius: 999,
@@ -282,10 +365,6 @@ const styles = StyleSheet.create({
   actionPrimary: {
     backgroundColor: '#9d1e30',
     borderColor: '#9d1e30',
-  },
-  actionSecondary: {
-    backgroundColor: '#b94758',
-    borderColor: '#b94758',
   },
   actionText: {
     color: '#ffffff',
@@ -353,6 +432,9 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 12,
     opacity: 0.7,
+  },
+  detailsScroll: {
+    marginTop: 2,
   },
   accessibilityRow: {
     flexDirection: 'row',
