@@ -206,6 +206,11 @@ type NavigationOverlayProps = {
     shuttlePhaseBoundaries?: ShuttlePhaseBoundaries;
     /** Called automatically when arrival is detected — for side-effects like indoor handoff. */
     onArrivedAuto?: () => void;
+    /**
+     * When provided, arrival at a building with an indoor leg shows "Enter Building"
+     * instead of "End Navigation". Called when the user taps the button.
+     */
+    onIndoorHandoff?: () => void;
     /** Called when the user explicitly presses the End Navigation button. */
     onArrived?: () => void;
     onRecalculated: (newDirections: DirectionsResponse) => void;
@@ -223,6 +228,7 @@ function NavigationOverlay({
     followLiveLocation,
     shuttlePhaseBoundaries,
     onArrivedAuto,
+    onIndoorHandoff,
     onArrived,
     onRecalculated,
     onExit,
@@ -313,8 +319,10 @@ function NavigationOverlay({
         }
         if (arrivalHandledRef.current) return;
         arrivalHandledRef.current = true;
-        onArrivedAuto?.();
-    }, [onArrivedAuto, stepNav.arrived]);
+        // When an indoor handoff is pending, the user drives the transition
+        // explicitly via the "Enter Building" button — don't auto-fire here.
+        if (!onIndoorHandoff) onArrivedAuto?.();
+    }, [onArrivedAuto, onIndoorHandoff, stepNav.arrived]);
 
     return (
         <StepByStepPanel
@@ -331,6 +339,7 @@ function NavigationOverlay({
             shuttlePhase={stepNav.shuttlePhase}
             onExit={() => { onExit(); stepNav.reset(); }}
             onArrived={() => { onArrived?.(); stepNav.reset(); }}
+            onIndoorHandoff={onIndoorHandoff ? () => { onIndoorHandoff(); stepNav.reset(); } : undefined}
         />
     );
 }
@@ -800,6 +809,22 @@ export default function MapScreen() {
         setIsNavigating(true);
     }, [activeIndoorSegment, directions, fromCoordinates, routeFromCoordinates, selectedMode, shuttleRouting]);
 
+    // LB's entrance/exit is on LB1, but the lowest mapped floor is LB2.
+    // When crossing the LB building boundary in either direction, we inject
+    // a `stairsNotice` query param so the indoor screen can render an
+    // artificial step reminding the user to use the stairs/elevator.
+    // Pure LB→LB routes do not get the notice.
+    const needsLbStairsNotice = useCallback(
+        (segment: 'origin' | 'destination') => {
+            const originIsLB = classroomOrigin?.buildingCode === 'LB';
+            const destinationIsLB = classroomDestination?.buildingCode === 'LB';
+            if (originIsLB && destinationIsLB) return false; // LB→LB, no notice
+            if (segment === 'origin') return originIsLB;      // LB→outside
+            return destinationIsLB;                           // outside→LB
+        },
+        [classroomDestination?.buildingCode, classroomOrigin?.buildingCode],
+    );
+
     const openOriginIndoorMap = useCallback(() => {
         if (!classroomOrigin || !originIndoorSteps) return;
         const endpoints = getIndoorRouteEndpoints(originIndoorSteps);
@@ -814,15 +839,16 @@ export default function MapScreen() {
         const fromLabel = encodeURIComponent(from);
         const toLabel = encodeURIComponent('Building exit');
         const sessionId = `${Date.now()}`;
+        const stairsParam = needsLbStairsNotice('origin') ? '&stairsNotice=exit' : '';
 
         originIndoorSessionIdRef.current = sessionId;
         setIndoorBeeCoordinates(null);
         setSeeDirectionBar(false);
 
         router.push(
-            `/indoor/${encodeURIComponent(classroomOrigin.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&resumeSession=${encodeURIComponent(sessionId)}` as Href
+            `/indoor/${encodeURIComponent(classroomOrigin.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&resumeSession=${encodeURIComponent(sessionId)}${stairsParam}` as Href
         );
-    }, [campusMeta, classroomOrigin, from, originIndoorSteps, router]);
+    }, [campusMeta, classroomOrigin, from, needsLbStairsNotice, originIndoorSteps, router]);
 
     const openDestinationIndoorMap = useCallback(() => {
         if (!classroomDestination || !destinationIndoorSteps) return;
@@ -838,6 +864,7 @@ export default function MapScreen() {
         const fromLabel = encodeURIComponent('Building entrance');
         const toLabel = encodeURIComponent(to);
         const sessionId = `${Date.now()}`;
+        const stairsParam = needsLbStairsNotice('destination') ? '&stairsNotice=entrance' : '';
 
         setActiveIndoorSegment(null);
         setIsNavigating(false);
@@ -846,9 +873,9 @@ export default function MapScreen() {
         destinationIndoorSessionIdRef.current = sessionId;
 
         router.push(
-            `/indoor/${encodeURIComponent(classroomDestination.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&completeSession=${encodeURIComponent(sessionId)}` as Href
+            `/indoor/${encodeURIComponent(classroomDestination.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(endpoints.fromNodeId)}&toNode=${encodeURIComponent(endpoints.toNodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}&completeSession=${encodeURIComponent(sessionId)}${stairsParam}` as Href
         );
-    }, [campusMeta, classroomDestination, destinationIndoorSteps, router, to]);
+    }, [campusMeta, classroomDestination, destinationIndoorSteps, needsLbStairsNotice, router, to]);
 
     useEffect(() => {
         if (pendingStartSegment !== 'origin') return;
@@ -1377,12 +1404,11 @@ export default function MapScreen() {
                     provider={selectedMode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX}
                     followLiveLocation={navigationUsesLiveLocation}
                     shuttlePhaseBoundaries={activeShuttlePhaseBoundaries}
-                    onArrivedAuto={() => {
-                        if (!destinationIndoorSteps) return;
+                    onIndoorHandoff={destinationIndoorSteps ? () => {
                         if (destinationIndoorHandoffDoneRef.current) return;
                         destinationIndoorHandoffDoneRef.current = true;
                         openDestinationIndoorMap();
-                    }}
+                    } : undefined}
                     onArrived={handleNavigationExit}
                     onRecalculated={(newDirections) => {
                         setDirections(newDirections);

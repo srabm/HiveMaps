@@ -284,6 +284,12 @@ type StepByStepPanelProps = {
     onExit: () => void;
     /** Called when the user taps "End Navigation" after arriving — full teardown. */
     onArrived: () => void;
+    /**
+     * When provided, the arrived state shows "Enter Building" instead of
+     * "End Navigation" — used for outdoor→indoor handoff transitions.
+     * Tapping the button calls this instead of onArrived.
+     */
+    onIndoorHandoff?: () => void;
 };
 
 // ─── Full directions list row ────────────────────────────────────────────────
@@ -433,6 +439,7 @@ export function StepByStepPanel({
     shuttlePhase,
     onExit,
     onArrived,
+    onIndoorHandoff,
 }: Readonly<StepByStepPanelProps>) {
     const [showAllSteps, setShowAllSteps] = useState(false);
 
@@ -457,23 +464,39 @@ export function StepByStepPanel({
 
     // ── Arrived state ────────────────────────────────────────────────────────
     if (arrived) {
+        const isIndoorHandoff = !!onIndoorHandoff;
         return (
             <View style={styles.container} pointerEvents="box-none">
                 <View style={styles.topPanel}>
                     <View style={styles.mainRow}>
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
-                            <MaterialIcons name="flag" size={28} color="#111827" />
+                            <MaterialIcons
+                                name={isIndoorHandoff ? 'meeting-room' : 'flag'}
+                                size={28}
+                                color="#111827"
+                            />
                         </View>
                         <View style={styles.instructionBlock}>
-                            <Text style={styles.instructionText}>You have arrived!</Text>
+                            <Text style={styles.instructionText}>
+                                {isIndoorHandoff ? "You've arrived at the building" : 'You have arrived!'}
+                            </Text>
+                            {isIndoorHandoff && (
+                                <Text style={styles.distLabel}>Continue inside for indoor directions</Text>
+                            )}
                         </View>
                     </View>
                 </View>
                 {/* Centred End button */}
                 <View style={[styles.bottomBarBase, styles.bottomBarArrived]}>
-                    <Pressable style={styles.endButton} onPress={onArrived}>
-                        <Text style={styles.endButtonText}>End Navigation</Text>
-                    </Pressable>
+                    {isIndoorHandoff ? (
+                        <Pressable style={styles.endButton} onPress={onIndoorHandoff}>
+                            <Text style={styles.endButtonText}>Enter Building →</Text>
+                        </Pressable>
+                    ) : (
+                        <Pressable style={styles.endButton} onPress={onArrived}>
+                            <Text style={styles.endButtonText}>End Navigation</Text>
+                        </Pressable>
+                    )}
                 </View>
             </View>
         );

@@ -32,14 +32,31 @@ function formatArrivalTime(durationMinutes: number): string {
     return arrival.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function buildAugmentedSteps(steps: IndoorDirectionsResponse[]): IndoorDirectionsResponse[] {
+const STAIRS_STEP_ENTRANCE: IndoorDirectionsResponse = {
+    direction: "DEFAULT",
+    distance: 0,
+    description: "Enter on LB1, then take the stairs or elevator up to LB2 to begin indoor navigation",
+    nodes: [],
+};
+
+const STAIRS_STEP_EXIT: IndoorDirectionsResponse = {
+    direction: "DEFAULT",
+    distance: 0,
+    description: "Take the stairs or elevator down from LB2 to LB1 to exit the building",
+    nodes: [],
+};
+
+function buildAugmentedSteps(
+    steps: IndoorDirectionsResponse[],
+    stairsNotice?: 'entrance' | 'exit',
+): IndoorDirectionsResponse[] {
     if (steps.length === 0) return steps;
 
     const lastStep = steps.at(-1);
     const lastNode = lastStep?.nodes?.at(-1);
     if (!lastStep || !lastNode) return steps;
 
-    return [
+    const withArrival = [
         ...steps,
         {
             direction: "DEFAULT",
@@ -48,6 +65,10 @@ function buildAugmentedSteps(steps: IndoorDirectionsResponse[]): IndoorDirection
             nodes: [lastNode],
         },
     ];
+
+    if (stairsNotice === 'entrance') return [STAIRS_STEP_ENTRANCE, ...withArrival];
+    if (stairsNotice === 'exit') return [...withArrival, STAIRS_STEP_EXIT];
+    return withArrival;
 }
 
 export interface DirectionsModalProps {
@@ -62,6 +83,17 @@ export interface DirectionsModalProps {
     preStartLabel?: string;
     /** Skip the pre-start summary screen and jump directly into navigation. */
     autoStart?: boolean;
+    /**
+     * 'entrance' — prepends a step telling the user to go from LB1 up to LB2.
+     * 'exit'     — appends a step telling the user to go from LB2 down to LB1.
+     * undefined  — no stairs step injected.
+     */
+    stairsNotice?: 'entrance' | 'exit';
+    /**
+     * When provided, overrides the "You have arrived!" text shown at the end
+     * of navigation — used for indoor→outdoor handoff.
+     */
+    arrivedLabel?: string;
 }
 
 function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null {
@@ -127,8 +159,10 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     beeImageSource,
     preStartLabel = "Walk",
     autoStart = false,
+    stairsNotice,
+    arrivedLabel,
 }) => {
-    const augmentedSteps = buildAugmentedSteps(steps);
+    const augmentedSteps = buildAugmentedSteps(steps, stairsNotice);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight] = useState(DEFAULT_HEIGHT);
@@ -238,7 +272,9 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
         <View>
             {hasArrived ? (
                 <View style={styles.arrivedContent}>
-                    <Text style={styles.arrivedText}>You have arrived!</Text>
+                    <Text style={styles.arrivedText}>
+                        {arrivedLabel ?? "You have arrived!"}
+                    </Text>
                 </View>
             ) : (
                 <>

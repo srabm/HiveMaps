@@ -91,7 +91,7 @@ export function resolveTraversalFloorId(availableFloors: FloorSummary[], stepFlo
 }
 
 export default function IndoorMapScreen() {
-  const { building, floor, campus, fromNode, toNode, fromLabel, toLabel, resumeSession, completeSession } = useLocalSearchParams<{
+  const { building, floor, campus, fromNode, toNode, fromLabel, toLabel, resumeSession, completeSession, stairsNotice } = useLocalSearchParams<{
     building: string;
     floor?: string | string[];
     campus?: string | string[];
@@ -101,6 +101,7 @@ export default function IndoorMapScreen() {
     toLabel?: string | string[];
     resumeSession?: string | string[];
     completeSession?: string | string[];
+    stairsNotice?: string | string[];
   }>();
   const router = useRouter();
 
@@ -116,6 +117,7 @@ export default function IndoorMapScreen() {
   const initialToQuery = useMemo(() => normalizeFloorParam(toLabel) ?? '', [toLabel]);
   const resumeSessionId = useMemo(() => normalizeFloorParam(resumeSession), [resumeSession]);
   const completeSessionId = useMemo(() => normalizeFloorParam(completeSession), [completeSession]);
+  const stairsNoticeParam = useMemo(() => normalizeFloorParam(stairsNotice), [stairsNotice]);
 
   const [floors, setFloors] = useState<FloorSummary[]>([]);
   const [resolvedBuilding, setResolvedBuilding] = useState<SupportedIndoorBuilding | null>(null);
@@ -163,7 +165,7 @@ export default function IndoorMapScreen() {
           (candidate) => candidate.buildingCode.toUpperCase() === buildingCode,
         );
         const preferredCampus = campusParam?.toUpperCase();
-        
+
         let resolved = matches.find((candidate) => candidate.campusId.toUpperCase() === preferredCampus);
         resolved ??= matches[0] || null;
 
@@ -209,7 +211,7 @@ export default function IndoorMapScreen() {
     const handleMissingBuilding = () => {
       clearIndoorData();
       setIsLoadingFloors(false);
-      
+
       const shouldShowError = !buildingCode || !didFailBuildingSupportLookup;
       if (shouldShowError) {
         setErrorMessage('This building does not currently support indoor maps.');
@@ -300,17 +302,17 @@ export default function IndoorMapScreen() {
       setErrorMessage(null);
       setFloorDetails(null);
       setSelectedRoomId(null);
-      
+
       try {
         const campusId = resolvedBuilding.campusId;
         const details = await fetchFloorDetails(campusId, buildingCode, activeFloorId);
         if (isCancelled) return;
-        
+
         if (!details) {
           handleMissingFloorDetails();
           return;
         }
-        
+
         unavailableFloorIdsRef.current.delete(activeFloorId);
         setFloorDetails(details);
       } catch (error) {
@@ -329,6 +331,7 @@ export default function IndoorMapScreen() {
   }, [activeFloorId, buildingCode, floors, reloadToken, resolvedBuilding]);
 
   let buildingTitle = 'Indoor Map';
+
   if (buildingCode) {
     buildingTitle = `${buildingCode} Building - Indoor Map`;
   }
@@ -420,6 +423,9 @@ export default function IndoorMapScreen() {
           initialToNodeId={initialToNodeId}
           resumeSessionId={resumeSessionId}
           completeSessionId={completeSessionId}
+          autoStartNavigation={!!completeSessionId}
+          indoorToOutdoor={!!resumeSessionId}
+          stairsNotice={stairsNoticeParam as 'entrance' | 'exit' | undefined}
         />
 
         {!!noticeMessage && (

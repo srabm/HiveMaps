@@ -29,6 +29,14 @@ export type FloorPlanViewerProps = Readonly<{
     initialToNodeId?: string | null
     resumeSessionId?: string | null
     completeSessionId?: string | null
+    /** When true (outdoor→indoor handoff), skips the DirectionsModal preview
+     * state and jumps straight into active navigation. */
+    autoStartNavigation?: boolean
+    /** When true (indoor→outdoor handoff), the DirectionsModal arrived
+     * label reads "Head outside" to signal that outdoor nav will resume. */
+    indoorToOutdoor?: boolean
+    /** Passed through to DirectionsModal to inject a stairs/elevator step. */
+    stairsNotice?: 'entrance' | 'exit'
 }>
 
 type RoomFeatureProperties = {
@@ -159,7 +167,7 @@ const getCenterCoordinate = (
   const planCoordinates = collectCoordinates(planGeometry)
   const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
   const coordinates = [...planCoordinates, ...roomCoordinates]
-  
+
   return calculateBoundingBoxCenter(coordinates);
 }
 
@@ -387,10 +395,13 @@ export function FloorPlanViewer({
                                     initialToNodeId = null,
                                     resumeSessionId = null,
                                     completeSessionId = null,
+                                    autoStartNavigation = false,
+                                    indoorToOutdoor = false,
+                                    stairsNotice,
                                 }: FloorPlanViewerProps) {
   const router = useRouter();
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
-  
+
     const { accessible, setAccessible } = useIndoorNavigationState();
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
     const cameraRef = useRef<MapboxGL.Camera>(null);
@@ -878,6 +889,9 @@ export function FloorPlanViewer({
                 invalidatePendingPoiSelection();
             }}
             preStartLabel={accessible ? "Navigate" : undefined}
+            autoStart={autoStartNavigation}
+            stairsNotice={stairsNotice}
+            arrivedLabel={indoorToOutdoor ? "Head outside — outdoor navigation will resume" : undefined}
           />
         </View>
       )}
