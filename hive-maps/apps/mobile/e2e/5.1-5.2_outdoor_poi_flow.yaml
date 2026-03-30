@@ -1,0 +1,12 @@
+appId: com.anonymous.mobile
+---
+- tapOn: Restaurants
+- tapOn:
+    point: 50%,54%
+- assertVisible: Champion Döner
+- tapOn: Directions
+- tapOn:
+    point: 50%,54%
+- tapOn:
+    point: 92%,18%
+- tapOn: ✕

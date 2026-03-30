@@ -10,6 +10,16 @@ export type MapLocation = {
   floorId?: string;
   indoorNodeId?: string;
 }
+export type POI = {
+  name: string;
+  full_address: string;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+
+  phone?: string;
+};
 
 export interface MapsProviderPort {
   ensureConfigured(): string;
@@ -18,6 +28,7 @@ export interface MapsProviderPort {
   retrieve(id: string, sessionToken: string): Promise<Coordinates | null>;
   reverse(latitude:number, longitude:number):Promise<MapLocation | null>; // Reverse Geocoding Api to find an address using coordinates
   forward(address: string): Promise<Coordinates | null>; // Temporary Forward Geocoding Api to find coordinates for a full address
+  categorySearch(categoryID: string, usercoordinates:[number,number],minLat:number,minLon:number,maxLat:number,maxLon:number ): Promise<POI[] | null>;
   defaultStyleURL: string;
 }
 

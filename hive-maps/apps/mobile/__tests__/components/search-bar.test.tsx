@@ -21,6 +21,7 @@ const createMapsAdapter = (): jest.Mocked<MapsProviderPort> => ({
   retrieve: jest.fn().mockResolvedValue({ lat: 45.497, lng: -73.579 }),
   reverse: jest.fn().mockResolvedValue(null),
   forward: jest.fn().mockResolvedValue(null),
+  categorySearch: jest.fn(),
   defaultStyleURL: "",
 });
 

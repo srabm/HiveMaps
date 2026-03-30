@@ -11,9 +11,13 @@ import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 
 let capturedDirectionsListener: ((event: any) => void) | null = null;
 let mockShapeSourceOnPress: ((e: any) => void) | null = null;
+let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
+let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
 let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
+let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
+let mockDirectionBarProps: any = null;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -51,13 +55,20 @@ jest.mock('@/components/ui/step-by-step-panel', () => {
     };
 });
 
-jest.mock('@/services/maps/route-validator', () => ({
-    validateCampusRoute: jest.fn(() => ({
-        valid: true,
-        route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
-    })),
-    getNearestCampus: jest.fn(() => 'SGW'),
-}));
+jest.mock('@/services/maps/route-validator', () => {
+    const actual = jest.requireActual('@/services/maps/route-validator');
+
+    return {
+        ...actual,
+        haversineKM: jest.fn().mockReturnValue(0.12),
+
+        validateCampusRoute: jest.fn(() => ({
+            valid: true,
+            route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
+        })),
+        getNearestCampus: jest.fn(() => 'SGW'),
+    };
+});
 
 jest.mock('@/services/maps/camera-utils', () => ({
     getCameraBoundsForRoute: jest.fn(() => ({
@@ -78,6 +89,7 @@ jest.mock('@/hooks/use-shuttle-routing', () => ({
 
 jest.mock('@/services/mapbox', () => {
     mockCameraSetCamera = jest.fn();
+    const { View } = require('react-native');
     return {
         MapboxGL: {
             MapView: ({ children }: any) => <>{children}</>,
@@ -86,14 +98,22 @@ jest.mock('@/services/mapbox', () => {
                 mockUserLocationOnUpdate = onUpdate;
                 return null;
             },
-            ShapeSource: ({ children, onPress }: any) => {
-                mockShapeSourceOnPress = onPress;
-                return <>{children}</>;
+            ShapeSource: ({id, children, onPress }: any) => {
+                if (onPress) {
+                    mockShapeSourceOnPress = onPress; // Keep for backward compatibility
+                    mockShapeSourceHandlers[id || 'unknown'] = onPress; // Capture specifically
+                }
+                return <View testID={id}>{children}</View>;
             },
             FillLayer: () => null,
             LineLayer: () => null,
             SymbolLayer: () => null,
-            PointAnnotation: ({ children }: any) => <>{children}</>,
+            PointAnnotation: ({ id, onSelected, children }: any) => {
+                if (onSelected) {
+                    mockPointAnnotationHandlers[id || 'unknown'] = onSelected;
+                }
+                return <View testID={id}>{children}</View>;
+            },
             Images: () => null,
             requestAndroidLocationPermissions: jest.fn(),
         },
@@ -128,7 +148,16 @@ jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
 jest.mock('@/components/search-bar', () => () => null);
-jest.mock('@/components/directions-bars', () => () => null);
+jest.mock('@/components/directions-bars', () => {
+    const { View } = require('react-native');
+    return {
+        __esModule: true,
+        default: (props: any) => {
+            mockDirectionBarProps = props;
+            return <View testID="direction-bar-mock" />;
+        },
+    };
+});
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
     return {
@@ -183,6 +212,16 @@ jest.mock('@react-navigation/native', () => ({
     }),
 }));
 
+jest.mock('@/components/ui/POICategory', () => {
+    const { View } = require('react-native');
+    return {
+        POICategory: (props: any) => {
+            mockPOICategoryCallbacks = props;
+            return <View testID="poi-category-mock" />;
+        },
+    };
+});
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import { useLiveLocation } from '@/hooks/use-live-location';
@@ -193,6 +232,7 @@ import { useShuttleRouting } from '@/hooks/use-shuttle-routing';
 import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-validator';
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
+import { View } from 'react-native/Libraries/Components/View/View';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -1732,4 +1772,138 @@ describe('timeout modal', () => {
             expect(queryByText('Directions Unavailable')).toBeNull();
         });
     });
+});
+
+describe('US-5.1: Outdoor POI Selection', () => {
+    const mockPOI = {
+        name: 'Gourmet Burger',
+        full_address: '123 Burger St, Montreal, QC',
+        coordinates: { latitude: 45.497, longitude: -73.579 },
+        phone: '514-555-0199'
+    };
+
+    const triggerMapboxClick = () => {
+        act(() => {
+            const targetId = 'poi-Gourmet Burger-0';
+            if (mockPointAnnotationHandlers[targetId]) {
+                mockPointAnnotationHandlers[targetId]();
+                return;
+            }
+
+            const eventPayload = {
+                features: [{
+                    properties: { name: 'Gourmet Burger', isPOI: true },
+                    geometry: { type: 'Point', coordinates: [-73.579, 45.497] }
+                }]
+            };
+
+            Object.values(mockShapeSourceHandlers).forEach(handler => {
+                handler(eventPayload);
+            });
+
+            if (mockShapeSourceOnPress) {
+                mockShapeSourceOnPress(eventPayload);
+            }
+        });
+    };
+
+    it('clears POI markers when category is cleared', () => {
+        render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onClearCategory();
+        });
+
+        expect(mockPOICategoryCallbacks).toBeDefined();
+    });
+
+    it('TASK-5.2.1: displays OutdoorPOICard when a POI is selected', async () => {
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        expect(await findByText('Gourmet Burger')).toBeTruthy();
+        expect(await findByText('123 Burger St, Montreal, QC')).toBeTruthy();
+    });
+
+    it('renders distance from user location inside the card', async () => {
+        mockUserLocationOnUpdate?.({
+            coords: { latitude: 45.498, longitude: -73.579 }
+        });
+
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        expect(await findByText(/m/)).toBeTruthy();
+    });
+
+    it('TASK-108: closes the card when the close button is pressed', async () => {
+        const { findByTestId, queryByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        const closeBtn = await findByTestId('poi-card-close');
+
+        act(() => {
+            fireEvent.press(closeBtn);
+        });
+
+        await waitFor(() => {
+            expect(queryByText('Gourmet Burger')).toBeNull();
+        });
+    });
+
+    it('TASK-5.2.4: triggers directions flow when "Directions" is pressed', async () => {
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        const directionsBtn = await findByText('Directions');
+
+        act(() => {
+            fireEvent.press(directionsBtn);
+        });
+
+        expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
+    });
+
+    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
+        const { getDirections } = require('@/services/maps/directions-api-adapter');
+        getDirections.mockClear();
+
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        const startBtn = await findByText('Start');
+
+        await act(async () => {
+            fireEvent.press(startBtn);
+        });
+
+        expect(getDirections).not.toHaveBeenCalled();
+    });
+
+
 });
