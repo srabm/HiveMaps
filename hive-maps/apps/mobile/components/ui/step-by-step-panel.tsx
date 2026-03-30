@@ -131,15 +131,146 @@ const SHUTTLE_PHASE_LABEL: Record<ShuttlePhase, { icon: React.ComponentProps<typ
     'walk-from-stop': { icon: 'directions-walk', text: 'Walk to destination',  color: '#059669' },
 };
 
+function getTransitVehicleType(step: Step): string {
+    const vehicleType =
+        step.transitDetails?.transitLine?.vehicle?.type ??
+        step.transitDetails?.transitLine?.vehicle?.name?.text ??
+        step.transitDetails?.transitLine?.vehicle?.name ??
+        '';
+    return typeof vehicleType === 'string' ? vehicleType.toLowerCase() : '';
+}
+
+function getStepIcon(step: Step | null): React.ComponentProps<typeof MaterialIcons>['name'] {
+    if (!step) return 'flag';
+
+    const vehicleType = getTransitVehicleType(step);
+
+    if (vehicleType.includes('bus')) {
+        return 'directions-bus';
+    }
+
+    if (
+        vehicleType.includes('subway') ||
+        vehicleType.includes('metro') ||
+        vehicleType.includes('rail') ||
+        vehicleType.includes('train')
+    ) {
+        return 'subway';
+    }
+
+    return getManeuverIcon(step.maneuver, step.maneuverModifier);
+}
+
+function getStepInstructionText(step: Step | null): string {
+    if (!step) return 'Continue';
+
+    const transitDetails = step.transitDetails;
+    if (!transitDetails) {
+        return step.instruction || 'Continue';
+    }
+
+    const vehicleType = getTransitVehicleType(step);
+    const departureStop = transitDetails.stopDetails?.departureStop?.name;
+    const routeId = transitDetails.transitLine?.nameShort ?? null;
+    const lineName = transitDetails.transitLine?.name ?? null;
+    const headsign =
+        transitDetails.transitLine?.headsign ??
+        transitDetails.headsign ??
+        null;
+
+    if (
+        vehicleType.includes('subway') ||
+        vehicleType.includes('metro') ||
+        vehicleType.includes('rail') ||
+        vehicleType.includes('train')
+    ) {
+        if (departureStop && headsign) {
+            return `Enter station ${departureStop} towards ${headsign}`;
+        }
+
+        if (departureStop) {
+            return `Enter station ${departureStop}`;
+        }
+
+        if (headsign) {
+            return `Take metro towards ${headsign}`;
+        }
+
+        return 'Enter station';
+    }
+
+    const vehicleLabel =
+        vehicleType.includes('tram')
+            ? 'tram'
+            : vehicleType.includes('bus')
+              ? 'bus'
+              : 'transit';
+
+    if (routeId && headsign) {
+        return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
+    }
+
+    if (routeId) {
+        return `Take ${vehicleLabel} ${routeId}`;
+    }
+
+    if (lineName && headsign) {
+        return `Take ${lineName} towards ${headsign}`;
+    }
+
+    if (lineName) {
+        return `Take ${lineName}`;
+    }
+
+    return step.instruction || 'Continue';
+}
+
+function getTransitStopSummary(step: Step | null): string[] {
+    if (!step?.transitDetails) return [];
+
+    const departureStop = step.transitDetails.stopDetails?.departureStop?.name ?? null;
+    const arrivalStop = step.transitDetails.stopDetails?.arrivalStop?.name ?? null;
+    const lines: string[] = [];
+
+    if (departureStop) {
+        lines.push(`Board at ${departureStop}`);
+    }
+
+    if (arrivalStop) {
+        lines.push(`Exit at ${arrivalStop}`);
+    }
+
+    return lines;
+}
+
 // ─── Transit boarding card ───────────────────────────────────────────────────
 function TransitCard({ step }: Readonly<{ step: Step }>) {
     const td = step.transitDetails;
     if (!td) return null;
 
-    const lineName = td.transitLine?.nameShort ?? td.transitLine?.name ?? null;
+    const routeId = td.transitLine?.nameShort ?? null;
+    const lineName = td.transitLine?.name ?? null;
     const lineColor: string = td.transitLine?.color ?? '#374151';
+    const vehicleType =
+        td.transitLine?.vehicle?.type ??
+        td.transitLine?.vehicle?.name?.text ??
+        td.transitLine?.vehicle?.name ??
+        '';
+    const transitHeadsign =
+        td.transitLine?.headsign ??
+        td.headsign ??
+        null;
     const departureStop = td.stopDetails?.departureStop?.name ?? null;
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
+
+    const transitIcon: React.ComponentProps<typeof MaterialIcons>['name'] =
+        typeof vehicleType === 'string' && vehicleType.toLowerCase().includes('subway')
+            ? 'subway'
+            : typeof vehicleType === 'string' && vehicleType.toLowerCase().includes('rail')
+              ? 'train'
+              : 'directions-bus';
+
+    const shouldShowSeparateLineName = !!lineName && lineName !== routeId;
 
     // Format time strings like "2025-01-15T14:30:00-05:00" → "2:30 PM"
     const fmtTime = (raw: string | undefined): string | null => {
@@ -158,9 +289,25 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
         <View style={[transitCardStyles.card, { borderLeftColor: lineColor }]}>
             {/* Line badge */}
             <View style={[transitCardStyles.lineBadge, { backgroundColor: lineColor }]}>
-                <MaterialIcons name="directions-bus" size={12} color="#fff" />
-                {lineName ? <Text style={transitCardStyles.lineBadgeText}>{lineName}</Text> : null}
+                <MaterialIcons name={transitIcon} size={12} color="#fff" />
+                {routeId ? <Text style={transitCardStyles.lineBadgeText}>{routeId}</Text> : null}
+                {!routeId && lineName ? <Text style={transitCardStyles.lineBadgeText}>{lineName}</Text> : null}
             </View>
+
+            {shouldShowSeparateLineName ? (
+                <View style={transitCardStyles.transitMetaBlock}>
+                    <Text style={transitCardStyles.transitLineName}>{lineName}</Text>
+                    {transitHeadsign ? (
+                        <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+                            Towards {transitHeadsign}
+                        </Text>
+                    ) : null}
+                </View>
+            ) : transitHeadsign ? (
+                <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+                    Towards {transitHeadsign}
+                </Text>
+            ) : null}
 
             {/* Stop info */}
             <View style={transitCardStyles.stopRow}>
@@ -215,6 +362,19 @@ const transitCardStyles = StyleSheet.create({
         color: '#fff',
         fontSize: 11,
         fontWeight: '700',
+    },
+    transitMetaBlock: {
+        gap: 2,
+    },
+    transitLineName: {
+        fontSize: 13,
+        color: '#111827',
+        fontWeight: '700',
+    },
+    transitDirectionText: {
+        fontSize: 12,
+        color: '#4B5563',
+        fontWeight: '500',
     },
     stopRow: {
         flexDirection: 'row',
@@ -290,15 +450,20 @@ function StepRow({
         <View style={[stepRowStyles.row, isCurrent && stepRowStyles.rowActive]}>
             <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive, isArrivalStep && stepRowStyles.iconWrapArrival]}>
                 <MaterialIcons
-                    name={getManeuverIcon(step.maneuver, step.maneuverModifier)}
+                    name={getStepIcon(step)}
                     size={18}
                     color={isCurrent || isArrivalStep ? '#111827' : '#6B7280'}
                 />
             </View>
             <View style={stepRowStyles.textWrap}>
                 <Text style={[stepRowStyles.instruction, isCurrent && stepRowStyles.instructionActive]} numberOfLines={2}>
-                    {step.instruction || 'Continue'}
+                    {getStepInstructionText(step)}
                 </Text>
+                {getTransitStopSummary(step).map((summaryLine) => (
+                    <Text key={summaryLine} style={stepRowStyles.transitStopSummary} numberOfLines={1}>
+                        {summaryLine}
+                    </Text>
+                ))}
                 {step.distance > 0 && (
                     <Text style={stepRowStyles.dist}>{formatDist(step.distance)}</Text>
                 )}
@@ -343,6 +508,7 @@ const stepRowStyles = StyleSheet.create({
     textWrap: { flex: 1 },
     instruction: { fontSize: 14, color: '#111827', fontWeight: '500' },
     instructionActive: { fontWeight: '700', color: '#B98100' },
+    transitStopSummary: { fontSize: 12, color: '#4B5563', marginTop: 4, marginLeft: 10, lineHeight: 16 },
     dist: { fontSize: 12, color: '#6B7280', marginTop: 2 },
     currentBadge: {
         backgroundColor: '#E5A712',
@@ -514,15 +680,20 @@ export function StepByStepPanel({
                     <View style={styles.mainRow}>
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
                             <MaterialIcons
-                                name={getManeuverIcon(currentStep.maneuver, currentStep.maneuverModifier)}
+                                name={getStepIcon(currentStep)}
                                 size={24}
                                 color="#111827"
                             />
                         </View>
                         <View style={styles.instructionBlock}>
                             <Text style={styles.instructionText} numberOfLines={2}>
-                                {currentStep.instruction || 'Continue'}
+                                {getStepInstructionText(currentStep)}
                             </Text>
+                            {getTransitStopSummary(currentStep).map((summaryLine) => (
+                                <Text key={summaryLine} style={styles.transitStopSummary} numberOfLines={1}>
+                                    {summaryLine}
+                                </Text>
+                            ))}
                             {distLabel ? (
                                 <Text style={styles.distLabel}>{distLabel}</Text>
                             ) : null}
@@ -543,14 +714,14 @@ export function StepByStepPanel({
                 <Pressable style={styles.nextRow} onPress={toggleAllSteps} hitSlop={8}>
                     <View style={styles.nextIconWrap}>
                         <MaterialIcons
-                            name={nextStep ? getManeuverIcon(nextStep.maneuver, nextStep.maneuverModifier) : 'flag'}
+                            name={getStepIcon(nextStep)}
                             size={16}
                             color="#6B7280"
                         />
                     </View>
                     <Text style={styles.nextText} numberOfLines={1}>
                         {nextStep
-                            ? `Then: ${nextStep.instruction || 'Continue'}`
+                            ? `Then: ${getStepInstructionText(nextStep)}`
                             : 'Arriving at destination'}
                     </Text>
                     <MaterialIcons
@@ -707,6 +878,14 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         marginTop: 4,
         fontWeight: '500',
+    },
+    transitStopSummary: {
+        fontSize: 13,
+        color: '#4B5563',
+        marginTop: 4,
+        marginLeft: 10,
+        fontWeight: '600',
+        lineHeight: 18,
     },
 
     divider: {

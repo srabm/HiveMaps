@@ -187,6 +187,28 @@ describe('convertGoogleMapsResponse', () => {
         expect(td.stopDetails.departureStop.name).toBe("Lucien-L'Allier");
     });
 
+    it('normalizes transit headsign and shortName fields from Google transit details', () => {
+        const data = googleApiResponse();
+        (data.routes[0].legs[0].steps[0] as any).transitDetails = {
+            headsign: 'Nord',
+            stopDetails: {
+                departureStop: { name: 'Guy' },
+                arrivalStop: { name: 'Mont-Royal' },
+            },
+            transitLine: {
+                name: 'Sherbrooke',
+                shortName: '24',
+                color: '#16a34a',
+            },
+        };
+
+        const result = convertGoogleMapsResponse(data);
+        const td = result.steps[0].transitDetails;
+
+        expect(td.headsign).toBe('Nord');
+        expect(td.transitLine.nameShort).toBe('24');
+    });
+
     it('leaves transitDetails undefined for non-transit steps', () => {
         const result = convertGoogleMapsResponse(googleApiResponse());
         expect(result.steps[0].transitDetails).toBeUndefined();

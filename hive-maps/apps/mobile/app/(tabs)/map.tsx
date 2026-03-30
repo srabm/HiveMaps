@@ -1,6 +1,7 @@
 import { Href, useRouter } from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform, LayoutChangeEvent} from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -761,6 +762,8 @@ export default function MapScreen() {
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                        showStartEndpoint={false}
+                        showEndEndpoint={false}
                     />
                 )}
                 {selectedMode === 'Shuttle' && (
@@ -772,6 +775,19 @@ export default function MapScreen() {
                         stopMarkers={shuttleRouting.stopMarkers}
                     />
                 )}
+                {toCoordinates &&
+                    <MapboxGL.PointAnnotation
+                        key='toPoint'
+                        id='toPoint'
+                        coordinate={toCoordinates}
+                    >
+                        <View style={styles.destinationPin}>
+                            <MaterialIcons name="location-on" size={42} color="#7b1222" />
+                            <MaterialIcons name="location-on" size={38} color="#ffffff" style={styles.destinationPinInner} />
+                            <MaterialIcons name="location-on" size={34} color="#EA4335" style={styles.destinationPinInner} />
+                        </View>
+                    </MapboxGL.PointAnnotation>
+                }
             </MapboxGL.MapView>
 
               {!isNavigating && (
@@ -1154,59 +1170,6 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
     container: {flex: 1},
     centered: {flex: 1, alignItems: 'center', justifyContent: 'center'},
-    markerPin: {
-        height: 28, width: 28, backgroundColor: '#ffffff', borderRadius: 14,
-        alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-        borderColor: '#e0e0e0', shadowColor: '#000', shadowOffset: {width: 0, height: 2},
-        shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5,
-    },
-    markerText: {color: '#9d1e30', fontWeight: '900', fontSize: 14},
-    destinationPinMarker: {
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        width: 34,
-        height: 44,
-    },
-    destinationPinBody: {
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: '#EA4335',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: {width: 0, height: 2},
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 4,
-    },
-    destinationPinInnerCircle: {
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        backgroundColor: '#FF6A5F',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    destinationPinStem: {
-        width: 14,
-        height: 14,
-        backgroundColor: '#EA4335',
-        marginTop: -7,
-        borderBottomLeftRadius: 12,
-        transform: [{rotate: '45deg'}],
-        shadowColor: '#000',
-        shadowOffset: {width: 0, height: 2},
-        shadowOpacity: 0.12,
-        shadowRadius: 3,
-        elevation: 2,
-    },
-    destinationPinCenter: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#B31412',
-    },
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
@@ -1236,6 +1199,15 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: 16,
         bottom: '35%',
+    },
+    destinationPin: {
+        width: 42,
+        height: 42,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    destinationPinInner: {
+        position: 'absolute',
     },
     modalBackdrop: {
         flex: 1,

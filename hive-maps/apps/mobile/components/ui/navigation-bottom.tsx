@@ -634,16 +634,43 @@ export function NavigationBottom({
         return shuttleScheduleContext.directionLabel.startsWith('SGW') ? 'to-loyola' : 'to-sgw';
     }, [shuttleScheduleContext?.directionLabel]);
 
+    const shuttleStartsLaterToday = useMemo(() => {
+        if (selectedMode !== 'Shuttle') return false;
+        if (!shuttleScheduleContext?.departureTimes?.length) return false;
+        if (shuttleScheduleContext.isNextServiceDay) return false;
+
+        const filterAnchor = new Date(timeFilter);
+        const [hoursStr, minutesStr] = shuttleScheduleContext.departureTimes[0].split(':');
+        const firstDeparture = new Date(
+            shuttleScheduleContext.serviceDate.getFullYear(),
+            shuttleScheduleContext.serviceDate.getMonth(),
+            shuttleScheduleContext.serviceDate.getDate(),
+            Number(hoursStr),
+            Number(minutesStr),
+            0,
+            0,
+        );
+
+        return filterAnchor.getTime() < firstDeparture.getTime();
+    }, [selectedMode, shuttleScheduleContext, timeFilter]);
+
     const showSameCampusRedirect = selectedMode === 'Shuttle' && isSameCampus;
     const showTransitSuggestion =
         selectedMode === 'Shuttle' &&
         !isSameCampus &&
-        (!shuttleScheduleContext?.schedule || !!shuttleScheduleContext?.isNextServiceDay || reachableDepartures.length === 0);
+        (
+            !shuttleScheduleContext?.schedule ||
+            !!shuttleScheduleContext?.isNextServiceDay ||
+            shuttleStartsLaterToday ||
+            reachableDepartures.length === 0
+        );
     let shuttleSuggestionText = 'No more departures today — need a ride now?';
     if (!shuttleScheduleContext?.schedule) {
         shuttleSuggestionText = 'Service currently unavailable.';
     } else if (shuttleScheduleContext?.isNextServiceDay) {
         shuttleSuggestionText = 'Not running today — need a ride now?';
+    } else if (shuttleStartsLaterToday) {
+        shuttleSuggestionText = 'Shuttles are not running at the moment — need a ride now?';
     }
 
     return (
@@ -733,7 +760,7 @@ export function NavigationBottom({
                                         ) : null}
                                     </View>
                                     <Pressable testID="shuttle-see-schedule-button" onPress={() => setShowScheduleModal(true)} style={styles.seeScheduleButton}>
-                                        <Text style={styles.seeScheduleLink}>See schedule</Text>
+                                        <Text style={styles.seeScheduleLink}>See Schedule</Text>
                                     </Pressable>
                                 </View>
 
@@ -746,10 +773,26 @@ export function NavigationBottom({
                             ) : null}
 
                             {showTransitSuggestion ? (
-                                <Pressable style={styles.shuttleNoticeRow} onPress={() => handleModeChange('Transit')}>
+                                <View style={styles.shuttleFallbackBlock}>
                                     <Text style={styles.shuttleNoticeText}>{shuttleSuggestionText}</Text>
-                                    <Text style={styles.shuttleNoticeLink}>Check Transit</Text>
-                                </Pressable>
+                                    <View style={styles.shuttleFallbackActions}>
+                                        <Pressable
+                                            style={styles.seeScheduleButton}
+                                            onPress={() => handleModeChange('Transit')}
+                                        >
+                                            <Text style={styles.seeScheduleLink}>Check Transit</Text>
+                                        </Pressable>
+                                        {shuttleScheduleContext?.schedule ? (
+                                            <Pressable
+                                                testID="shuttle-see-schedule-button"
+                                                onPress={() => setShowScheduleModal(true)}
+                                                style={styles.seeScheduleButton}
+                                            >
+                                                <Text style={styles.seeScheduleLink}>See Schedule</Text>
+                                            </Pressable>
+                                        ) : null}
+                                    </View>
+                                </View>
                             ) : null}
 
                             {showSameCampusRedirect ? (
@@ -975,8 +1018,18 @@ const styles = StyleSheet.create({
         marginTop: 4,
         paddingVertical: 6,
     },
+    shuttleFallbackBlock: {
+        alignItems: 'flex-start',
+        marginTop: 4,
+    },
+    shuttleFallbackActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 8,
+        flexWrap: 'wrap',
+    },
     shuttleNoticeText: {
-        flex: 1,
         fontSize: 12,
         color: '#6B7280',
     },

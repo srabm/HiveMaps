@@ -373,7 +373,13 @@ describe('Shuttle phase strip', () => {
 describe('TransitCard', () => {
     const transitStep = makeStep({
         transitDetails: {
-            transitLine: { name: 'Green Line', nameShort: '24', color: '#16a34a' },
+            transitLine: {
+                name: 'Green Line',
+                nameShort: '24',
+                color: '#16a34a',
+                headsign: 'North',
+                vehicle: { type: 'BUS' },
+            },
             stopDetails: {
                 departureStop: { name: 'Berri-UQAM' },
                 arrivalStop: { name: 'McGill' },
@@ -388,6 +394,20 @@ describe('TransitCard', () => {
             <StepByStepPanel {...defaultProps} currentStep={transitStep} />
         );
         expect(getByText('24')).toBeTruthy();
+    });
+
+    it('renders the full transit line name alongside the route identifier when both are present', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Green Line')).toBeTruthy();
+    });
+
+    it('renders the transit headsign direction when available', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Towards North')).toBeTruthy();
     });
 
     it('renders departure stop "Board at" label and stop name', () => {
@@ -416,10 +436,147 @@ describe('TransitCard', () => {
                 },
             },
         });
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByText('Orange Line').length).toBeGreaterThan(0);
+    });
+
+    it('renders the subway icon for metro steps', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByTestId('icon-subway').length).toBeGreaterThan(0);
+    });
+
+    it('uses station-level wording for metro current-step instructions', () => {
+        const step = makeStep({
+            instruction: 'Take the subway towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} currentStep={step} />
         );
-        expect(getByText('Orange Line')).toBeTruthy();
+        expect(getByText('Enter station Atwater towards Angrignon')).toBeTruthy();
+    });
+
+    it('uses station-level wording for metro next-step previews', () => {
+        const nextMetroStep = makeStep({
+            instruction: 'Take the subway towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} nextStep={nextMetroStep} />
+        );
+        expect(getByText('Then: Enter station Atwater towards Angrignon')).toBeTruthy();
+    });
+
+    it('uses route number and headsign for bus current-step instructions', () => {
+        const step = makeStep({
+            instruction: 'Take the bus towards Nord',
+            transitDetails: {
+                transitLine: {
+                    name: 'Sherbrooke',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take bus 24 towards Nord')).toBeTruthy();
+    });
+
+    it('uses a bus icon for bus steps', () => {
+        const step = makeStep({
+            instruction: 'Take the bus towards Nord',
+            transitDetails: {
+                transitLine: {
+                    name: 'Sherbrooke',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} nextStep={step} />
+        );
+        expect(getAllByTestId('icon-directions-bus').length).toBeGreaterThan(0);
+    });
+
+    it('shows a transit stop summary in the current-step panel', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Board at Berri-UQAM')).toBeTruthy();
+        expect(getByText('Exit at McGill')).toBeTruthy();
+    });
+
+    it('shows a transit stop summary in the expanded directions list', () => {
+        const { getByText, getAllByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={[transitStep]}
+                currentStep={transitStep}
+                nextStep={null}
+                currentStepIndex={0}
+            />
+        );
+
+        fireEvent.press(getByText('Arriving at destination'));
+        expect(getAllByText('Board at Berri-UQAM').length).toBeGreaterThan(0);
+        expect(getAllByText('Exit at McGill').length).toBeGreaterThan(0);
     });
 
     it('renders no TransitCard when step has no transitDetails', () => {

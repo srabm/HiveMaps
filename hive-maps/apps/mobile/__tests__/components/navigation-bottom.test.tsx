@@ -860,6 +860,111 @@ describe('NavigationBottom shuttle additions', () => {
         expect(onModeChange).toHaveBeenCalledWith('Transit');
     });
 
+    it('falls back to Transit when shuttle service starts later today', async () => {
+        const onModeChange = jest.fn();
+        const earlyMorning = new Date(2026, 1, 23, 0, 2, 0, 0);
+        jest.setSystemTime(earlyMorning);
+        getCurrentTimeISO.mockReturnValue(earlyMorning.toISOString());
+
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
+            schedule: {departures: {sgw: ['07:00', '07:30'], loyola: ['07:15', '07:45']}},
+            departureTimes: ['07:00', '07:30'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '07:00',
+                    departureDate: new Date(2026, 1, 23, 7, 0, 0, 0),
+                    minutesUntil: 298,
+                    minutesFromFilter: 298,
+                },
+            ],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom
+                origin={origin}
+                destination={destination}
+                initialMode="Shuttle"
+                onModeChange={onModeChange}
+            />
+        );
+
+        expect(getByText('Shuttles are not running at the moment — need a ride now?')).toBeTruthy();
+        expect(getByText('See schedule')).toBeTruthy();
+
+        fireEvent.press(getByText('Check Transit'));
+        expect(onModeChange).toHaveBeenCalledWith('Transit');
+    });
+
+    it('shows shuttle availability again when the selected time is during shuttle hours', async () => {
+        const earlyMorning = new Date(2026, 1, 23, 0, 14, 0, 0);
+        jest.setSystemTime(earlyMorning);
+        getCurrentTimeISO.mockReturnValueOnce(earlyMorning.toISOString());
+
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
+            schedule: {departures: {sgw: ['07:00', '07:20', '07:35'], loyola: ['07:10', '07:25', '07:40']}},
+            departureTimes: ['07:00', '07:20', '07:35'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '07:00',
+                    departureDate: new Date(2026, 1, 23, 7, 0, 0, 0),
+                    minutesUntil: 406,
+                    minutesFromFilter: -60,
+                },
+                {
+                    time: '07:20',
+                    departureDate: new Date(2026, 1, 23, 7, 20, 0, 0),
+                    minutesUntil: 426,
+                    minutesFromFilter: -40,
+                },
+                {
+                    time: '07:35',
+                    departureDate: new Date(2026, 1, 23, 7, 35, 0, 0),
+                    minutesUntil: 441,
+                    minutesFromFilter: -25,
+                },
+            ],
+        });
+
+        const {getByText, getByTestId, queryByText} = render(
+            <NavigationBottom
+                origin={origin}
+                destination={destination}
+                initialMode="Shuttle"
+            />
+        );
+
+        fireEvent.press(getByTestId('depart-at-button'));
+        fireEvent.press(getByTestId('confirm-arrive-time'));
+
+        expect(queryByText('Shuttles are not running at the moment — need a ride now?')).toBeNull();
+        expect(getByText('See schedule')).toBeTruthy();
+        expect(getByText('Start')).toBeTruthy();
+    });
+
     it('falls back to Walk when route is on the same campus', async () => {
         const onModeChange = jest.fn();
         validateCampusRoute.mockReturnValue({
