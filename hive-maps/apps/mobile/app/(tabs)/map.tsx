@@ -607,10 +607,18 @@ export default function MapScreen() {
         return [outdoorEndCoordinates, destinationIndoorStartCoordinates] as Coordinates[];
     }, [destinationIndoorSteps, directions, showOutdoorConnectors]);
 
+    const shuttleOrigin = useMemo(
+        () => routeFromCoordinates ? {longitude: routeFromCoordinates[0], latitude: routeFromCoordinates[1]} : null,
+        [routeFromCoordinates],
+    );
+    const shuttleDestination = useMemo(
+        () => routeToCoordinates ? {longitude: routeToCoordinates[0], latitude: routeToCoordinates[1]} : null,
+        [routeToCoordinates],
+    );
     const shuttleRouting = useShuttleRouting({
         enabled: selectedMode === 'Shuttle' && !isSameCampusRoute && !isNavigating,
-        origin: routeFromCoordinates ? {longitude: routeFromCoordinates[0], latitude: routeFromCoordinates[1]} : null,
-        destination: routeToCoordinates ? {longitude: routeToCoordinates[0], latitude: routeToCoordinates[1]} : null,
+        origin: shuttleOrigin,
+        destination: shuttleDestination,
         timeFilter,
         timeFilterMode,
     });
