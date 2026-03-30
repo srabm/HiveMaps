@@ -655,7 +655,7 @@ export default function MapScreen() {
               aboveLayerID="road-label"
               style={{
                 fillColor: '#9d1e30',
-                fillOpacity: 0.6,
+                fillOpacity: 0.78,
               }}
             />
 
@@ -675,8 +675,8 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-pattern"
                             filter={['==', ['get', 'isUserBuilding'], true]}
                             style={{
-                                fillColor: '#ffffff',
-                                fillOpacity: 0.35,
+                                fillColor: '#F8D7DD',
+                                fillOpacity: 0.42,
                             }}
                         />
 
@@ -685,8 +685,8 @@ export default function MapScreen() {
                             id="campus-buildings-outline"
                             aboveLayerID="campus-buildings-pattern"
                             style={{
-                                lineColor: '#ffffff',
-                                lineWidth: 2,
+                                lineColor: '#6F1120',
+                                lineWidth: 2.2,
                             }}
                         />
                     </MapboxGL.ShapeSource>
@@ -707,8 +707,13 @@ export default function MapScreen() {
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
-                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
+                        <View style={styles.destinationPinMarker}>
+                            <View style={styles.destinationPinBody}>
+                                <View style={styles.destinationPinInnerCircle}>
+                                    <View style={styles.destinationPinCenter} />
+                                </View>
+                            </View>
+                            <View style={styles.destinationPinStem} />
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
@@ -1125,6 +1130,52 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5,
     },
     markerText: {color: '#9d1e30', fontWeight: '900', fontSize: 14},
+    destinationPinMarker: {
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        width: 34,
+        height: 44,
+    },
+    destinationPinBody: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: '#EA4335',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    destinationPinInnerCircle: {
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: '#FF6A5F',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    destinationPinStem: {
+        width: 14,
+        height: 14,
+        backgroundColor: '#EA4335',
+        marginTop: -7,
+        borderBottomLeftRadius: 12,
+        transform: [{rotate: '45deg'}],
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.12,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    destinationPinCenter: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#B31412',
+    },
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
