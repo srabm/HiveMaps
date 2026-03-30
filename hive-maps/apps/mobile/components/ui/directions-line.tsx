@@ -107,9 +107,9 @@ export function DirectionsLine({
         }
 
         if (useIndoorData && IndoorDirections) {
-            return dedupeConsecutiveCoordinates(IndoorDirections.flatMap((step) =>
+            return IndoorDirections.flatMap((step) =>
                 step.nodes.map((node) => [node.longitude, node.latitude] as [number, number])
-            ));
+            );
         }
 
         if (directions) {

@@ -423,9 +423,12 @@ export function FloorPlanViewer({
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
     const nearestNodeResolvedRef = useRef(Boolean(initialFromNodeId));
+    // Track which floor context the fromNodeId was auto-resolved for (so we reset on floor/building change)
+    const autoResolvedContextRef = useRef<string | null>(null);
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
+            autoResolvedContextRef.current = `${buildingCode}::${floorId}`;
             setFromNodeId(node.id);
             setFromQuery('Current Location');
         } catch (err) {
@@ -449,6 +452,24 @@ export function FloorPlanViewer({
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
+        const currentContext = `${buildingCode}::${floorId}`;
+        // If fromNodeId was auto-resolved for a different floor/building, clear it and re-resolve
+        if (
+            fromNodeId &&
+            autoResolvedContextRef.current !== null &&
+            autoResolvedContextRef.current !== currentContext
+        ) {
+            autoResolvedContextRef.current = null;
+            nearestNodeResolvedRef.current = false;
+            setFromNodeId(null);
+            setFromQuery('');
+            const coords = userCoordsRef.current;
+            if (coords) {
+                nearestNodeResolvedRef.current = true;
+                resolveNearestNode(coords[0], coords[1]);
+            }
+            return;
+        }
         if (fromNodeId) {
             nearestNodeResolvedRef.current = true;
             return;
@@ -632,12 +653,12 @@ export function FloorPlanViewer({
               styleURL={MapboxGL.StyleURL.Light}
           >
 
-       
-          <MapboxGL.Camera 
+
+          <MapboxGL.Camera
             ref={cameraRef}
-            centerCoordinate={centerCoordinate} 
-            zoomLevel={18.5} 
-            animationDuration={600} 
+            centerCoordinate={centerCoordinate}
+            zoomLevel={18.5}
+            animationDuration={600}
           />
 
           <MapboxGL.UserLocation
@@ -722,7 +743,7 @@ export function FloorPlanViewer({
                 bee: require('@/assets/images/bee.png')
             }}
           />
-          
+
           {activeFloorRouteView.startTransitionMarker && (
             <MapboxGL.MarkerView
               id="indoor-floor-transition-marker-start"
@@ -756,11 +777,11 @@ export function FloorPlanViewer({
           )}
 
           {(currentNode || userLocation) && (
-            <MapboxGL.ShapeSource 
-              id="user-location-source" 
+            <MapboxGL.ShapeSource
+              id="user-location-source"
               shape={convertCoordinatesToFeature(
-                currentNode 
-                  ? [currentNode.longitude, currentNode.latitude] 
+                currentNode
+                  ? [currentNode.longitude, currentNode.latitude]
                   : userLocation!
               )}
             >
@@ -823,7 +844,7 @@ export function FloorPlanViewer({
 
       {indoorSteps && (
         <View style={styles.directionStepsContainer} pointerEvents="box-none">
-          <DirectionsModal  
+          <DirectionsModal
             visible={true}
             steps={indoorSteps}
             origin={fromQuery}

@@ -168,6 +168,21 @@ jest.mock('react-native', () => {
     return rn;
 });
 
+jest.mock('@react-navigation/native', () => ({
+    useFocusEffect: (cb: () => (() => void) | void) => {
+        const React = require('react');
+        React.useEffect(() => {
+            const cleanup = cb();
+            return cleanup ?? undefined;
+        }, []);
+    },
+    useNavigation: () => ({
+        navigate: jest.fn(),
+        goBack: jest.fn(),
+        isFocused: jest.fn(() => true),
+    }),
+}));
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import { useLiveLocation } from '@/hooks/use-live-location';

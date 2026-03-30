@@ -11,7 +11,7 @@ const BORDER      = "#EFEFEF";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const FIXED_H      = 158;
-const MIN_HEIGHT   = FIXED_H;
+const MIN_HEIGHT   = SCREEN_H * 0.3;
 const DEFAULT_HEIGHT = FIXED_H;
 const MAX_HEIGHT   = SCREEN_H * 0.85;
 

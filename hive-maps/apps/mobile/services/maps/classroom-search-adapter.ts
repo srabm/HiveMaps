@@ -56,10 +56,9 @@ export function createClassroomSearchAdapter(baseAdapter: MapsProviderPort): Map
     const cached = roomCache.get(cacheKey);
     if (cached) return cached;
 
-    const rooms = await fetchIndoorRooms(buildingCode);
-    const filteredRooms = rooms.filter((room) => room.floor === floorId);
-    roomCache.set(cacheKey, filteredRooms);
-    return filteredRooms;
+    const rooms = await fetchIndoorRooms(buildingCode, floorId);
+    roomCache.set(cacheKey, rooms);
+    return rooms;
   }
 
   return {
