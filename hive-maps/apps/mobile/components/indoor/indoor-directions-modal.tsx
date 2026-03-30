@@ -340,7 +340,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     );
 
     const renderBottomBar = () => (
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, hasArrived && styles.bottomBarArrived]}>
             {hasArrived ? (
                 <TouchableOpacity style={styles.endBtnSolo} onPress={onClose} activeOpacity={0.82}>
                     <Text style={styles.endBtnText}>End</Text>
@@ -416,11 +416,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingTop: 18,
         paddingBottom: 18,
+        alignItems: "center",
     },
     arrivedText: {
         fontSize: 20,
         fontWeight: "700",
         color: DARK,
+        textAlign: "center",
     },
     listContent: { paddingBottom: 8 },
     currentStepRow: { borderTopWidth: 1, borderTopColor: "#EEEEEE" },
@@ -516,6 +518,9 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
         alignItems: "center",
+        justifyContent: "center",
+    },
+    bottomBarArrived: {
         justifyContent: "center",
     },
     endBtnSolo: {
