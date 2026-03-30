@@ -35,6 +35,8 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import {POICategory,type POI} from "@/components/ui/POICategory";
+import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -257,8 +259,8 @@ export default function MapScreen() {
     const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
-
-  const [from, setFrom] = useState<string>("");
+    const [poiMarkers, setPoiMarkers] = useState<POI[]>([]);
+    const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
@@ -280,6 +282,7 @@ export default function MapScreen() {
         shuttleDurationSeconds: number;
     } | null>(null);
     const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -709,6 +712,19 @@ export default function MapScreen() {
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
+
+                {poiMarkers.length > 0 && poiMarkers.map((poi, index) => (
+                    <MapboxGL.PointAnnotation
+                        key={`poi-${poi.name}-${index}`}
+                        id={`poi-${poi.name}-${index}`}
+                        coordinate={[poi.coordinates.longitude, poi.coordinates.latitude]}
+                        onSelected={() => setSelectedOutdoorPOI(poi)}
+                    >
+                        <View style={styles.poiMarker}>
+                            <Text style={styles.poiMarkerText}>📍</Text>
+                        </View>
+                    </MapboxGL.PointAnnotation>
+                ))}
                 {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
@@ -860,6 +876,15 @@ export default function MapScreen() {
                         }}
                     />
                 }
+                    {(!isNavigating && !toCoordinates && !fromCoordinates) &&
+                    <POICategory
+                        userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
+                        radius={0.8}
+                        onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
+                        onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
+                        marginTop={seeDirectionBar ? 11 : 65}
+                    />}
+
                 </>
                 )}
             </View>
@@ -943,7 +968,33 @@ export default function MapScreen() {
                     setShowLocationPrompt(true);
                 }}
             />
-
+            <OutdoorPOICard 
+                poi={selectedOutdoorPOI}
+                userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null} 
+                onClose={() => setSelectedOutdoorPOI(null)}
+                onGetDirections={() => {
+                    if (!selectedOutdoorPOI) return;
+                    setSeeDirectionBar(true); 
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    if (userLocation) {
+                        setFrom("Your location");
+                        setFromCoordinates(userLocation);
+                        fromCoordinatesIsUserLocation.current = true;
+                    }
+                    setSelectedOutdoorPOI(null);
+                }}
+                onStartNavigation={() => {
+                    if (!selectedOutdoorPOI || !userLocation) return;
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    setFrom("Your location");
+                    setFromCoordinates(userLocation);
+                    
+                    handleStartPress(); 
+                    setSelectedOutdoorPOI(null);
+                }}
+            />
             <Modal
                 transparent
                 animationType="fade"
@@ -1148,5 +1199,41 @@ const styles = StyleSheet.create({
         right: 4,
         bottom: 5,
         zIndex: 15,
+    },
+    poiMarker: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    poiMarkerText: {
+        fontSize: 24,
+    },
+    poiCallout: {
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+    },
+    poiCalloutContainer: {
+        width: 180,
+        minHeight: 60,
+        backgroundColor: '#ffffff',
+        borderRadius: 10,
+        padding: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    poiCalloutTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1a1a1a',
+        marginBottom: 4,
+        flexWrap: 'wrap',
+    },
+    poiCalloutAddress: {
+        fontSize: 11,
+        color: '#666666',
+        lineHeight: 15,
+        flexWrap: 'wrap',
     },
 });

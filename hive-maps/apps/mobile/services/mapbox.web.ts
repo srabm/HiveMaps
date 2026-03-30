@@ -40,6 +40,9 @@ class WebMapsAdapter implements MapsProviderPort {
   async forward(address:string){ // Temporary Forward Geocoding Api to find coordinates for a full address
     return null;
   }
+  async categorySearch(categoryID: string, usercoordinates:[number,number],minLat:number,minLon:number,maxLat:number,maxLon:number ){
+    return null;
+  }
 }
 
 export const mapboxMapsAdapter = new WebMapsAdapter();
