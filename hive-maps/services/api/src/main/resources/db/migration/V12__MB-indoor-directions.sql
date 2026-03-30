@@ -52,6 +52,8 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('MBS2.465', 'Room', true, 'S2', 'MB', -73.57942351720168, 45.49529535218836),
 ('MBS2.145', 'Room', true, 'S2', 'MB', -73.57905735548341, 45.49535269696137),
 ('MBS2.135', 'Room', true, 'S2', 'MB', -73.57906842252964, 45.49535880540526),
+('MBS2.STAIRS', 'Stairs', true, 'S2', 'MB', -73.57871433555313, 45.495315499946905),
+('MBS2_J23', 'Junction', true, 'S2', 'MB', -73.57874918275388, 45.495290621337766),
 
 -- MOLSON BUILDING (MB) FLOOR 1 --
 ('MB1.ENTRANCE_1', 'Entrance', true, '1', 'MB', -73.57917276088148, 45.49550910032377),
@@ -88,7 +90,10 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('MB1.210_1', 'Room', true, '1', 'MB', -73.5789279361422, 45.49528227762918),
 ('MB1.349', 'Room', true, '1', 'MB', -73.57886460896414, 45.49501037774385),
 ('MB1.294', 'Room', true, '1', 'MB', -73.57861579442373, 45.49514949618846),
-('MB1.210_2', 'Room', true, '1', 'MB', -73.57870097714334, 45.49515630947734);
+('MB1.210_2', 'Room', true, '1', 'MB', -73.57870097714334, 45.49515630947734),
+('MB1_J18', 'Junction', true, '1', 'MB', -73.5790570195849, 45.49526949999466),
+('MB1.ELEVATOR', 'Elevator', true, '1', 'MB', -73.5790328733022, 45.49525947586528),
+('MB1.STAIRS', 'Stairs', true, '1', 'MB', -73.57855207115448, 45.49523057020021);
 
 INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
 
@@ -97,8 +102,6 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('MBS2_E2', 'E2', true, 'MBS2_J1', 'MBS2.ESCALATOR', 'MB', 6.1253520526410545),
 ('MBS2_E3', 'E3', true, 'MBS2.ENTRANCE', 'MBS2_J1', 'MB', 3.737030306300082),
 ('MBS2_E4', 'E4', true, 'MBS2_J1', 'MBS2.ENTRANCE', 'MB', 3.737030306300082),
-('MBS2_E5', 'E5', true, 'MBS2_J1', 'MBS2_J2', 'MB', 19.375278236598056),
-('MBS2_E6', 'E6', true, 'MBS2_J2', 'MBS2_J1', 'MB', 19.375278236598056),
 ('MBS2_E7', 'E7', true, 'MBS2_J2', 'MBS2_J3', 'MB', 7.486172476448533),
 ('MBS2_E8', 'E8', true, 'MBS2_J3', 'MBS2_J2', 'MB', 7.486172476448533),
 ('MBS2_E9', 'E9', true, 'MBS2.245', 'MBS2_J3', 'MB', 1.05779269627063),
@@ -193,6 +196,14 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('MBS2_E98', 'E98', true, 'MBS2_J20', 'MBS2.455', 'MB', 1.838649352991054),
 ('MBS2_E99', 'E99', true, 'MBS2.435', 'MBS2_J19', 'MB', 5.320128993488109),
 ('MBS2_E100', 'E100', true, 'MBS2_J19', 'MBS2.435', 'MB', 5.320128993488109),
+('MBS2_E111', 'hallway', true, 'MBS2_J2', 'MBS2_J23', 'MB', 12.578759978711814),
+('MBS2_E112', 'hallway', true, 'MBS2_J23', 'MBS2_J2', 'MB', 12.578759978711814),
+('MBS2_E113', 'hallway', true, 'MBS2_J1', 'MBS2_J23', 'MB', 6.796708514562899),
+('MBS2_E114', 'hallway', true, 'MBS2_J23', 'MBS2_J1', 'MB', 6.796708514562899),
+('MBS2_E115', 'hallway', true, 'MBS2.STAIRS', 'MBS2_J23', 'MB', 3.8768808542221325),
+('MBS2_E116', 'hallway', true, 'MBS2_J23', 'MBS2.STAIRS', 'MB', 3.8768808542221325),
+('MBS2_E117', 'hallway', true, 'MBS2.STAIRS', 'MBS2.ENTRANCE', 'MB', 6.970772125399629),
+('MBS2_E118', 'hallway', true, 'MBS2.ENTRANCE', 'MBS2.STAIRS', 'MB', 6.970772125399629),
 
 -- MOLSON BUILDING (MB) FLOOR 1 --
 ('MB1_E1', 'E1', true, 'MB1.ENTRANCE_2', 'MB1_J11', 'MB', 3.387510290977672),
@@ -225,8 +236,6 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('MB1_E28', 'E28', true, 'MB1_J5', 'MB1_J16', 'MB', 3.779784246778577),
 ('MB1_E29', 'E29', true, 'MB1_J5', 'MB1.301', 'MB', 4.2755992003491405),
 ('MB1_E30', 'E30', true, 'MB1.301', 'MB1_J5', 'MB', 4.2755992003491405),
-('MB1_E31', 'E31', true, 'MB1_J17', 'MB1_J5', 'MB', 10.985243812312193),
-('MB1_E32', 'E32', true, 'MB1_J5', 'MB1_J17', 'MB', 10.985243812312193),
 ('MB1_E33', 'E33', true, 'MB1_J4', 'MB1_J17', 'MB', 4.618104466455667),
 ('MB1_E34', 'E34', true, 'MB1_J17', 'MB1_J4', 'MB', 4.618104466455667),
 ('MB1_E35', 'E35', true, 'MB1_J17', 'MB1.210_1', 'MB', 6.989658705155093),
@@ -268,7 +277,25 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('MB1_E71', 'E71', true, 'MB1.436', 'MB1_J15', 'MB', 1.239842272692453),
 ('MB1_E72', 'E72', true, 'MB1_J15', 'MB1.436', 'MB', 1.239842272692453),
 ('MB1_E73', 'E73', true, 'MB1_J15', 'MB1.494', 'MB', 5.26374377137636),
-('MB1_E74', 'E74', true, 'MB1.494', 'MB1_J15', 'MB', 5.26374377137636);
+('MB1_E74', 'E74', true, 'MB1.494', 'MB1_J15', 'MB', 5.26374377137636),
+('MB1_E101', 'hallway', true, 'MB1_J18', 'MB1_J5', 'MB', 4.385568740067838),
+('MB1_E102', 'hallway', true, 'MB1_J5', 'MB1_J18', 'MB', 4.385568740067838),
+('MB1_E103', 'hallway', true, 'MB1_J18', 'MB1_J17', 'MB', 6.621442626954459),
+('MB1_E104', 'hallway', true, 'MB1_J17', 'MB1_J18', 'MB', 6.621442626954459),
+('MB1_E105', 'hallway', true, 'MB1.ELEVATOR', 'MB1_J18', 'MB', 2.187363005639051),
+('MB1_E106', 'hallway', true, 'MB1_J18', 'MB1.ELEVATOR', 'MB', 2.187363005639051),
+('MB1_E119', 'hallway', true, 'MB1_J10', 'MB1.STAIRS', 'MB', 10.502391381465644),
+('MB1_E120', 'hallway', true, 'MB1.STAIRS', 'MB1_J10', 'MB', 10.502391381465644),
+
+-- CROSS FLOOR EDGES --
+('MBS2_1_E107', 'elevator', true, 'MBS2.ELEVATOR', 'MB1.ELEVATOR', 'MB', 0.26201061574712287),
+('MB1_S2_E108', 'elevator', true, 'MB1.ELEVATOR', 'MBS2.ELEVATOR', 'MB', 0.26201061574712287),
+
+('MBS2_1_E109', 'escalator', false, 'MBS2.ESCALATOR', 'MB1.ESCALATOR', 'MB', 21.176195093263363),
+('MB1_S2_E110', 'escalator', false, 'MB1.ESCALATOR', 'MBS2.ESCALATOR', 'MB', 21.176195093263363),
+
+('MB1_S2_E121', 'hallway', false, 'MB1.STAIRS', 'MBS2.STAIRS', 'MB', 15.784331413115755),
+('MBS2_1_E122', 'hallway', false, 'MBS2.STAIRS', 'MB1.STAIRS', 'MB', 15.784331413115755);
 
 -- VIRTUAL NODES --
 
