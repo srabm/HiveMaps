@@ -11,14 +11,15 @@ type ParsedRoomQuery = {
 };
 
 function parseRoomQuery(query: string): ParsedRoomQuery | null {
-  const normalized = query.trim().toUpperCase().replace(/\s+/g, '');
+  const normalized = query.trim().toUpperCase().replaceAll(' ', '');
   if (!normalized) return null;
 
-  const match = normalized.match(ROOM_QUERY_PATTERN);
+  const match = ROOM_QUERY_PATTERN.exec(normalized);
   if (!match) return null;
 
   const [, buildingCode, floorAndRoom] = match;
-  const floorMatch = floorAndRoom.match(/^(\d+)/);
+  const floorPattern = /^(\d+)/;
+  const floorMatch = floorPattern.exec(floorAndRoom);
   if (!floorMatch) return null;
 
   return {

@@ -123,8 +123,8 @@ const ENTRANCE_PROXIMITY_METERS = 20;
 
 function getIndoorRouteEndpoints(steps: IndoorDirectionsResponse[]): { fromNodeId: string; toNodeId: string } | null {
     const firstNode = steps[0]?.nodes?.[0];
-    const lastStep = steps[steps.length - 1];
-    const lastNode = lastStep?.nodes?.[lastStep.nodes.length - 1];
+    const lastStep = steps.at(-1);
+    const lastNode = lastStep?.nodes?.at(-1);
     if (!firstNode || !lastNode) return null;
     return { fromNodeId: firstNode.id, toNodeId: lastNode.id };
 }
@@ -134,7 +134,7 @@ function getSelectedLocationLabel(mapLocation: MapLocation): string {
     return mapLocation.name + (mapLocation.address ? `, ${mapLocation.address}` : '');
 }
 
-function toClassroomDestination(mapLocation: MapLocation): ClassroomDestination | null {
+function toClassroomLocation(mapLocation: MapLocation): ClassroomOrigin | null {
     if (mapLocation.kind !== 'classroom') return null;
     if (!mapLocation.buildingCode || !mapLocation.floorId || !mapLocation.indoorNodeId) return null;
 
@@ -144,15 +144,8 @@ function toClassroomDestination(mapLocation: MapLocation): ClassroomDestination 
     };
 }
 
-function toClassroomOrigin(mapLocation: MapLocation): ClassroomOrigin | null {
-    if (mapLocation.kind !== 'classroom') return null;
-    if (!mapLocation.buildingCode || !mapLocation.floorId || !mapLocation.indoorNodeId) return null;
-
-    return {
-        buildingCode: mapLocation.buildingCode,
-        nodeId: mapLocation.indoorNodeId,
-    };
-}
+const toClassroomDestination = toClassroomLocation;
+const toClassroomOrigin = toClassroomLocation;
 
 function getStraightLineDistance(start: Coordinates, end: Coordinates): number {
     const toRadians = (value: number) => (value * Math.PI) / 180;
@@ -179,7 +172,7 @@ function pickClosestEntrance(entrances: IndoorNodeResponse[], target: Coordinate
         const closestDistance = getStraightLineDistance([closest.longitude, closest.latitude], target);
         const candidateDistance = getStraightLineDistance([candidate.longitude, candidate.latitude], target);
         return candidateDistance < closestDistance ? candidate : closest;
-    });
+    }, entrances[0]);
 }
 
 function buildIndoorSummary(steps: IndoorDirectionsResponse[] | null): DirectionsResponse {
@@ -548,12 +541,9 @@ export default function MapScreen() {
     }, [classroomDestination, destinationEntranceTarget, toCoordinates]);
 
     useEffect(() => {
-        const indoorSteps =
-            activeIndoorSegment === 'origin'
-                ? originIndoorSteps
-                : activeIndoorSegment === 'destination'
-                    ? destinationIndoorSteps
-                    : null;
+        let indoorSteps: typeof originIndoorSteps | null = null;
+        if (activeIndoorSegment === 'origin') indoorSteps = originIndoorSteps;
+        else if (activeIndoorSegment === 'destination') indoorSteps = destinationIndoorSteps;
         const firstNode = indoorSteps?.[0]?.nodes?.[0];
         if (!cameraRef.current || !firstNode) return;
 
@@ -818,7 +808,9 @@ export default function MapScreen() {
         const startFloor = originIndoorSteps[0]?.nodes?.[0]?.floor;
         const campusId = campusMeta?.id;
         const campusQuery = campusId ? `&campus=${encodeURIComponent(campusId)}` : '';
-        const floorQuery = startFloor ? `?floor=${encodeURIComponent(startFloor)}${campusQuery}` : campusId ? `?campus=${encodeURIComponent(campusId)}` : '';
+        let floorQuery = '';
+        if (startFloor) floorQuery = `?floor=${encodeURIComponent(startFloor)}${campusQuery}`;
+        else if (campusId) floorQuery = `?campus=${encodeURIComponent(campusId)}`;
         const fromLabel = encodeURIComponent(from);
         const toLabel = encodeURIComponent('Building exit');
         const sessionId = `${Date.now()}`;
@@ -840,7 +832,9 @@ export default function MapScreen() {
         const startFloor = destinationIndoorSteps[0]?.nodes?.[0]?.floor;
         const campusId = campusMeta?.id;
         const campusQuery = campusId ? `&campus=${encodeURIComponent(campusId)}` : '';
-        const floorQuery = startFloor ? `?floor=${encodeURIComponent(startFloor)}${campusQuery}` : campusId ? `?campus=${encodeURIComponent(campusId)}` : '';
+        let floorQuery = '';
+        if (startFloor) floorQuery = `?floor=${encodeURIComponent(startFloor)}${campusQuery}`;
+        else if (campusId) floorQuery = `?campus=${encodeURIComponent(campusId)}`;
         const fromLabel = encodeURIComponent('Building entrance');
         const toLabel = encodeURIComponent(to);
         const sessionId = `${Date.now()}`;

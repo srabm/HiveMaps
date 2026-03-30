@@ -76,8 +76,8 @@ const dedupeConsecutiveCoordinates = (points: Position[]): Position[] => {
     const deduped: Position[] = [points[0]];
     for (let index = 1; index < points.length; index += 1) {
         const current = points[index];
-        const previous = deduped[deduped.length - 1];
-        if (current[0] === previous[0] && current[1] === previous[1]) continue;
+        const previous = deduped.at(-1);
+        if (previous && current[0] === previous[0] && current[1] === previous[1]) continue;
         deduped.push(current);
     }
 
