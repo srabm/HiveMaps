@@ -14,6 +14,7 @@ export class PolygonUtils {
         return inside;
     }
 
+    // using the ray casting algorithm
     static isPointInPolygon(point: [number, number], coordinates: [number, number][][]) {
         if (!coordinates?.length) return false;
         if (!PolygonUtils.isPointInRing(point, coordinates[0])) return false;
