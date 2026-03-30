@@ -142,21 +142,21 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
 
     // Format time strings like "2025-01-15T14:30:00-05:00" → "2:30 PM"
-    // Uses the UTC offset embedded in the ISO string so the displayed time is
-    // always the wall-clock time at the origin — not the device/CI timezone.
+    // Parses the wall-clock time directly from the ISO string so the result is
+    // always the local time encoded in the string, regardless of device/CI timezone.
     const fmtTime = (raw: string | undefined): string | null => {
         if (!raw) return null;
         try {
-            // Extract offset like "-05:00" or "+02:00" or "Z" from the string.
-            const offsetMatch = raw.match(/([+-]\d{2}:\d{2}|Z)$/);
-            const timeZone = offsetMatch
-                ? offsetMatch[1] === 'Z' ? 'UTC' : offsetMatch[1]
-                : undefined;
-            return new Date(raw).toLocaleTimeString(undefined, {
-                hour: 'numeric',
-                minute: '2-digit',
-                ...(timeZone ? { timeZone } : {}),
-            });
+            // Match "HH:MM" from the time portion, before any timezone offset.
+            // e.g. "2025-06-01T09:05:00-04:00" → hours=9, minutes=5
+            const m = raw.match(/T(\d{2}):(\d{2})/);
+            if (!m) return null;
+            const hours = parseInt(m[1], 10);
+            const minutes = parseInt(m[2], 10);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const h12 = hours % 12 === 0 ? 12 : hours % 12;
+            const mm = String(minutes).padStart(2, '0');
+            return `${h12}:${mm} ${period}`;
         } catch {
             return null;
         }
