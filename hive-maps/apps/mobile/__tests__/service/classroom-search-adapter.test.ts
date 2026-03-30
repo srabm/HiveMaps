@@ -15,6 +15,7 @@ const createBaseAdapter = (): jest.Mocked<MapsProviderPort> => ({
   retrieve: jest.fn().mockResolvedValue([-73.5789, 45.4971]),
   reverse: jest.fn().mockResolvedValue(null),
   forward: jest.fn().mockResolvedValue(null),
+  categorySearch: jest.fn().mockResolvedValue(null),
   defaultStyleURL: '',
 });
 

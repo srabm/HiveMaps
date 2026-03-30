@@ -67,6 +67,7 @@ export function createClassroomSearchAdapter(baseAdapter: MapsProviderPort): Map
     geocode: (address: string) => baseAdapter.geocode(address),
     reverse: (latitude: number, longitude: number) => baseAdapter.reverse(latitude, longitude),
     forward: (address: string) => baseAdapter.forward(address),
+    categorySearch: (...args: Parameters<typeof baseAdapter.categorySearch>) => baseAdapter.categorySearch(...args),
 
     async search(query: string, coordinates: Coordinates | null, sessionToken: string): Promise<MapLocation[] | null> {
       const parsedQuery = parseRoomQuery(query);

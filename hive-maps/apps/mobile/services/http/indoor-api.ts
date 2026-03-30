@@ -139,9 +139,11 @@ export async function fetchNearestNode(
 
 export async function fetchIndoorRooms(
     buildingCode: string,
+    floorId?: string,
 ): Promise<IndoorNodeResponse[]>{
     const path = `/api/indoor-directions/building/${encodeURIComponent(buildingCode)}/rooms`;
-    return getIndoorJson<IndoorNodeResponse[]>(path);
+    const rooms = await getIndoorJson<IndoorNodeResponse[]>(path);
+    return floorId ? rooms.filter((room) => room.floor === floorId) : rooms;
 }
 
 export async function fetchIndoorEntrances(

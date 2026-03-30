@@ -60,6 +60,8 @@ export interface DirectionsModalProps {
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
     preStartLabel?: string;
+    /** Skip the pre-start summary screen and jump directly into navigation. */
+    autoStart?: boolean;
 }
 
 function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null {
@@ -124,12 +126,13 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     onCurrentNodeChange,
     beeImageSource,
     preStartLabel = "Walk",
+    autoStart = false,
 }) => {
     const augmentedSteps = buildAugmentedSteps(steps);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight] = useState(DEFAULT_HEIGHT);
-    const [hasStarted, setHasStarted] = useState<boolean>(false);
+    const [hasStarted, setHasStarted] = useState<boolean>(autoStart);
     const [hasArrived, setHasArrived] = useState(false);
 
     const [showAllSteps, setShowAllSteps] = useState(false);
@@ -165,6 +168,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
             setCurrentIndex(0);
             setSheetHeight(DEFAULT_HEIGHT);
             setHasArrived(false);
+            setHasStarted(autoStart);
             setShowAllSteps(false);
             fadeAnim.setValue(1);
             Animated.timing(sheetAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
