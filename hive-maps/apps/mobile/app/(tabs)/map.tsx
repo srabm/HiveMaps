@@ -283,6 +283,7 @@ export default function MapScreen() {
     } | null>(null);
     const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
     const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
+    const suppressNextCampusCameraSync = useRef(false);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -380,6 +381,10 @@ export default function MapScreen() {
 
     useEffect(() => {
         if (!campusMeta) return;
+        if (suppressNextCampusCameraSync.current) {
+            suppressNextCampusCameraSync.current = false;
+            return;
+        }
         cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
@@ -581,6 +586,27 @@ export default function MapScreen() {
         navigationBottomFrame.current = event.nativeEvent.layout;
     }, []);
 
+    const handleMapIdle = useCallback((event: any) => {
+        if (isNavigating) return;
+
+        const center =
+            event?.properties?.center ??
+            event?.geometry?.coordinates ??
+            event?.centerCoordinate;
+
+        if (!Array.isArray(center) || center.length < 2) {
+            return;
+        }
+
+        const nearest = getNearestCampus(center[0], center[1], campusMetaById);
+        if (!nearest || nearest === campus) {
+            return;
+        }
+
+        suppressNextCampusCameraSync.current = true;
+        setCampus(nearest);
+    }, [campus, campusMetaById, isNavigating, setCampus]);
+
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
     if (!hydrated || !campusMeta) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
@@ -592,6 +618,7 @@ export default function MapScreen() {
                 style={StyleSheet.absoluteFill}
                 logoEnabled={false}
                 scaleBarEnabled={false}
+                onMapIdle={handleMapIdle}
             >
                 <MapboxGL.Camera
                     ref={cameraRef}
@@ -950,8 +977,12 @@ export default function MapScreen() {
             <LocateMeButton
                 style={styles.locateButton}
                 onPress={async () => {
-                    if (cameraRef.current && userLocation) {
-                        cameraRef.current.setCamera({
+                    if (userLocation) {
+                        const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
+                        if (nearest) {
+                            setCampus(nearest);
+                        }
+                        cameraRef.current?.setCamera({
                             centerCoordinate: userLocation,
                             zoomLevel: Math.max(campusMeta.zoom, 17),
                             animationDuration: 600,

@@ -18,6 +18,7 @@ let mockCameraSetCamera: jest.Mock;
 let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
+let mockMapIdleHandler: ((event: any) => void) | null = null;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -92,7 +93,10 @@ jest.mock('@/services/mapbox', () => {
     const { View } = require('react-native');
     return {
         MapboxGL: {
-            MapView: ({ children }: any) => <>{children}</>,
+            MapView: ({ children, onMapIdle }: any) => {
+                mockMapIdleHandler = onMapIdle;
+                return <>{children}</>;
+            },
             Camera: jest.fn().mockReturnValue(null),
             UserLocation: ({ onUpdate }: any) => {
                 mockUserLocationOnUpdate = onUpdate;
@@ -1548,6 +1552,31 @@ describe('LocateMeButton', () => {
         expect(utils.getByTestId('locate-me-btn')).toBeTruthy();
     });
 
+    it('updates the selected campus to the nearest campus when locate-me is pressed', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.6406, latitude: 45.4583 } });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
     it('shows location prompt modal when userLocation is null', async () => {
         // No onUpdate fired → userLocation stays null
         const utils = renderWithBuilding();
@@ -1576,6 +1605,33 @@ describe('LocateMeButton', () => {
         await waitFor(() => {
             expect(utils.queryByText('Location Off')).toBeNull();
         });
+    });
+});
+
+describe('manual map pan campus sync', () => {
+    it('updates the selected campus when the map is manually panned to another campus', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
     });
 });
 
