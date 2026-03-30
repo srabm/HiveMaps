@@ -33,14 +33,14 @@ function formatArrivalTime(durationMinutes: number): string {
 }
 
 const STAIRS_STEP_ENTRANCE: IndoorDirectionsResponse = {
-    direction: "DEFAULT",
+    direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
     distance: 0,
     description: "Enter on LB1, then take the stairs or elevator up to LB2 to begin indoor navigation",
     nodes: [],
 };
 
 const STAIRS_STEP_EXIT: IndoorDirectionsResponse = {
-    direction: "DEFAULT",
+    direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
     distance: 0,
     description: "Take the stairs or elevator down from LB2 to LB1 to exit the building",
     nodes: [],
@@ -56,10 +56,10 @@ function buildAugmentedSteps(
     const lastNode = lastStep?.nodes?.at(-1);
     if (!lastStep || !lastNode) return steps;
 
-    const withArrival = [
+    const withArrival: IndoorDirectionsResponse[] = [
         ...steps,
         {
-            direction: "DEFAULT",
+            direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
             distance: 0,
             description: "You have arrived at your destination",
             nodes: [lastNode],
@@ -379,7 +379,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
         <View style={[styles.bottomBar, hasArrived && styles.bottomBarArrived]}>
             {hasArrived ? (
                 <TouchableOpacity style={styles.endBtnSolo} onPress={onClose} activeOpacity={0.82}>
-                    <Text style={styles.endBtnText}>End</Text>
+                    <Text style={styles.endBtnText}>{arrivedLabel ? "Head Outside" : "End"}</Text>
                 </TouchableOpacity>
             ) : (
                 <>

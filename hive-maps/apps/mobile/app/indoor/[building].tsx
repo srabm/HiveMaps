@@ -423,7 +423,7 @@ export default function IndoorMapScreen() {
           initialToNodeId={initialToNodeId}
           resumeSessionId={resumeSessionId}
           completeSessionId={completeSessionId}
-          autoStartNavigation={!!completeSessionId}
+          autoStartNavigation={!!completeSessionId || !!resumeSessionId}
           indoorToOutdoor={!!resumeSessionId}
           stairsNotice={stairsNoticeParam as 'entrance' | 'exit' | undefined}
         />
