@@ -719,29 +719,16 @@ export default function MapScreen() {
                         />
                     </MapboxGL.ShapeSource>
                 )}
-                {fromCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='fromPoint'
-                        id='fromPoint'
-                        coordinate={fromCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
-
                 {toCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='toPoint'
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View style={styles.destinationPinMarker}>
-                            <View style={styles.destinationPinBody}>
-                                <View style={styles.destinationPinInnerCircle}>
-                                    <View style={styles.destinationPinCenter} />
-                                </View>
-                            </View>
-                            <View style={styles.destinationPinStem} />
+                        <View style={styles.destinationPin}>
+                            <MaterialIcons name="location-on" size={42} color="#7b1222" />
+                            <MaterialIcons name="location-on" size={38} color="#ffffff" style={styles.destinationPinInner} />
+                            <MaterialIcons name="location-on" size={34} color="#EA4335" style={styles.destinationPinInner} />
                         </View>
                     </MapboxGL.PointAnnotation>
                 }
@@ -762,7 +749,7 @@ export default function MapScreen() {
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
-                        showStartEndpoint={false}
+                        showStartEndpoint={true}
                         showEndEndpoint={false}
                     />
                 )}
@@ -775,19 +762,6 @@ export default function MapScreen() {
                         stopMarkers={shuttleRouting.stopMarkers}
                     />
                 )}
-                {toCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='toPoint'
-                        id='toPoint'
-                        coordinate={toCoordinates}
-                    >
-                        <View style={styles.destinationPin}>
-                            <MaterialIcons name="location-on" size={42} color="#7b1222" />
-                            <MaterialIcons name="location-on" size={38} color="#ffffff" style={styles.destinationPinInner} />
-                            <MaterialIcons name="location-on" size={34} color="#EA4335" style={styles.destinationPinInner} />
-                        </View>
-                    </MapboxGL.PointAnnotation>
-                }
             </MapboxGL.MapView>
 
               {!isNavigating && (
@@ -1170,6 +1144,13 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
     container: {flex: 1},
     centered: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+    markerPin: {
+        height: 28, width: 28, backgroundColor: '#ffffff', borderRadius: 14,
+        alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+        borderColor: '#e0e0e0', shadowColor: '#000', shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5,
+    },
+    markerText: {color: '#9d1e30', fontWeight: '900', fontSize: 14},
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
