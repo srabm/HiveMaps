@@ -121,7 +121,7 @@ function getThenLabel(nextStep: IndoorDirectionsResponse | null): string {
 }
 
 function stripTrailingDistance(description: string): string {
-    return description.replace(/\s+\d+(?:\.\d+)?m$/i, '').trim();
+    return description.replace(/ \d+(?:\.\d+)?m$/i, '').trim();
 }
 
 function renderExpandedSteps(
