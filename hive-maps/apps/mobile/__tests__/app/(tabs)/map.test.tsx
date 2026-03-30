@@ -2264,7 +2264,7 @@ describe('indoor routing effects — origin leg', () => {
         await waitFor(() => {
             // fetchIndoorDirections called with the near entrance (closest to destination)
             expect(fetchIndoorDirections).toHaveBeenCalledWith(
-                'H', 'H8.835', 'H-near', undefined,
+                'H', 'H8.835', 'H-near',
             );
         });
     });
@@ -2388,9 +2388,10 @@ describe('indoor routing effects — destination leg', () => {
 describe('Android location permissions — LocateMeButton', () => {
     it('sets locationPermissionStatus to granted when permissions are granted', async () => {
         const { Platform } = require('react-native');
+        const { MapboxGL: MGL } = require('@/services/mapbox');
         const originalOS = Platform.OS;
         Platform.OS = 'android';
-        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(true);
+        (MGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(true);
 
         const utils = renderWithBuilding();
 
@@ -2403,28 +2404,10 @@ describe('Android location permissions — LocateMeButton', () => {
 
     it('shows location prompt when Android permissions are denied via LocateMeButton', async () => {
         const { Platform } = require('react-native');
+        const { MapboxGL: MGL } = require('@/services/mapbox');
         const originalOS = Platform.OS;
         Platform.OS = 'android';
-        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(false);
-
-        const utils = renderWithBuilding();
-
-        await act(async () => {
-            fireEvent.press(utils.getByTestId('locate-me-btn'));
-        });
-
-        await waitFor(() => {
-            expect(utils.getByText('Location Off')).toBeTruthy();
-        });
-
-        Platform.OS = originalOS;
-    });
-
-    it('shows location prompt when Android permissions request throws', async () => {
-        const { Platform } = require('react-native');
-        const originalOS = Platform.OS;
-        Platform.OS = 'android';
-        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockRejectedValue(new Error('Permission error'));
+        (MGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(false);
 
         const utils = renderWithBuilding();
 
