@@ -390,6 +390,7 @@ export function FloorPlanViewer({
     const mapContextKey = `${buildingCode}::${floorId}`;
     const mapContextKeyRef = useRef(mapContextKey);
     const poiSelectionTokenRef = useRef(0);
+    const skipNextFloorOriginResolveRef = useRef(false);
     mapContextKeyRef.current = mapContextKey;
     const invalidatePendingPoiSelection = useCallback(() => {
       poiSelectionTokenRef.current += 1;
@@ -401,6 +402,16 @@ export function FloorPlanViewer({
         if (startFloor === null || endFloor === null) return []
         return buildFloorTraversalList(startFloor, endFloor)
     }, [fromNodeId, toNodeId, buildingCode])
+    const requestDestinationFloorChange = useCallback((nodeId: string | null | undefined) => {
+      if (!nodeId || !onStepFloorChange) return
+
+      const destinationFloor = extractFloorFromNodeId(nodeId, buildingCode)
+      if (destinationFloor !== null) {
+        // This floor switch is for display; keep the origin node anchored to the previously selected start.
+        skipNextFloorOriginResolveRef.current = true
+        onStepFloorChange(String(destinationFloor))
+      }
+    }, [buildingCode, onStepFloorChange])
     const activeFloorRouteView = useMemo(
       () => buildActiveFloorRouteView(indoorSteps, floorId, currentNode?.id),
       [indoorSteps, floorId, currentNode?.id],
@@ -435,6 +446,10 @@ export function FloorPlanViewer({
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
         if (indoorSteps) return;
+        if (skipNextFloorOriginResolveRef.current) {
+            skipNextFloorOriginResolveRef.current = false;
+            return;
+        }
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
         if (coords) {
@@ -546,6 +561,7 @@ export function FloorPlanViewer({
       setToNodeId(null);
       if (resolvedNodeId) {
         setToNodeId(resolvedNodeId);
+        requestDestinationFloorChange(resolvedNodeId);
       }
       cameraRef.current?.setCamera({
         centerCoordinate: poi.coordinates,
@@ -601,6 +617,7 @@ export function FloorPlanViewer({
         } else if (!toQuery) {
             setToQuery(String(nodeId));
             setToNodeId(String(nodeId));
+            requestDestinationFloorChange(String(nodeId));
         }
     };
   return (
@@ -852,6 +869,7 @@ export function FloorPlanViewer({
             onSelectTo={(mapLocation, coordinates) => {
               setToQuery(mapLocation.name);
               setToNodeId(mapLocation.id);
+              requestDestinationFloorChange(mapLocation.id);
               invalidatePendingPoiSelection();
               if (coordinates) cameraRef.current?.setCamera({
                 centerCoordinate: coordinates,
@@ -879,6 +897,7 @@ export function FloorPlanViewer({
               setFromNodeId(toNodeId);
               setToQuery(tempQuery);
               setToNodeId(tempNodeId);
+              requestDestinationFloorChange(tempNodeId);
               invalidatePendingPoiSelection();
             }}
             onClose={() => {
