@@ -18,6 +18,7 @@ let mockCameraSetCamera: jest.Mock;
 let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
+let mockSearchBarProps: any = null;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -149,7 +150,16 @@ jest.mock('@/components/campus-badge', () => ({
 jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
-jest.mock('@/components/search-bar', () => () => null);
+jest.mock('@/components/search-bar', () => {
+    const { View } = require('react-native');
+    return {
+        __esModule: true,
+        default: (props: any) => {
+            mockSearchBarProps = props;
+            return <View testID="search-bar-mock" />;
+        },
+    };
+});
 jest.mock('@/components/directions-bars', () => {
     const { View } = require('react-native');
     return {
@@ -335,6 +345,7 @@ beforeEach(() => {
     mockUserLocationOnUpdate = null;
     mockNavigationBottomCallbacks = null;
     mockRouterPush = jest.fn();
+    mockSearchBarProps = null;
     (useNavigationController as jest.Mock).mockReturnValue(makeNavigationController());
     (useShuttleRouting as jest.Mock).mockReturnValue(makeShuttleRouting());
     (useLiveLocation as jest.Mock).mockReturnValue({ location: null });
@@ -2765,5 +2776,93 @@ describe('openDestinationIndoorMap — triggered on arrival', () => {
                 );
             });
         }
+    });
+});
+
+// ─── MapSearchBar callbacks ───────────────────────────────────────────────────
+// These lines are only reachable when seeDirectionBar=false (the default state).
+
+describe('MapSearchBar — callback coverage', () => {
+    it('onChangeText clears destination routing and updates to value', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onChangeText('concordia'); });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('concordia');
+        });
+    });
+
+    it('onClickButton sets user location as origin and shows direction bar', async () => {
+        render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onClickButton(); });
+
+        // After onClickButton, seeDirectionBar=true → MapSearchBar unmounts, DirectionBar mounts
+        await waitFor(() => {
+            expect(mockDirectionBarProps).not.toBeNull();
+        });
+    });
+
+    it('onClickButton without userLocation still shows direction bar', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onClickButton(); });
+
+        await waitFor(() => {
+            expect(mockDirectionBarProps).not.toBeNull();
+        });
+    });
+
+    it('onSelectBuilding with a non-classroom location sets toCoordinates', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => {
+            mockSearchBarProps.onSelectBuilding(
+                { kind: 'building', id: 'mapbox-1', name: 'Hall Building', address: '1455 De Maisonneuve' },
+                [-73.5785, 45.4971],
+            );
+        });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('Hall Building, 1455 De Maisonneuve');
+        });
+    });
+
+
+    it('onSelectBuilding without coordinates does not crash', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        expect(() => {
+            act(() => {
+                mockSearchBarProps.onSelectBuilding(
+                    { kind: 'building', id: 'mapbox-1', name: 'Hall Building' },
+                    null,
+                );
+            });
+        }).not.toThrow();
+    });
+
+    it('onClear resets to value and destination routing', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        // Set a value first
+        act(() => { mockSearchBarProps.onChangeText('something'); });
+
+        // Then clear it
+        act(() => { mockSearchBarProps.onClear(); });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('');
+        });
     });
 });
