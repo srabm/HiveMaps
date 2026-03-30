@@ -259,3 +259,136 @@ describe('DirectionsLine – indoor map', () => {
         expect(coords[0]).toEqual([-73.002, 45.002]);
     });
 });
+
+// ─── coordinatesOverride ─────────────────────────────────────────────────────
+describe('DirectionsLine — coordinatesOverride', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('uses coordinatesOverride instead of polyline when provided', () => {
+        const coords: [number, number][] = [[-73.578, 45.496], [-73.579, 45.497]];
+        render(<DirectionsLine directions={makeDirections({ polyline: '' })} coordinatesOverride={coords} />);
+        const shape = mockShapeSource.mock.calls[0][0].shape;
+        expect(shape.features[0].geometry.coordinates).toEqual(coords);
+    });
+
+    it('deduplicates consecutive identical coordinates in coordinatesOverride', () => {
+        const coords: [number, number][] = [
+            [-73.578, 45.496],
+            [-73.578, 45.496],
+            [-73.579, 45.497],
+        ];
+        render(<DirectionsLine directions={makeDirections({ polyline: '' })} coordinatesOverride={coords} />);
+        const shape = mockShapeSource.mock.calls[0][0].shape;
+        expect(shape.features[0].geometry.coordinates).toHaveLength(2);
+    });
+
+    it('returns null when coordinatesOverride is an empty array', () => {
+        const { toJSON } = render(
+            <DirectionsLine directions={makeDirections({ polyline: '' })} coordinatesOverride={[]} />,
+        );
+        expect(toJSON()).toBeNull();
+    });
+});
+
+// ─── showEndpoints ────────────────────────────────────────────────────────────
+describe('DirectionsLine — showEndpoints', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('does not render endpoint ShapeSource when showEndpoints is false', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                showEndpoints={false}
+            />,
+        );
+        const ids = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.some((id) => id.includes('endpoint'))).toBe(false);
+    });
+
+    it('renders endpoint ShapeSource by default', () => {
+        render(
+            <DirectionsLine directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })} />,
+        );
+        const ids = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.some((id) => id.includes('endpoint'))).toBe(true);
+    });
+});
+
+// ─── showInfoCard ─────────────────────────────────────────────────────────────
+describe('DirectionsLine — showInfoCard=false', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('hides Distance and Duration labels when showInfoCard is false', () => {
+        const { queryByText } = render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                showInfoCard={false}
+            />,
+        );
+        expect(queryByText('Distance')).toBeNull();
+        expect(queryByText('Duration')).toBeNull();
+    });
+});
+
+// ─── custom sourceId / lineColor / lineWidth ──────────────────────────────────
+describe('DirectionsLine — custom props', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('passes custom sourceId to ShapeSource', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                sourceId="my-src"
+            />,
+        );
+        const ids = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids).toContain('my-src');
+    });
+
+    it('derives endpoint sourceId from custom sourceId', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                sourceId="my-src"
+            />,
+        );
+        const ids = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids).toContain('my-src-endpoints');
+    });
+
+    it('applies custom lineColor to LineLayer style', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                lineColor="#ff0000"
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#ff0000');
+    });
+
+    it('applies custom lineWidth to LineLayer style', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                lineWidth={4}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineWidth).toBe(4);
+    });
+});
