@@ -247,6 +247,7 @@ import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-val
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
 import { View } from 'react-native/Libraries/Components/View/View';
+import { fetchIndoorDirections, fetchIndoorEntrances } from '@/services/http/indoor-api';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -2037,5 +2038,404 @@ describe('US-5.1: OutdoorPOICard — onStartNavigation', () => {
 
         // No crash — userLocation null guard fires, handleStartPress skips
         expect(true).toBe(true);
+    });
+});
+
+// ─── getSelectedLocationLabel & toClassroomLocation ──────────────────────────
+// Driven through DirectionBar.onSelectFrom / onSelectTo callbacks.
+
+describe('getSelectedLocationLabel — via DirectionBar.onSelectTo', () => {
+    async function renderWithDirectionBar() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        // Get user location so start-btn can appear
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        // Open building and press Directions to show DirectionBar
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('formats a classroom location as name only (no address)', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('H8.835');
+        });
+    });
+
+    it('formats a non-classroom location as name + address', async () => {
+        await renderWithDirectionBar();
+        const buildingLocation = {
+            kind: 'building' as const,
+            id: 'mapbox-1',
+            name: 'Hall Building',
+            address: '1455 De Maisonneuve Blvd W',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(buildingLocation, [-73.5785, 45.4971]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('Hall Building, 1455 De Maisonneuve Blvd W');
+        });
+    });
+
+    it('formats a non-classroom location with no address as name only', async () => {
+        await renderWithDirectionBar();
+        const buildingLocation = {
+            kind: 'building' as const,
+            id: 'mapbox-2',
+            name: 'Hall Building',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(buildingLocation, [-73.5785, 45.4971]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('Hall Building');
+        });
+    });
+
+    it('toClassroomLocation returns null for non-classroom kind — no classroomDestination set', async () => {
+        await renderWithDirectionBar();
+        const nonClassroom = {
+            kind: 'building' as const,
+            id: 'mapbox-1',
+            name: 'Hall Building',
+            address: '1455 De Maisonneuve Blvd W',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(nonClassroom, [-73.5785, 45.4971]);
+        });
+        // No indoor steps will be fetched — fetchIndoorEntrances not called
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).not.toHaveBeenCalled();
+        });
+    });
+
+    it('toClassroomLocation sets classroomDestination when kind is classroom', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [mockEntrance] },
+        ]);
+        act(() => {
+            mockDirectionBarProps.onSelectTo(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+
+    it('toClassroomOrigin sets classroomOrigin when onSelectFrom receives a classroom', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [mockEntrance] },
+        ]);
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+// ─── indoor origin/destination routing effects ────────────────────────────────
+// Covers fetchIndoorEntrances + fetchIndoorDirections paths including
+// pickClosestEntrance, getStraightLineDistance, areCoordinatesEqual,
+// buildIndoorSummary, getIndoorRouteEndpoints.
+
+describe('indoor routing effects — origin leg', () => {
+    async function renderWithClassroomOrigin() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('calls fetchIndoorEntrances and fetchIndoorDirections for classroom origin', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 30, description: 'Walk to exit',
+              nodes: [{ id: 'H8.835', longitude: -73.5792, latitude: 45.4972, floor: '8', building: 'H', label: 'Room', wheelchairAccessible: true },
+                      mockEntrance] },
+        ]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalled();
+        });
+    });
+
+    it('picks the closest entrance when multiple are available', async () => {
+        const nearEntrance = {
+            id: 'H-near', longitude: -73.5785, latitude: 45.4971,
+            floor: '1', building: 'H', label: 'Near Entrance', wheelchairAccessible: true,
+        };
+        const farEntrance = {
+            id: 'H-far', longitude: -73.6400, latitude: 45.4580,
+            floor: '1', building: 'H', label: 'Far Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([farEntrance, nearEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5785, 45.4971],
+            );
+        });
+
+        await waitFor(() => {
+            // fetchIndoorDirections called with the near entrance (closest to destination)
+            expect(fetchIndoorDirections).toHaveBeenCalledWith(
+                'H', 'H8.835', 'H-near', undefined,
+            );
+        });
+    });
+
+    it('handles fetchIndoorEntrances returning empty array gracefully', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            // No directions call when no entrance found
+            expect(fetchIndoorDirections).not.toHaveBeenCalled();
+        });
+    });
+
+    it('handles fetchIndoorEntrances throwing an error gracefully', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+        await renderWithClassroomOrigin();
+
+        expect(() => {
+            act(() => {
+                mockDirectionBarProps.onSelectFrom(
+                    { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                      buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                    [-73.5792, 45.4972],
+                );
+            });
+        }).not.toThrow();
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+describe('indoor routing effects — destination leg', () => {
+    async function renderWithClassroomDest() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('calls fetchIndoorEntrances and fetchIndoorDirections for classroom destination', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 30, description: 'Walk to room',
+              nodes: [mockEntrance,
+                      { id: 'H8.835', longitude: -73.5792, latitude: 45.4972, floor: '8', building: 'H', label: 'Room', wheelchairAccessible: true }] },
+        ]);
+
+        await renderWithClassroomDest();
+
+        act(() => {
+            mockDirectionBarProps.onSelectTo(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalled();
+        });
+    });
+
+    it('handles fetchIndoorDirections throwing an error for destination leg gracefully', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockRejectedValue(new Error('Directions failed'));
+
+        await renderWithClassroomDest();
+
+        expect(() => {
+            act(() => {
+                mockDirectionBarProps.onSelectTo(
+                    { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                      buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                    [-73.5792, 45.4972],
+                );
+            });
+        }).not.toThrow();
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+// ─── Android location permissions ─────────────────────────────────────────────
+
+describe('Android location permissions — LocateMeButton', () => {
+    it('sets locationPermissionStatus to granted when permissions are granted', async () => {
+        const { Platform } = require('react-native');
+        const originalOS = Platform.OS;
+        Platform.OS = 'android';
+        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(true);
+
+        const utils = renderWithBuilding();
+
+        await waitFor(() => {
+            expect(utils.getByTestId('locate-me-btn')).toBeTruthy();
+        });
+
+        Platform.OS = originalOS;
+    });
+
+    it('shows location prompt when Android permissions are denied via LocateMeButton', async () => {
+        const { Platform } = require('react-native');
+        const originalOS = Platform.OS;
+        Platform.OS = 'android';
+        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(false);
+
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByText('Location Off')).toBeTruthy();
+        });
+
+        Platform.OS = originalOS;
+    });
+
+    it('shows location prompt when Android permissions request throws', async () => {
+        const { Platform } = require('react-native');
+        const originalOS = Platform.OS;
+        Platform.OS = 'android';
+        (MapboxGL.requestAndroidLocationPermissions as jest.Mock).mockRejectedValue(new Error('Permission error'));
+
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByText('Location Off')).toBeTruthy();
+        });
+
+        Platform.OS = originalOS;
     });
 });
