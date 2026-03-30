@@ -211,6 +211,8 @@ type NavigationOverlayProps = {
      * the walk legs retain full detection.
      */
     shuttlePhaseBoundaries?: ShuttlePhaseBoundaries;
+    /** Suppresses outdoor off-route recalculation entirely in shuttle mode. */
+    isShuttleMode?: boolean;
     onArrived?: () => void;
     onRecalculated: (newDirections: DirectionsResponse) => void;
     onExit: () => void;
@@ -226,6 +228,7 @@ function NavigationOverlay({
     provider,
     followLiveLocation,
     shuttlePhaseBoundaries,
+    isShuttleMode = false,
     onArrived,
     onRecalculated,
     onExit,
@@ -270,6 +273,7 @@ function NavigationOverlay({
     // Off-route recalculation — only fires when isOffRoute flips to true
     useEffect(() => {
         if (!followLiveLocation) return;
+        if (isShuttleMode) return;
         if (!stepNav.isOffRoute) return;
         if (recalcInFlightRef.current) return;
         if (!location) {
@@ -582,7 +586,8 @@ export default function MapScreen() {
     }, [activeIndoorSegment, directions, isNavigating, routeFromCoordinates, routeToCoordinates, shouldStartDestinationIndoorOnly]);
 
     const showOutdoorConnectors = useMemo(() => {
-        if (selectedMode !== 'Drive' || activeIndoorSegment) return false;
+        if (selectedMode !== 'Drive' && selectedMode !== 'Walk' && selectedMode !== 'Transit') return false;
+        if (activeIndoorSegment) return false;
         return Boolean(directions) && (showRouteOverview || isNavigating);
     }, [activeIndoorSegment, directions, isNavigating, selectedMode, showRouteOverview]);
 
@@ -875,10 +880,15 @@ export default function MapScreen() {
             setPendingStartSegment('origin');
             return;
         }
-        if (!isShuttleMode && !directions) return;
+        if (isShuttleMode) {
+            const legsReady = shuttleRouting.walkToStop && shuttleRouting.shuttleLeg && shuttleRouting.walkFromStop;
+            if (!legsReady) return;
+        } else {
+            if (!directions) return;
+        }
 
         beginOutdoorNavigation();
-    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, openOriginIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
+    }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, openOriginIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly, shuttleRouting]);
 
     useFocusEffect(
         useCallback(() => {
@@ -1361,9 +1371,9 @@ export default function MapScreen() {
                     steps={activeSteps}
                     totalDurationSeconds={
                         selectedMode === 'Shuttle'
-                            ? (shuttleRouting.walkToStop?.durationSeconds ?? 0) +
-                              (shuttleRouting.shuttleLeg?.durationSeconds ?? 0) +
-                              (shuttleRouting.walkFromStop?.durationSeconds ?? 0)
+                            ? (activeShuttleLegs?.walkToStop?.durationSeconds ?? 0) +
+                              (activeShuttleLegs?.shuttleDurationSeconds ?? 0) +
+                              (activeShuttleLegs?.walkFromStop?.durationSeconds ?? 0)
                             : (directions?.durationSeconds ?? 0)
                     }
                     cameraRef={cameraRef}
@@ -1379,6 +1389,7 @@ export default function MapScreen() {
                     provider={selectedMode === 'Transit' ? Provider.GOOGLE_MAPS : Provider.MAPBOX}
                     followLiveLocation={navigationUsesLiveLocation}
                     shuttlePhaseBoundaries={activeShuttlePhaseBoundaries}
+                    isShuttleMode={selectedMode === 'Shuttle'}
                     onArrived={() => {
                         if (!destinationIndoorSteps) return;
                         if (destinationIndoorHandoffDoneRef.current) return;
