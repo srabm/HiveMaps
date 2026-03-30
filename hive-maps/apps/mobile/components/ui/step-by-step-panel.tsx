@@ -149,10 +149,11 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
         try {
             // Match "HH:MM" from the time portion, before any timezone offset.
             // e.g. "2025-06-01T09:05:00-04:00" → hours=9, minutes=5
-            const m = raw.match(/T(\d{2}):(\d{2})/);
+            const timePattern = /T(\d{2}):(\d{2})/;
+            const m = timePattern.exec(raw);
             if (!m) return null;
-            const hours = parseInt(m[1], 10);
-            const minutes = parseInt(m[2], 10);
+            const hours = Number.parseInt(m[1], 10);
+            const minutes = Number.parseInt(m[2], 10);
             const period = hours >= 12 ? 'PM' : 'AM';
             const h12 = hours % 12 === 0 ? 12 : hours % 12;
             const mm = String(minutes).padStart(2, '0');
