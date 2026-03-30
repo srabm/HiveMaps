@@ -111,8 +111,10 @@ function getRemainingDistance(steps: IndoorDirectionsResponse[], currentIndex: n
     return Math.round(steps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0));
 }
 
+const ARRIVED_DESCRIPTION = "You have arrived at your destination";
+
 function getThenLabel(nextStep: IndoorDirectionsResponse | null): string {
-    if (!nextStep) {
+    if (!nextStep || nextStep.description === ARRIVED_DESCRIPTION) {
         return "Then: You have arrived at your destination";
     }
 
