@@ -142,10 +142,21 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
 
     // Format time strings like "2025-01-15T14:30:00-05:00" → "2:30 PM"
+    // Uses the UTC offset embedded in the ISO string so the displayed time is
+    // always the wall-clock time at the origin — not the device/CI timezone.
     const fmtTime = (raw: string | undefined): string | null => {
         if (!raw) return null;
         try {
-            return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            // Extract offset like "-05:00" or "+02:00" or "Z" from the string.
+            const offsetMatch = raw.match(/([+-]\d{2}:\d{2}|Z)$/);
+            const timeZone = offsetMatch
+                ? offsetMatch[1] === 'Z' ? 'UTC' : offsetMatch[1]
+                : undefined;
+            return new Date(raw).toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                ...(timeZone ? { timeZone } : {}),
+            });
         } catch {
             return null;
         }
