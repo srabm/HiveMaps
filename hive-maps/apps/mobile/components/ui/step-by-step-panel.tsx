@@ -170,58 +170,32 @@ function getStepInstructionText(step: Step | null): string {
     }
 
     const vehicleType = getTransitVehicleType(step);
-    const departureStop = transitDetails.stopDetails?.departureStop?.name;
+    const departureStop = transitDetails.stopDetails?.departureStop?.name ?? null;
     const routeId = transitDetails.transitLine?.nameShort ?? null;
     const lineName = transitDetails.transitLine?.name ?? null;
-    const headsign =
-        transitDetails.transitLine?.headsign ??
-        transitDetails.headsign ??
-        null;
+    const headsign = transitDetails.transitLine?.headsign ?? transitDetails.headsign ?? null;
 
-    if (
+    const isRailTransit =
         vehicleType.includes('subway') ||
         vehicleType.includes('metro') ||
         vehicleType.includes('rail') ||
-        vehicleType.includes('train')
-    ) {
-        if (departureStop && headsign) {
-            return `Enter station ${departureStop} towards ${headsign}`;
-        }
-
-        if (departureStop) {
-            return `Enter station ${departureStop}`;
-        }
-
-        if (headsign) {
-            return `Take metro towards ${headsign}`;
-        }
-
+        vehicleType.includes('train');
+    if (isRailTransit) {
+        if (departureStop && headsign) return `Enter station ${departureStop} towards ${headsign}`;
+        if (departureStop) return `Enter station ${departureStop}`;
+        if (headsign) return `Take metro towards ${headsign}`;
         return 'Enter station';
     }
 
-    const vehicleLabel =
-        vehicleType.includes('tram')
-            ? 'tram'
-            : vehicleType.includes('bus')
-              ? 'bus'
-              : 'transit';
-
-    if (routeId && headsign) {
-        return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
-    }
-
-    if (routeId) {
-        return `Take ${vehicleLabel} ${routeId}`;
-    }
-
-    if (lineName && headsign) {
-        return `Take ${lineName} towards ${headsign}`;
-    }
-
-    if (lineName) {
-        return `Take ${lineName}`;
-    }
-
+    const vehicleLabel = vehicleType.includes('tram')
+        ? 'tram'
+        : vehicleType.includes('bus')
+          ? 'bus'
+          : 'transit';
+    if (routeId && headsign) return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
+    if (routeId) return `Take ${vehicleLabel} ${routeId}`;
+    if (lineName && headsign) return `Take ${lineName} towards ${headsign}`;
+    if (lineName) return `Take ${lineName}`;
     return step.instruction || 'Continue';
 }
 
