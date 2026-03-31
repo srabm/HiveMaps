@@ -94,6 +94,13 @@ const {ShuttleScheduleSection} = require('@/components/ui/shuttle-schedule-secti
 const origin = {latitude: 45.4972, longitude: -73.5787};
 const destination = {latitude: 45.4583, longitude: -73.6406};
 
+async function flushNavigationBottomInitialEffects() {
+    await act(async () => {
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+    });
+}
+
 jest.useFakeTimers();
 
 beforeEach(() => {
@@ -321,6 +328,8 @@ describe('NavigationBottom shuttle compact layout', () => {
         const {getByText, getByTestId, queryByTestId} = render(
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
+
+        await flushNavigationBottomInitialEffects();
 
         await waitFor(() => {
             expect(getByText('Start')).toBeTruthy();
@@ -1032,6 +1041,8 @@ describe('NavigationBottom shuttle additions', () => {
         render(
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
+
+        await flushNavigationBottomInitialEffects();
 
         await waitFor(() => {
             expect(screen.getByText('Last shuttle for the day')).toBeTruthy();
