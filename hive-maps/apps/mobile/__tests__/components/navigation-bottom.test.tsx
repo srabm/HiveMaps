@@ -289,6 +289,10 @@ describe('NavigationBottom callbacks', () => {
 
 describe('NavigationBottom shuttle compact layout', () => {
     it('renders the compact shuttle card with see schedule action', async () => {
+        const midday = new Date(2026, 1, 23, 12, 0, 0, 0);
+        jest.setSystemTime(midday);
+        getCurrentTimeISO.mockReturnValue(midday.toISOString());
+
         useShuttleRouting.mockReturnValue({
             walkToStop: {durationSeconds: 600, distanceMeters: 200},
             shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
@@ -996,6 +1000,10 @@ describe('NavigationBottom shuttle additions', () => {
     });
 
     it('flags when the recommended option is the last shuttle for the day', async () => {
+        const lateAfternoon = new Date(2026, 1, 23, 17, 45, 0, 0);
+        jest.setSystemTime(lateAfternoon);
+        getCurrentTimeISO.mockReturnValue(lateAfternoon.toISOString());
+
         useShuttleRouting.mockReturnValue({
             walkToStop: {durationSeconds: 600, distanceMeters: 200},
             shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
