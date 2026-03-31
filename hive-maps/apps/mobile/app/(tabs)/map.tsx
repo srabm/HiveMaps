@@ -972,6 +972,7 @@ export default function MapScreen() {
         setActiveShuttleLegs(null);
         // from, fromCoordinates, to, toCoordinates, directions — intentionally preserved
     }, [toCoordinates, campusMetaById, setCampus]);
+
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
         const tapPoint = (e as { point?: { x?: number; y?: number } }).point;
@@ -1130,7 +1131,7 @@ export default function MapScreen() {
                             }}
                         />
 
-                        {/* LAYER C: Outline (White) */}
+                        {/* LAYER C: Outline */}
                         <MapboxGL.LineLayer
                             id="campus-buildings-outline"
                             aboveLayerID="campus-buildings-pattern"
@@ -1168,7 +1169,8 @@ export default function MapScreen() {
                         directions={directions}
                         infoCardPosition="top"
                         showStartEndpoint={true}
-                        showEndEndpoint={false}                    />
+                        showEndEndpoint={false}
+                    />
                 )}
                 {originIndoorSteps && (activeIndoorSegment === 'origin' || showRouteOverview) && (
                     <DirectionsLine
@@ -1284,8 +1286,6 @@ export default function MapScreen() {
                             if (!cameraRef.current) return;
                             if (coordinates) {
                                 setToCoordinates(coordinates);
-                                clearDestinationRouting();
-                                setRouteToCoordinates(coordinates);
                                 focusCamera(coordinates);
                                 // Switch campus so the correct building polygons load
                                 const nearest = getNearestCampus(coordinates[0], coordinates[1], campusMetaById);
@@ -1473,12 +1473,10 @@ export default function MapScreen() {
                 <LocateMeButton
                     style={styles.locateButton}
                     onPress={async () => {
-                    if (userLocation) {
-                        const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
-                        if (nearest) {
-                            setCampus(nearest);
-                        }
-                        cameraRef.current?.setCamera({
+                        if (cameraRef.current && userLocation) {
+                            const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
+                            if (nearest) setCampus(nearest);
+                            cameraRef.current.setCamera({
                                 centerCoordinate: userLocation,
                                 zoomLevel: Math.max(campusMeta.zoom, 17),
                                 animationDuration: 600,
@@ -1565,17 +1563,15 @@ export default function MapScreen() {
         visible={!!selectedBuilding}
         building={selectedBuilding}
         onClose={() => setSelectedBuilding(null)}
-
-
         onIndoorMap={() => {
-        if (selectedBuilding?.code) {
-            setSelectedBuilding(null);
-            const campusQuery = selectedBuilding.campus
-                ? `?campus=${encodeURIComponent(selectedBuilding.campus)}`
-                : '';
-            router.push(`/indoor/${encodeURIComponent(selectedBuilding.code)}${campusQuery}` as Href);
-        }
-    }}
+            if (selectedBuilding?.code) {
+                setSelectedBuilding(null);
+                const campusQuery = selectedBuilding.campus
+                    ? `?campus=${encodeURIComponent(selectedBuilding.campus)}`
+                    : '';
+                router.push(`/indoor/${encodeURIComponent(selectedBuilding.code)}${campusQuery}` as Href);
+            }
+        }}
         onDirections={navigateToSelectedBuilding}
       />
 
@@ -1717,7 +1713,8 @@ const styles = StyleSheet.create({
     modalButtonText: {
         color: '#ffffff',
         fontWeight: '600',
-    }, searchContainer: {
+    },
+    searchContainer: {
         position: 'absolute',
         top: 70,
         left: 0,
