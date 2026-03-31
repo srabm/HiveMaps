@@ -1240,6 +1240,8 @@ export default function MapScreen() {
                             if (!cameraRef.current) return;
                             if (coordinates) {
                                 setToCoordinates(coordinates);
+                                clearDestinationRouting();
+                                setRouteToCoordinates(coordinates);
                                 focusCamera(coordinates);
                                 // Switch campus so the correct building polygons load
                                 const nearest = getNearestCampus(coordinates[0], coordinates[1], campusMetaById);
