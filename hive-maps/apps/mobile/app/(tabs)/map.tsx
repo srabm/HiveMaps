@@ -1,7 +1,6 @@
 import { Href, useRouter } from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform, LayoutChangeEvent} from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -38,6 +37,7 @@ import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-na
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 import {POICategory,type POI} from "@/components/ui/POICategory";
 import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
+import { DestinationPin } from '@/components/ui/destination-pin';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -725,11 +725,7 @@ export default function MapScreen() {
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View style={styles.destinationPin}>
-                            <MaterialIcons name="location-on" size={42} color="#7b1222" />
-                            <MaterialIcons name="location-on" size={38} color="#ffffff" style={styles.destinationPinInner} />
-                            <MaterialIcons name="location-on" size={34} color="#EA4335" style={styles.destinationPinInner} />
-                        </View>
+                        <DestinationPin />
                     </MapboxGL.PointAnnotation>
                 }
 
@@ -1180,15 +1176,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: 16,
         bottom: '35%',
-    },
-    destinationPin: {
-        width: 42,
-        height: 42,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    destinationPinInner: {
-        position: 'absolute',
     },
     modalBackdrop: {
         flex: 1,
