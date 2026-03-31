@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { PanResponder } from 'react-native';
+import { PanResponder, Platform, UIManager } from 'react-native';
 
 import { BuildingInfoModal } from '@/components/building-info-modal';
 
@@ -53,6 +53,30 @@ describe('BuildingInfoModal', () => {
 
     expect(getByText('Accessible entrance')).toBeTruthy();
     expect(getByText('Accessible elevator')).toBeTruthy();
+  });
+
+  it('renders provided accessibility items instead of the fallback list', () => {
+    const { getByText, queryByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{
+          ...baseBuilding,
+          accessibility: [
+            {
+              label: 'Ramp access',
+              description: 'Ramp at main entrance',
+              iconName: 'accessible-forward',
+            },
+          ],
+        }}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(getByText('Ramp access')).toBeTruthy();
+    expect(getByText('Ramp at main entrance')).toBeTruthy();
+    expect(queryByText('Accessible entrance')).toBeNull();
+    expect(queryByText('Accessible elevator')).toBeNull();
   });
 
   it('renders indoor action for supported building and calls handler', () => {
@@ -128,6 +152,36 @@ describe('BuildingInfoModal', () => {
 
     fireEvent.press(getByTestId('building-close-button'));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when visible is false', () => {
+    const { toJSON } = render(
+      <BuildingInfoModal visible={false} building={baseBuilding} onClose={jest.fn()} />
+    );
+
+    expect(toJSON()).toBeNull();
+  });
+
+  it('enables layout animation experimentally on Android when available', () => {
+    const originalPlatform = Platform.OS;
+    const originalExperimental = UIManager.setLayoutAnimationEnabledExperimental;
+    const experimentalSpy = jest.fn();
+
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'android',
+    });
+    UIManager.setLayoutAnimationEnabledExperimental = experimentalSpy;
+
+    render(<BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />);
+
+    expect(experimentalSpy).toHaveBeenCalledWith(true);
+
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: originalPlatform,
+    });
+    UIManager.setLayoutAnimationEnabledExperimental = originalExperimental;
   });
 
   it('captures vertical drag gestures only when they exceed the threshold and horizontal movement', () => {

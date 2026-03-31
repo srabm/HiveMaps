@@ -754,6 +754,48 @@ describe('NavigationBottom shuttle additions', () => {
         });
     });
 
+    it('renders the inline last shuttle warning in the compact metrics row', async () => {
+        const lateAfternoon = new Date(2026, 1, 23, 17, 45, 0, 0);
+        jest.setSystemTime(lateAfternoon);
+        getCurrentTimeISO.mockReturnValue(lateAfternoon.toISOString());
+
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
+            schedule: {departures: {sgw: [], loyola: []}},
+            departureTimes: ['07:00', '17:30', '18:15'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '18:15',
+                    departureDate: new Date(2026, 1, 23, 18, 15, 0, 0),
+                    minutesUntil: 30,
+                    minutesFromFilter: 30,
+                },
+            ],
+        });
+
+        const {getByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        await flushNavigationBottomInitialEffects();
+
+        await waitFor(() => {
+            expect(getByText('Start')).toBeTruthy();
+            expect(getByText('Last shuttle for the day')).toBeTruthy();
+        });
+    });
+
     it('keeps the shuttle schedule modal open after the delayed directions effect runs', async () => {
         useShuttleRouting.mockReturnValue({
             walkToStop: {durationSeconds: 600, distanceMeters: 200},
@@ -795,6 +837,92 @@ describe('NavigationBottom shuttle additions', () => {
         });
 
         expect(getByText('Shuttle Schedule')).toBeTruthy();
+    });
+
+    it('closes the shuttle schedule modal when switching away from Shuttle mode', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
+            schedule: {departures: {sgw: ['12:20', '13:00'], loyola: ['12:40', '13:20']}},
+            departureTimes: ['07:00', '12:20', '13:00'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '12:20',
+                    departureDate: new Date(2026, 1, 23, 12, 20, 0, 0),
+                    minutesUntil: 20,
+                    minutesFromFilter: 20,
+                },
+            ],
+        });
+
+        const {getByText, queryByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        fireEvent.press(getByText('See Schedule'));
+
+        await waitFor(() => {
+            expect(getByText('Shuttle Schedule')).toBeTruthy();
+        });
+
+        fireEvent.press(getByText('Walk'));
+
+        await waitFor(() => {
+            expect(queryByText('Shuttle Schedule')).toBeNull();
+        });
+    });
+
+    it('closes the shuttle schedule modal when the modal close control is pressed', async () => {
+        useShuttleRouting.mockReturnValue({
+            walkToStop: {durationSeconds: 600, distanceMeters: 200},
+            shuttleLeg: {durationSeconds: 900, distanceMeters: 5000},
+            walkFromStop: {durationSeconds: 300, distanceMeters: 100},
+            stopsForTrip: null,
+            stopMarkers: [],
+        });
+        useShuttleSchedule.mockReturnValue({
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
+            schedule: {departures: {sgw: ['12:20', '13:00'], loyola: ['12:40', '13:20']}},
+            departureTimes: ['07:00', '12:20', '13:00'],
+            directionLabel: 'SGW -> Loyola',
+            showNextServiceLabel: false,
+            isNextServiceDay: false,
+            showSeeMoreButton: false,
+            departures: [
+                {
+                    time: '12:20',
+                    departureDate: new Date(2026, 1, 23, 12, 20, 0, 0),
+                    minutesUntil: 20,
+                    minutesFromFilter: 20,
+                },
+            ],
+        });
+
+        const {getByText, queryByText} = render(
+            <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
+        );
+
+        fireEvent.press(getByText('See Schedule'));
+
+        await waitFor(() => {
+            expect(getByText('Shuttle Schedule')).toBeTruthy();
+        });
+
+        fireEvent.press(getByText('Close'));
+
+        await waitFor(() => {
+            expect(queryByText('Shuttle Schedule')).toBeNull();
+        });
     });
 
     it('shows both shuttle direction tabs in the schedule modal', async () => {
@@ -1047,5 +1175,21 @@ describe('NavigationBottom shuttle additions', () => {
         await waitFor(() => {
             expect(screen.getByText('Last shuttle for the day')).toBeTruthy();
         });
+    });
+});
+
+describe('NavigationBottom responder props', () => {
+    it('keeps touch ownership on the navigation card container', () => {
+        const {UNSAFE_root} = render(
+            <NavigationBottom origin={origin} destination={destination} />
+        );
+
+        const navCard = UNSAFE_root.find((node: any) =>
+            typeof node.props.onStartShouldSetResponder === 'function' &&
+            typeof node.props.onMoveShouldSetResponder === 'function'
+        );
+
+        expect(navCard.props.onStartShouldSetResponder()).toBe(true);
+        expect(navCard.props.onMoveShouldSetResponder()).toBe(true);
     });
 });
