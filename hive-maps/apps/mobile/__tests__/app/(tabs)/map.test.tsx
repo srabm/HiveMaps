@@ -15,7 +15,7 @@ let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
 let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
-let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
+let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any; onCardLayout: any } | null = null;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
 let mockMapIdleHandler: ((event: any) => void) | null = null;
@@ -133,10 +133,10 @@ jest.mock('@/components/ui/directions-line', () => ({
 jest.mock('@/components/ui/navigation-bottom', () => {
     const { Pressable, View } = require('react-native');
     return {
-        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange }: any) => {
+        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange, onCardLayout }: any) => {
             // Capture onDirectionsChange so tests can inject a directions object
             // by pressing inject-directions-btn before pressing start-btn.
-            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange };
+            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange, onCardLayout };
             return (
                 <View>
                     <Pressable testID="start-btn" onPress={onStartPress} />
@@ -704,6 +704,46 @@ describe('handleBuildingPress', () => {
         render(<MapScreen />);
         // ShapeSource renders because polygonFeatures.length > 0
         expect(mockShapeSourceOnPress).not.toBeNull();
+    });
+
+    it('ignores building presses that land inside the navigation bottom blocking frame', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByTestId('start-btn')).toBeTruthy();
+            expect(mockNavigationBottomCallbacks?.onCardLayout).toBeDefined();
+        });
+
+        act(() => {
+            mockNavigationBottomCallbacks?.onCardLayout({
+                nativeEvent: {
+                    layout: { x: 10, y: 20, width: 200, height: 100 },
+                },
+            });
+        });
+
+        expect(() => {
+            act(() => {
+                mockShapeSourceOnPress?.({
+                    features: [mockFeature],
+                    point: { x: 50, y: 50 },
+                });
+            });
+        }).not.toThrow();
     });
 });
 
