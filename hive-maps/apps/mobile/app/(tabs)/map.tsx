@@ -962,17 +962,6 @@ export default function MapScreen() {
                     setPoiMarkers([]);
                     setSelectedOutdoorPOI(null);
                 }}
-                onStartNavigation={() => {
-                    if (!selectedOutdoorPOI || !userLocation) return;
-                    setTo(selectedOutdoorPOI.name);
-                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
-                    setFrom("Your location");
-                    setFromCoordinates(userLocation);
-                    
-                    handleStartPress();
-                    setPoiMarkers([]);
-                    setSelectedOutdoorPOI(null);
-                }}
             />
             <Modal
                 transparent

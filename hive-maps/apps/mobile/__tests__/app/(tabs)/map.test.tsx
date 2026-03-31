@@ -1868,27 +1868,4 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
-
-    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
-        const { getDirections } = require('@/services/maps/directions-api-adapter');
-        getDirections.mockClear();
-
-        const { findByText } = render(<MapScreen />);
-
-        act(() => {
-            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
-        });
-        
-        triggerMapboxClick();
-
-        const startBtn = await findByText('Start');
-        
-        await act(async () => {
-            fireEvent.press(startBtn);
-        });
-
-        expect(getDirections).not.toHaveBeenCalled();
-    });
-
-    
 });

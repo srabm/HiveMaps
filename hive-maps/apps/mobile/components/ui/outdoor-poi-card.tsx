@@ -9,15 +9,13 @@ interface OutdoorPOICardProps {
     userLocation: { latitude: number; longitude: number } | null;
     onClose: () => void;
     onGetDirections: () => void;
-    onStartNavigation: () => void;
 }
 
 export function OutdoorPOICard({ 
     poi, 
     userLocation, 
     onClose, 
-    onGetDirections,
-    onStartNavigation 
+    onGetDirections
 }: Readonly<OutdoorPOICardProps>) {
 
     if (!poi) return null;
@@ -73,14 +71,6 @@ export function OutdoorPOICard({
                 >
                     <MaterialIcons name="directions" size={14} color="#ffffff" />
                     <Text style={styles.primaryBtnText}>Directions</Text>
-                </Pressable>
-
-                <Pressable 
-                    style={[styles.actionBtn, styles.primaryBtn]} 
-                    onPress={onStartNavigation}
-                >
-                    <MaterialIcons name="navigation" size={18} color="#ffffff" />
-                    <Text style={styles.primaryBtnText}>Start</Text>
                 </Pressable>
             </View>
         </View>

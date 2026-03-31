@@ -22,7 +22,6 @@ describe('OutdoorPOICard', () => {
     const userLocation = { latitude: 45.001, longitude: -73.001 };
     const onClose = jest.fn();
     const onGetDirections = jest.fn();
-    const onStartNavigation = jest.fn();
 
 
     it('renders correctly and displays distance', () => {
@@ -32,7 +31,6 @@ describe('OutdoorPOICard', () => {
                 userLocation={userLocation}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
 
@@ -40,7 +38,6 @@ describe('OutdoorPOICard', () => {
         expect(getByText('123 Testing Street')).toBeTruthy();
         expect(getByText('500m')).toBeTruthy();
         expect(getByText('Directions')).toBeTruthy();
-        expect(getByText('Start')).toBeTruthy();
         expect(getByTestId('poi-card-close')).toBeTruthy();
         fireEvent.press(getByTestId('poi-card-close'));
         expect(onClose).toHaveBeenCalled();
@@ -53,15 +50,11 @@ describe('OutdoorPOICard', () => {
                 userLocation={userLocation}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
 
         fireEvent.press(getByText('Directions'));
         expect(onGetDirections).toHaveBeenCalled();
-
-        fireEvent.press(getByText('Start'));
-        expect(onStartNavigation).toHaveBeenCalled();
     });
 });
 
@@ -76,7 +69,6 @@ describe('OutdoorPOICard', () => {
     const userLocation = { latitude: 45.001, longitude: -73.001 };
     const onClose = jest.fn();
     const onGetDirections = jest.fn();
-    const onStartNavigation = jest.fn();
 
     it('handles all pressables and favourite toggle', () => {
         const { getByText, getByTestId } = render(
@@ -85,7 +77,6 @@ describe('OutdoorPOICard', () => {
                 userLocation={userLocation}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
         expect(getByText('500m')).toBeTruthy();
@@ -97,8 +88,6 @@ describe('OutdoorPOICard', () => {
         fireEvent.press(getByText('Directions'));
         expect(onGetDirections).toHaveBeenCalled();
 
-        fireEvent.press(getByText('Start'));
-        expect(onStartNavigation).toHaveBeenCalled();
     });
 });
 
@@ -112,7 +101,6 @@ describe('OutdoorPOICard distanceText', () => {
 
     const onClose = jest.fn();
     const onGetDirections = jest.fn();
-    const onStartNavigation = jest.fn();
 
     it('shows distance in meters when < 1km', () => {
         jest.spyOn(routeValidator, 'haversineKM').mockReturnValue(0.42);
@@ -123,7 +111,6 @@ describe('OutdoorPOICard distanceText', () => {
                 userLocation={{ latitude: 45.001, longitude: -73.001 }}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
         expect(getByText('420m')).toBeTruthy();
@@ -138,7 +125,6 @@ describe('OutdoorPOICard distanceText', () => {
                 userLocation={{ latitude: 45.001, longitude: -73.001 }}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
         expect(getByText('2.4km')).toBeTruthy();
@@ -151,7 +137,6 @@ describe('OutdoorPOICard distanceText', () => {
                 userLocation={null}
                 onClose={onClose}
                 onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
             />
         );
 
