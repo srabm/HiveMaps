@@ -131,13 +131,205 @@ const SHUTTLE_PHASE_LABEL: Record<ShuttlePhase, { icon: React.ComponentProps<typ
     'walk-from-stop': { icon: 'directions-walk', text: 'Walk to destination',  color: '#059669' },
 };
 
+function getTransitVehicleType(step: Step): string {
+    const vehicleType =
+        step.transitDetails?.transitLine?.vehicle?.type ??
+        step.transitDetails?.transitLine?.vehicle?.name?.text ??
+        step.transitDetails?.transitLine?.vehicle?.name ??
+        '';
+    return typeof vehicleType === 'string' ? vehicleType.toLowerCase() : '';
+}
+
+function getStepIcon(step: Step | null): React.ComponentProps<typeof MaterialIcons>['name'] {
+    if (!step) return 'flag';
+
+    const vehicleType = getTransitVehicleType(step);
+
+    if (vehicleType.includes('bus')) {
+        return 'directions-bus';
+    }
+
+    if (
+        vehicleType.includes('subway') ||
+        vehicleType.includes('metro') ||
+        vehicleType.includes('rail') ||
+        vehicleType.includes('train')
+    ) {
+        return 'subway';
+    }
+
+    return getManeuverIcon(step.maneuver, step.maneuverModifier);
+}
+
+function getStepInstructionText(step: Step | null): string {
+    if (!step) return 'Continue';
+
+    const transitDetails = step.transitDetails;
+    if (!transitDetails) {
+        return step.instruction || 'Continue';
+    }
+
+    const vehicleType = getTransitVehicleType(step);
+    const departureStop = transitDetails.stopDetails?.departureStop?.name ?? null;
+    const routeId = transitDetails.transitLine?.nameShort ?? null;
+    const lineName = transitDetails.transitLine?.name ?? null;
+    const headsign = transitDetails.transitLine?.headsign ?? transitDetails.headsign ?? null;
+    if (isRailTransitVehicle(vehicleType)) {
+        return buildRailTransitInstruction(departureStop, headsign);
+    }
+    return buildSurfaceTransitInstruction(vehicleType, routeId, lineName, headsign, step.instruction);
+}
+
+function getTransitStopSummary(step: Step | null): string[] {
+    if (!step?.transitDetails) return [];
+
+    const departureStop = step.transitDetails.stopDetails?.departureStop?.name ?? null;
+    const arrivalStop = step.transitDetails.stopDetails?.arrivalStop?.name ?? null;
+    const lines: string[] = [];
+
+    if (departureStop) {
+        lines.push(`Board at ${departureStop}`);
+    }
+
+    if (arrivalStop) {
+        lines.push(`Exit at ${arrivalStop}`);
+    }
+
+    return lines;
+}
+
+function isRailTransitVehicle(vehicleType: string): boolean {
+    return (
+        vehicleType.includes('subway') ||
+        vehicleType.includes('metro') ||
+        vehicleType.includes('rail') ||
+        vehicleType.includes('train')
+    );
+}
+
+function buildRailTransitInstruction(
+    departureStop: string | null,
+    headsign: string | null,
+): string {
+    if (departureStop && headsign) return `Enter station ${departureStop} towards ${headsign}`;
+    if (departureStop) return `Enter station ${departureStop}`;
+    if (headsign) return `Take metro towards ${headsign}`;
+    return 'Enter station';
+}
+
+function getSurfaceVehicleLabel(vehicleType: string): 'tram' | 'bus' | 'transit' {
+    if (vehicleType.includes('tram')) return 'tram';
+    if (vehicleType.includes('bus')) return 'bus';
+    return 'transit';
+}
+
+function buildSurfaceTransitInstruction(
+    vehicleType: string,
+    routeId: string | null,
+    lineName: string | null,
+    headsign: string | null,
+    fallbackInstruction?: string,
+): string {
+    const vehicleLabel = getSurfaceVehicleLabel(vehicleType);
+    if (routeId && headsign) return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
+    if (routeId) return `Take ${vehicleLabel} ${routeId}`;
+    if (lineName && headsign) return `Take ${lineName} towards ${headsign}`;
+    if (lineName) return `Take ${lineName}`;
+    return fallbackInstruction || 'Continue';
+}
+
+function getTransitCardIcon(vehicleType: string): React.ComponentProps<typeof MaterialIcons>['name'] {
+    const normalized = vehicleType.toLowerCase();
+    if (normalized.includes('subway')) return 'subway';
+    if (normalized.includes('rail')) return 'train';
+    return 'directions-bus';
+}
+
+function formatTransitTimeLabel(raw?: string): string | null {
+    if (!raw) return null;
+    try {
+        return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return null;
+    }
+}
+
+function TransitHeadsignBlock({
+    lineName,
+    routeId,
+    transitHeadsign,
+}: Readonly<{
+    lineName: string | null;
+    routeId: string | null;
+    transitHeadsign: string | null;
+}>) {
+    const showSeparateLineName = !!lineName && lineName !== routeId;
+
+    if (showSeparateLineName) {
+        return (
+            <View style={transitCardStyles.transitMetaBlock}>
+                <Text style={transitCardStyles.transitLineName}>{lineName}</Text>
+                {transitHeadsign ? (
+                    <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+                        Towards {transitHeadsign}
+                    </Text>
+                ) : null}
+            </View>
+        );
+    }
+
+    if (!transitHeadsign) return null;
+    return (
+        <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+            Towards {transitHeadsign}
+        </Text>
+    );
+}
+
+function TransitStopItem({
+    label,
+    stopName,
+    time,
+    iconName,
+    iconColor,
+}: Readonly<{
+    label: 'Board at' | 'Exit at';
+    stopName: string | null;
+    time: string | null;
+    iconName: React.ComponentProps<typeof MaterialIcons>['name'];
+    iconColor: string;
+}>) {
+    if (!stopName) return null;
+
+    return (
+        <View style={transitCardStyles.stopItem}>
+            <MaterialIcons name={iconName} size={14} color={iconColor} />
+            <View style={transitCardStyles.stopTextBlock}>
+                <Text style={transitCardStyles.stopLabel}>{label}</Text>
+                <Text style={transitCardStyles.stopName} numberOfLines={1}>{stopName}</Text>
+                {time ? <Text style={transitCardStyles.stopTime}>{time}</Text> : null}
+            </View>
+        </View>
+    );
+}
+
 // ─── Transit boarding card ───────────────────────────────────────────────────
 function TransitCard({ step }: Readonly<{ step: Step }>) {
     const td = step.transitDetails;
     if (!td) return null;
 
-    const lineName = td.transitLine?.nameShort ?? td.transitLine?.name ?? null;
+    const routeId = td.transitLine?.nameShort ?? null;
+    const lineName = td.transitLine?.name ?? null;
     const lineColor: string = td.transitLine?.color ?? '#374151';
+    const vehicleType =
+        td.transitLine?.vehicle?.type ??
+        td.transitLine?.vehicle?.name?.text ??
+        td.transitLine?.vehicle?.name ??
+        '';
+    const transitHeadsign =
+        td.transitLine?.headsign ??
+        td.headsign ??
+        null;
     const departureStop = td.stopDetails?.departureStop?.name ?? null;
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
 
@@ -163,40 +355,42 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
         }
     };
 
-    const depTime = fmtTime(td.stopDetails?.departureTime?.time ?? td.departureTime);
-    const arrTime = fmtTime(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
+    const transitIcon = getTransitCardIcon(vehicleType);
+    const depTime = formatTransitTimeLabel(td.stopDetails?.departureTime?.time ?? td.departureTime);
+    const arrTime = formatTransitTimeLabel(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
 
     return (
         <View style={[transitCardStyles.card, { borderLeftColor: lineColor }]}>
             {/* Line badge */}
             <View style={[transitCardStyles.lineBadge, { backgroundColor: lineColor }]}>
-                <MaterialIcons name="directions-bus" size={12} color="#fff" />
-                {lineName ? <Text style={transitCardStyles.lineBadgeText}>{lineName}</Text> : null}
+                <MaterialIcons name={transitIcon} size={12} color="#fff" />
+                {routeId ? <Text style={transitCardStyles.lineBadgeText}>{routeId}</Text> : null}
+                {!routeId && lineName ? <Text style={transitCardStyles.lineBadgeText}>{lineName}</Text> : null}
             </View>
+
+            <TransitHeadsignBlock
+                lineName={lineName}
+                routeId={routeId}
+                transitHeadsign={transitHeadsign}
+            />
 
             {/* Stop info */}
             <View style={transitCardStyles.stopRow}>
-                {departureStop ? (
-                    <View style={transitCardStyles.stopItem}>
-                        <MaterialIcons name="radio-button-on" size={14} color="#059669" />
-                        <View style={transitCardStyles.stopTextBlock}>
-                            <Text style={transitCardStyles.stopLabel}>Board at</Text>
-                            <Text style={transitCardStyles.stopName} numberOfLines={1}>{departureStop}</Text>
-                            {depTime ? <Text style={transitCardStyles.stopTime}>{depTime}</Text> : null}
-                        </View>
-                    </View>
-                ) : null}
+                <TransitStopItem
+                    label="Board at"
+                    stopName={departureStop}
+                    time={depTime}
+                    iconName="radio-button-on"
+                    iconColor="#059669"
+                />
 
-                {arrivalStop ? (
-                    <View style={transitCardStyles.stopItem}>
-                        <MaterialIcons name="radio-button-off" size={14} color="#9d1e30" />
-                        <View style={transitCardStyles.stopTextBlock}>
-                            <Text style={transitCardStyles.stopLabel}>Exit at</Text>
-                            <Text style={transitCardStyles.stopName} numberOfLines={1}>{arrivalStop}</Text>
-                            {arrTime ? <Text style={transitCardStyles.stopTime}>{arrTime}</Text> : null}
-                        </View>
-                    </View>
-                ) : null}
+                <TransitStopItem
+                    label="Exit at"
+                    stopName={arrivalStop}
+                    time={arrTime}
+                    iconName="radio-button-off"
+                    iconColor="#9d1e30"
+                />
             </View>
         </View>
     );
@@ -227,6 +421,19 @@ const transitCardStyles = StyleSheet.create({
         color: '#fff',
         fontSize: 11,
         fontWeight: '700',
+    },
+    transitMetaBlock: {
+        gap: 2,
+    },
+    transitLineName: {
+        fontSize: 13,
+        color: '#111827',
+        fontWeight: '700',
+    },
+    transitDirectionText: {
+        fontSize: 12,
+        color: '#4B5563',
+        fontWeight: '500',
     },
     stopRow: {
         flexDirection: 'row',
@@ -308,15 +515,20 @@ function StepRow({
         <View style={[stepRowStyles.row, isCurrent && stepRowStyles.rowActive]}>
             <View style={[stepRowStyles.iconWrap, isCurrent && stepRowStyles.iconWrapActive, isArrivalStep && stepRowStyles.iconWrapArrival]}>
                 <MaterialIcons
-                    name={getManeuverIcon(step.maneuver, step.maneuverModifier)}
+                    name={getStepIcon(step)}
                     size={18}
                     color={isCurrent || isArrivalStep ? '#111827' : '#6B7280'}
                 />
             </View>
             <View style={stepRowStyles.textWrap}>
                 <Text style={[stepRowStyles.instruction, isCurrent && stepRowStyles.instructionActive]} numberOfLines={2}>
-                    {step.instruction || 'Continue'}
+                    {getStepInstructionText(step)}
                 </Text>
+                {getTransitStopSummary(step).map((summaryLine) => (
+                    <Text key={summaryLine} style={stepRowStyles.transitStopSummary} numberOfLines={1}>
+                        {summaryLine}
+                    </Text>
+                ))}
                 {step.distance > 0 && (
                     <Text style={stepRowStyles.dist}>{formatDist(step.distance)}</Text>
                 )}
@@ -361,6 +573,7 @@ const stepRowStyles = StyleSheet.create({
     textWrap: { flex: 1 },
     instruction: { fontSize: 14, color: '#111827', fontWeight: '500' },
     instructionActive: { fontWeight: '700', color: '#B98100' },
+    transitStopSummary: { fontSize: 12, color: '#4B5563', marginTop: 4, marginLeft: 10, lineHeight: 16 },
     dist: { fontSize: 12, color: '#6B7280', marginTop: 2 },
     currentBadge: {
         backgroundColor: '#E5A712',
@@ -549,15 +762,20 @@ export function StepByStepPanel({
                     <View style={styles.mainRow}>
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
                             <MaterialIcons
-                                name={getManeuverIcon(currentStep.maneuver, currentStep.maneuverModifier)}
+                                name={getStepIcon(currentStep)}
                                 size={24}
                                 color="#111827"
                             />
                         </View>
                         <View style={styles.instructionBlock}>
                             <Text style={styles.instructionText} numberOfLines={2}>
-                                {currentStep.instruction || 'Continue'}
+                                {getStepInstructionText(currentStep)}
                             </Text>
+                            {getTransitStopSummary(currentStep).map((summaryLine) => (
+                                <Text key={summaryLine} style={styles.transitStopSummary} numberOfLines={1}>
+                                    {summaryLine}
+                                </Text>
+                            ))}
                             {distLabel ? (
                                 <Text style={styles.distLabel}>{distLabel}</Text>
                             ) : null}
@@ -578,14 +796,14 @@ export function StepByStepPanel({
                 <Pressable style={styles.nextRow} onPress={toggleAllSteps} hitSlop={8}>
                     <View style={styles.nextIconWrap}>
                         <MaterialIcons
-                            name={nextStep ? getManeuverIcon(nextStep.maneuver, nextStep.maneuverModifier) : 'flag'}
+                            name={getStepIcon(nextStep)}
                             size={16}
                             color="#6B7280"
                         />
                     </View>
                     <Text style={styles.nextText} numberOfLines={1}>
                         {nextStep
-                            ? `Then: ${nextStep.instruction || 'Continue'}`
+                            ? `Then: ${getStepInstructionText(nextStep)}`
                             : 'Arriving at destination'}
                     </Text>
                     <MaterialIcons
@@ -742,6 +960,14 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         marginTop: 4,
         fontWeight: '500',
+    },
+    transitStopSummary: {
+        fontSize: 13,
+        color: '#4B5563',
+        marginTop: 4,
+        marginLeft: 10,
+        fontWeight: '600',
+        lineHeight: 18,
     },
 
     divider: {

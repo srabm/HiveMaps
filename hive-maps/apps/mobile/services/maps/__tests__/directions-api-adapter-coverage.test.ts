@@ -24,6 +24,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
+let consoleWarnSpy: jest.SpyInstance;
+let consoleErrorSpy: jest.SpyInstance;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -110,8 +112,29 @@ function errorResponse(status: number) {
 
 // Clear cache + mocks before every test so module-level state doesn't leak
 beforeEach(async () => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (
+            firstArg.includes('[Directions] Request timeout') ||
+            firstArg.includes('[Cache] Failed to persist cache to storage') ||
+            firstArg.includes('[Cache] Failed to clear persisted cache')
+        ) {
+            return;
+        }
+    });
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[Mapbox API] Error response')) {
+            return;
+        }
+    });
     jest.clearAllMocks();
     await clearDirectionsCache();
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
 });
 
 // ─── convertGoogleMapsResponse ────────────────────────────────────────────────
@@ -185,6 +208,28 @@ describe('convertGoogleMapsResponse', () => {
         expect(td).toBeDefined();
         expect(td.transitLine.nameShort).toBe('2');
         expect(td.stopDetails.departureStop.name).toBe("Lucien-L'Allier");
+    });
+
+    it('normalizes transit headsign and shortName fields from Google transit details', () => {
+        const data = googleApiResponse();
+        (data.routes[0].legs[0].steps[0] as any).transitDetails = {
+            headsign: 'Nord',
+            stopDetails: {
+                departureStop: { name: 'Guy' },
+                arrivalStop: { name: 'Mont-Royal' },
+            },
+            transitLine: {
+                name: 'Sherbrooke',
+                shortName: '24',
+                color: '#16a34a',
+            },
+        };
+
+        const result = convertGoogleMapsResponse(data);
+        const td = result.steps[0].transitDetails;
+
+        expect(td.headsign).toBe('Nord');
+        expect(td.transitLine.nameShort).toBe('24');
     });
 
     it('leaves transitDetails undefined for non-transit steps', () => {
