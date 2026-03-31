@@ -509,6 +509,46 @@ describe('TransitCard', () => {
         expect(getByText('Then: Enter station Atwater towards Angrignon')).toBeTruthy();
     });
 
+    it('uses headsign-only wording for metro steps when no departure stop is available', () => {
+        const step = makeStep({
+            instruction: 'Take the metro towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'METRO' },
+                },
+                stopDetails: {
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take metro towards Angrignon')).toBeTruthy();
+    });
+
+    it('falls back to generic station wording for metro steps without stop or headsign', () => {
+        const step = makeStep({
+            instruction: 'Take the metro',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    color: '#00853F',
+                    vehicle: { type: 'RAIL' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText, getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Enter station')).toBeTruthy();
+        expect(getAllByTestId('icon-train').length).toBeGreaterThan(0);
+    });
+
     it('uses route number and headsign for bus current-step instructions', () => {
         const step = makeStep({
             instruction: 'Take the bus towards Nord',
@@ -532,6 +572,61 @@ describe('TransitCard', () => {
         expect(getByText('Take bus 24 towards Nord')).toBeTruthy();
     });
 
+    it('uses route-only wording when only a tram route number is available', () => {
+        const step = makeStep({
+            instruction: 'Board tram 55',
+            transitDetails: {
+                transitLine: {
+                    nameShort: '55',
+                    color: '#0f766e',
+                    vehicle: { type: 'TRAM' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take tram 55')).toBeTruthy();
+    });
+
+    it('uses line-name wording when no route id is available but headsign exists', () => {
+        const step = makeStep({
+            instruction: 'Board shuttle',
+            transitDetails: {
+                transitLine: {
+                    name: 'Concordia Shuttle',
+                    color: '#9d1e30',
+                    headsign: 'Loyola',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByText('Towards Loyola').length).toBeGreaterThan(0);
+        expect(getAllByText('Take Concordia Shuttle towards Loyola').length).toBeGreaterThan(0);
+    });
+
+    it('falls back to the raw instruction when transit metadata cannot build a label', () => {
+        const step = makeStep({
+            instruction: 'Use the special shuttle service',
+            transitDetails: {
+                transitLine: {
+                    color: '#374151',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Use the special shuttle service')).toBeTruthy();
+    });
+
     it('uses a bus icon for bus steps', () => {
         const step = makeStep({
             instruction: 'Take the bus towards Nord',
@@ -553,6 +648,29 @@ describe('TransitCard', () => {
             <StepByStepPanel {...defaultProps} currentStep={step} nextStep={step} />
         );
         expect(getAllByTestId('icon-directions-bus').length).toBeGreaterThan(0);
+    });
+
+    it('shows the inline headsign text when route id and line name are the same', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: {
+                    name: '24',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getByText, queryByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Towards Nord')).toBeTruthy();
+        expect(queryByText(/^24$/)).toBeTruthy();
     });
 
     it('shows a transit stop summary in the current-step panel', () => {

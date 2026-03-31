@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 // ─── Captured handles (must be declared before jest.mock calls) ───────────────
 
@@ -15,7 +16,7 @@ let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
 let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
-let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any; onCardLayout: any } | null = null;
+let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any; onCardLayout: any; onTimeFilterChange: any } | null = null;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
 let mockMapIdleHandler: ((event: any) => void) | null = null;
@@ -91,6 +92,7 @@ jest.mock('@/hooks/use-shuttle-routing', () => ({
 
 jest.mock('@/services/mapbox', () => {
     mockCameraSetCamera = jest.fn();
+    const React = require('react');
     const { View } = require('react-native');
     return {
         MapboxGL: {
@@ -98,7 +100,13 @@ jest.mock('@/services/mapbox', () => {
                 mockMapIdleHandler = onMapIdle;
                 return <>{children}</>;
             },
-            Camera: jest.fn().mockReturnValue(null),
+            Camera: React.forwardRef((_props: any, ref: any) => {
+                const handle = { setCamera: mockCameraSetCamera };
+                if (ref && typeof ref === 'object') {
+                    ref.current = handle;
+                }
+                return null;
+            }),
             UserLocation: ({ onUpdate }: any) => {
                 mockUserLocationOnUpdate = onUpdate;
                 return null;
@@ -134,10 +142,10 @@ jest.mock('@/components/ui/directions-line', () => ({
 jest.mock('@/components/ui/navigation-bottom', () => {
     const { Pressable, View } = require('react-native');
     return {
-        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange, onCardLayout }: any) => {
+        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange }: any) => {
             // Capture onDirectionsChange so tests can inject a directions object
             // by pressing inject-directions-btn before pressing start-btn.
-            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange, onCardLayout };
+            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange };
             return (
                 <View>
                     <Pressable testID="start-btn" onPress={onStartPress} />
@@ -1683,6 +1691,156 @@ describe('manual map pan campus sync', () => {
         });
 
         expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('uses geometry.coordinates when properties.center is absent', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                geometry: {
+                    coordinates: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('ignores invalid centerCoordinate payloads', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                centerCoordinate: [-73.6406],
+            });
+        });
+
+        expect(getNearestCampus).not.toHaveBeenCalled();
+        expect(setCampus).not.toHaveBeenCalled();
+    });
+
+    it('suppresses the immediate campus camera sync after a manual campus switch', async () => {
+        let currentCampus: 'SGW' | 'LOY' = 'SGW';
+        let currentMeta = { ...CAMPUS_META.SGW };
+        const setCampus = jest.fn((nextCampus: 'SGW' | 'LOY') => {
+            currentCampus = nextCampus;
+            currentMeta = { ...CAMPUS_META[nextCampus] };
+        });
+
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockImplementation(() =>
+            makeNavigationController({
+                campus: currentCampus,
+                setCampus,
+                campusMeta: currentMeta,
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+        mockCameraSetCamera.mockClear();
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+
+        await act(async () => {
+            utils.rerender(<MapScreen />);
+        });
+
+        expect(mockCameraSetCamera).not.toHaveBeenCalled();
+    });
+});
+
+describe('NavigationBottom container wiring', () => {
+    it('renders the full-screen blocker pressable above the map when navigation bottom is shown', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy());
+
+        const blocker = utils.UNSAFE_root.findAll((node: any) => {
+            const style = StyleSheet.flatten(node.props.style);
+            return (
+                typeof node.props.onPress === 'function' &&
+                style?.position === 'absolute' &&
+                style?.top === 0 &&
+                style?.left === 0
+            );
+        })[0];
+
+        expect(blocker).toBeTruthy();
+
+        await act(async () => {
+            blocker.props.onPress();
+        });
+
+        expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy();
+    });
+
+    it('updates time filter state through onTimeFilterChange callback', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onTimeFilterChange('2026-02-23T15:00:00.000Z', 'arrive');
+        });
+
+        const lastCall = (useShuttleRouting as jest.Mock).mock.calls.at(-1)?.[0];
+        expect(lastCall.timeFilter).toBe('2026-02-23T15:00:00.000Z');
+        expect(lastCall.timeFilterMode).toBe('arrive');
     });
 });
 
