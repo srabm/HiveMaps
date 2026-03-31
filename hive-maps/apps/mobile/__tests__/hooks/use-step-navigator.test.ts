@@ -4,6 +4,21 @@ import type { StepNavigatorState } from '@/hooks/use-step-navigator';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from '@/hooks/use-live-location';
 
+let consoleWarnSpy: jest.SpyInstance;
+
+beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[StepNavigator] Off-route confirmed')) {
+            return;
+        }
+    });
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
+});
+
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 /** Build a minimal Step. start/end are [lon, lat] for brevity. */

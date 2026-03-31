@@ -1,6 +1,6 @@
 import { Href, useRouter } from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
+import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform, LayoutChangeEvent} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -37,6 +37,7 @@ import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-na
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
 import {POICategory,type POI} from "@/components/ui/POICategory";
 import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
+import { DestinationPin } from '@/components/ui/destination-pin';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -281,7 +282,9 @@ export default function MapScreen() {
         destinationStopName: string;
         shuttleDurationSeconds: number;
     } | null>(null);
+    const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
     const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
+    const suppressNextCampusCameraSync = useRef(false);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -379,6 +382,10 @@ export default function MapScreen() {
 
     useEffect(() => {
         if (!campusMeta) return;
+        if (suppressNextCampusCameraSync.current) {
+            suppressNextCampusCameraSync.current = false;
+            return;
+        }
         cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
@@ -545,6 +552,19 @@ export default function MapScreen() {
     }, [toCoordinates, campusMetaById, setCampus]);
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
+        const tapPoint = (e as { point?: { x?: number; y?: number } }).point;
+        const blockingFrame = navigationBottomFrame.current;
+        if (
+            tapPoint?.x != null &&
+            tapPoint?.y != null &&
+            blockingFrame &&
+            tapPoint.x >= blockingFrame.x &&
+            tapPoint.x <= blockingFrame.x + blockingFrame.width &&
+            tapPoint.y >= blockingFrame.y &&
+            tapPoint.y <= blockingFrame.y + blockingFrame.height
+        ) {
+            return;
+        }
         const f = e.features[0];
         const point = points.find(p => p.id === f.properties?.id);
         const details = point?.details as BuildingDetails | undefined;
@@ -563,6 +583,31 @@ export default function MapScreen() {
         });
     }, [isNavigating, points]);
 
+    const handleNavigationBottomLayout = useCallback((event: LayoutChangeEvent) => {
+        navigationBottomFrame.current = event.nativeEvent.layout;
+    }, []);
+
+    const handleMapIdle = useCallback((event: any) => {
+        if (isNavigating) return;
+
+        const center =
+            event?.properties?.center ??
+            event?.geometry?.coordinates ??
+            event?.centerCoordinate;
+
+        if (!Array.isArray(center) || center.length < 2) {
+            return;
+        }
+
+        const nearest = getNearestCampus(center[0], center[1], campusMetaById);
+        if (!nearest || nearest === campus) {
+            return;
+        }
+
+        suppressNextCampusCameraSync.current = true;
+        setCampus(nearest);
+    }, [campus, campusMetaById, isNavigating, setCampus]);
+
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
     if (!hydrated || !campusMeta) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
@@ -574,6 +619,7 @@ export default function MapScreen() {
                 style={StyleSheet.absoluteFill}
                 logoEnabled={false}
                 scaleBarEnabled={false}
+                onMapIdle={handleMapIdle}
             >
                 <MapboxGL.Camera
                     ref={cameraRef}
@@ -637,7 +683,7 @@ export default function MapScreen() {
               aboveLayerID="road-label"
               style={{
                 fillColor: '#9d1e30',
-                fillOpacity: 0.6,
+                fillOpacity: 0.78,
               }}
             />
 
@@ -657,8 +703,8 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-pattern"
                             filter={['==', ['get', 'isUserBuilding'], true]}
                             style={{
-                                fillColor: '#ffffff',
-                                fillOpacity: 0.35,
+                                fillColor: '#F8D7DD',
+                                fillOpacity: 0.42,
                             }}
                         />
 
@@ -667,31 +713,19 @@ export default function MapScreen() {
                             id="campus-buildings-outline"
                             aboveLayerID="campus-buildings-pattern"
                             style={{
-                                lineColor: '#ffffff',
-                                lineWidth: 2,
+                                lineColor: '#6F1120',
+                                lineWidth: 2.2,
                             }}
                         />
                     </MapboxGL.ShapeSource>
                 )}
-                {fromCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='fromPoint'
-                        id='fromPoint'
-                        coordinate={fromCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
-
                 {toCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='toPoint'
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
-                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
-                        </View>
+                        <DestinationPin />
                     </MapboxGL.PointAnnotation>
                 }
 
@@ -711,6 +745,8 @@ export default function MapScreen() {
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                        showStartEndpoint={true}
+                        showEndEndpoint={false}
                     />
                 )}
                 {selectedMode === 'Shuttle' && (
@@ -872,7 +908,11 @@ export default function MapScreen() {
             </View>
 
             {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
-                <View style={styles.navigationBottomContainer}>
+                <View
+                    testID="navigation-bottom-container"
+                    style={styles.navigationBottomContainer}
+                >
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
                     <NavigationBottom
                         campuses={campusMetaById}
                         origin={{
@@ -886,6 +926,7 @@ export default function MapScreen() {
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
+                        onCardLayout={handleNavigationBottomLayout}
                         onStartPress={handleStartPress}
                     />
                 </View>
@@ -922,8 +963,12 @@ export default function MapScreen() {
             <LocateMeButton
                 style={styles.locateButton}
                 onPress={async () => {
-                    if (cameraRef.current && userLocation) {
-                        cameraRef.current.setCamera({
+                    if (userLocation) {
+                        const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
+                        if (nearest) {
+                            setCampus(nearest);
+                        }
+                        cameraRef.current?.setCamera({
                             centerCoordinate: userLocation,
                             zoomLevel: Math.max(campusMeta.zoom, 17),
                             animationDuration: 600,
@@ -1012,7 +1057,6 @@ export default function MapScreen() {
         }
     }}
         onDirections={navigateToSelectedBuilding}
-        onStart={navigateToSelectedBuilding} //temporary implementation
       />
 
             <Modal

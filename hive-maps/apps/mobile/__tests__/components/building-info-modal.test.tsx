@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { PanResponder, Platform, UIManager } from 'react-native';
 
 import { BuildingInfoModal } from '@/components/building-info-modal';
 
@@ -30,8 +31,6 @@ describe('BuildingInfoModal', () => {
 
   it('calls action handlers when action buttons are pressed', () => {
     const onDirections = jest.fn();
-    const onStart = jest.fn();
-    const onFavorite = jest.fn();
 
     const { getByText } = render(
       <BuildingInfoModal
@@ -39,18 +38,12 @@ describe('BuildingInfoModal', () => {
         building={baseBuilding}
         onClose={jest.fn()}
         onDirections={onDirections}
-        onStart={onStart}
-        onFavorite={onFavorite}
       />
     );
 
     fireEvent.press(getByText('Directions'));
-    fireEvent.press(getByText('Start'));
-    fireEvent.press(getByText('Favourites'));
 
     expect(onDirections).toHaveBeenCalledTimes(1);
-    expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onFavorite).toHaveBeenCalledTimes(1);
   });
 
   it('uses fallback accessibility items when accessibility details are missing', () => {
@@ -60,6 +53,30 @@ describe('BuildingInfoModal', () => {
 
     expect(getByText('Accessible entrance')).toBeTruthy();
     expect(getByText('Accessible elevator')).toBeTruthy();
+  });
+
+  it('renders provided accessibility items instead of the fallback list', () => {
+    const { getByText, queryByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{
+          ...baseBuilding,
+          accessibility: [
+            {
+              label: 'Ramp access',
+              description: 'Ramp at main entrance',
+              iconName: 'accessible-forward',
+            },
+          ],
+        }}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(getByText('Ramp access')).toBeTruthy();
+    expect(getByText('Ramp at main entrance')).toBeTruthy();
+    expect(queryByText('Accessible entrance')).toBeNull();
+    expect(queryByText('Accessible elevator')).toBeNull();
   });
 
   it('renders indoor action for supported building and calls handler', () => {
@@ -105,5 +122,100 @@ describe('BuildingInfoModal', () => {
     expect(getByText('Monday: 8:00 AM - 6:00 PM')).toBeTruthy();
     expect(getByText('Tuesday: 8:00 AM - 6:00 PM')).toBeTruthy();
     expect(queryByText('Mon-Fri 8:00-18:00')).toBeNull();
+  });
+
+  it('minimizes to the summary view', () => {
+    const { getByTestId, getByText, queryByText } = render(
+      <BuildingInfoModal
+        visible
+        building={{ ...baseBuilding, hasIndoorMap: true }}
+        onClose={jest.fn()}
+      />
+    );
+
+    fireEvent.press(getByTestId('building-minimize-button'));
+
+    expect(getByTestId('building-modal-minimized')).toBeTruthy();
+    expect(queryByText('Hours')).toBeNull();
+    expect(queryByText('Accessibility')).toBeNull();
+    expect(getByText('Directions')).toBeTruthy();
+    expect(getByText('Indoor')).toBeTruthy();
+    expect(queryByText('Start')).toBeNull();
+    expect(queryByText('Favourites')).toBeNull();
+  });
+
+  it('calls onClose from the explicit close button', () => {
+    const onClose = jest.fn();
+    const { getByTestId } = render(
+      <BuildingInfoModal visible building={baseBuilding} onClose={onClose} />
+    );
+
+    fireEvent.press(getByTestId('building-close-button'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when visible is false', () => {
+    const { toJSON } = render(
+      <BuildingInfoModal visible={false} building={baseBuilding} onClose={jest.fn()} />
+    );
+
+    expect(toJSON()).toBeNull();
+  });
+
+  it('enables layout animation experimentally on Android when available', () => {
+    const originalPlatform = Platform.OS;
+    const originalExperimental = UIManager.setLayoutAnimationEnabledExperimental;
+    const experimentalSpy = jest.fn();
+
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'android',
+    });
+    UIManager.setLayoutAnimationEnabledExperimental = experimentalSpy;
+
+    render(<BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />);
+
+    expect(experimentalSpy).toHaveBeenCalledWith(true);
+
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: originalPlatform,
+    });
+    UIManager.setLayoutAnimationEnabledExperimental = originalExperimental;
+  });
+
+  it('captures vertical drag gestures only when they exceed the threshold and horizontal movement', () => {
+    const panResponderSpy = jest.spyOn(PanResponder, 'create');
+
+    render(<BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />);
+
+    const handlers = panResponderSpy.mock.calls[0][0] as any;
+
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 2, dy: 9 })).toBe(true);
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 10, dy: 9 })).toBe(false);
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 1, dy: 7 })).toBe(false);
+
+    panResponderSpy.mockRestore();
+  });
+
+  it('minimizes on downward swipe and restores on upward swipe', () => {
+    const panResponderSpy = jest.spyOn(PanResponder, 'create');
+    const { getByTestId } = render(
+      <BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />
+    );
+
+    const handlers = panResponderSpy.mock.calls[0][0] as any;
+
+    act(() => {
+      handlers.onPanResponderRelease({}, { dx: 0, dy: 25 });
+    });
+    expect(getByTestId('building-modal-minimized')).toBeTruthy();
+
+    act(() => {
+      handlers.onPanResponderRelease({}, { dx: 0, dy: -25 });
+    });
+    expect(getByTestId('building-modal-expanded')).toBeTruthy();
+
+    panResponderSpy.mockRestore();
   });
 });
