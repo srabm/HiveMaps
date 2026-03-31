@@ -1,5 +1,5 @@
 import React, { useState,useEffect } from 'react';
-import {ScrollView, TouchableOpacity, Text, StyleSheet, View,TextInput} from 'react-native';
+import {ScrollView, TouchableOpacity, Text, StyleSheet, View} from 'react-native';
 import {mapboxMapsAdapter} from "@/services/mapbox";
 
 export type POI = {
@@ -93,10 +93,6 @@ export function POICategory({
         setActiveCategory(null);
         onClearCategory?.();
     };
-    const handleRadiusChange = (text: string) => {
-        const numeric = text.replaceAll(/\D/g, '');
-        setRadiusKm(numeric);
-    };
 
 
     return (
@@ -117,20 +113,6 @@ export function POICategory({
                         <Text style={styles.chipClearLabel}>✕</Text>
                     </TouchableOpacity>
                 )}
-                <View style={styles.radiusChip}>
-                    <Text style={styles.radiusUnit}>km</Text>
-                    <TextInput
-                        style={styles.radiusInput}
-                        value={radiusKm}
-                        onChangeText={handleRadiusChange}
-                        keyboardType="number-pad"
-                        maxLength={3}
-                        placeholder="1"
-                        placeholderTextColor="#aaa"
-                        selectTextOnFocus
-                        testID="radius-input"
-                    />
-                </View>
                 {CATEGORIES.map((category) => {
                     const isActive = activeCategory === category.id;
                     return (

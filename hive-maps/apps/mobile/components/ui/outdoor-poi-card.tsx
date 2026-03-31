@@ -19,7 +19,6 @@ export function OutdoorPOICard({
     onGetDirections,
     onStartNavigation 
 }: Readonly<OutdoorPOICardProps>) {
-    const [isFavourite, setIsFavourite] = useState(false);
 
     if (!poi) return null;
 
@@ -82,15 +81,6 @@ export function OutdoorPOICard({
                 >
                     <MaterialIcons name="navigation" size={18} color="#ffffff" />
                     <Text style={styles.primaryBtnText}>Start</Text>
-                </Pressable>
-
-                <Pressable 
-                    style={[styles.actionBtn, styles.primaryBtn]} 
-                    onPress={() => setIsFavourite(!isFavourite)}
-                    testID="fav-btn"
-                >
-                    <MaterialIcons name={isFavourite ? "star" : "star-outline"} size={18} color="#ffffff" />
-                    <Text style={styles.primaryBtnText}>Favourite</Text>
                 </Pressable>
             </View>
         </View>

@@ -24,24 +24,6 @@ describe('OutdoorPOICard', () => {
     const onGetDirections = jest.fn();
     const onStartNavigation = jest.fn();
 
-    it('toggles the favourite state when the favourite button is pressed', () => {
-        const { getByTestId } = render(
-            <OutdoorPOICard
-                poi={poi}
-                userLocation={userLocation}
-                onClose={onClose}
-                onGetDirections={onGetDirections}
-                onStartNavigation={onStartNavigation}
-            />
-        );
-
-        const favBtn = getByTestId('fav-btn');
-
-        fireEvent.press(favBtn);
-        fireEvent.press(favBtn);
-
-        expect(favBtn).toBeTruthy();
-    });
 
     it('renders correctly and displays distance', () => {
         const { getByText, getByTestId } = render(
@@ -59,7 +41,6 @@ describe('OutdoorPOICard', () => {
         expect(getByText('500m')).toBeTruthy();
         expect(getByText('Directions')).toBeTruthy();
         expect(getByText('Start')).toBeTruthy();
-        expect(getByText('Favourite')).toBeTruthy();
         expect(getByTestId('poi-card-close')).toBeTruthy();
         fireEvent.press(getByTestId('poi-card-close'));
         expect(onClose).toHaveBeenCalled();

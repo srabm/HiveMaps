@@ -858,7 +858,7 @@ export default function MapScreen() {
                         }}
                     />
                 }
-                    {(!isNavigating && !toCoordinates && !fromCoordinates) &&
+                    {(!isNavigating && (to ==="" || from ==="") && (!toCoordinates || !fromCoordinates)) &&
                     <POICategory
                         userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
                         radius={0.8}
@@ -959,6 +959,7 @@ export default function MapScreen() {
                         setFromCoordinates(userLocation);
                         fromCoordinatesIsUserLocation.current = true;
                     }
+                    setPoiMarkers([]);
                     setSelectedOutdoorPOI(null);
                 }}
                 onStartNavigation={() => {
@@ -968,7 +969,8 @@ export default function MapScreen() {
                     setFrom("Your location");
                     setFromCoordinates(userLocation);
                     
-                    handleStartPress(); 
+                    handleStartPress();
+                    setPoiMarkers([]);
                     setSelectedOutdoorPOI(null);
                 }}
             />
