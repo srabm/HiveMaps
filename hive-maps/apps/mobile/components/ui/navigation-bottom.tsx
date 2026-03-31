@@ -194,6 +194,158 @@ type ShuttleScheduleContextLike = {
     isNextServiceDay?: boolean;
 } | null;
 
+type MetricsRowProps = {
+    rowStyle: object;
+    durationValue: string;
+    durationUnit: string;
+    arrivalText: string;
+    distanceText: string;
+    showShuttleLastWarningInline: boolean;
+    onStartPress?: () => void;
+    onSeeSchedulePress?: () => void;
+};
+
+type ShuttleModeSectionProps = {
+    showMetrics: boolean;
+    showTransitSuggestion: boolean;
+    showSameCampusRedirect: boolean;
+    shuttleSuggestionText: string;
+    durationValue: string;
+    durationUnit: string;
+    displayedArrivalText: string;
+    distanceText: string;
+    showShuttleLastWarningInline: boolean;
+    onStartPress?: () => void;
+    onSeeSchedulePress: () => void;
+    onTransitPress: () => void;
+    onWalkPress: () => void;
+    canShowScheduleAction: boolean;
+};
+
+function getShuttleSuggestionText(
+    shuttleScheduleContext: ShuttleScheduleContextLike,
+    shuttleStartsLaterToday: boolean,
+) {
+    if (!shuttleScheduleContext?.schedule) {
+        return 'Service currently unavailable.';
+    }
+    if (shuttleScheduleContext.isNextServiceDay) {
+        return 'Not running today — need a ride now?';
+    }
+    if (shuttleStartsLaterToday) {
+        return 'Shuttles are not running at the moment — need a ride now?';
+    }
+    return 'No more departures today — need a ride now?';
+}
+
+function MetricsRow({
+    rowStyle,
+    durationValue,
+    durationUnit,
+    arrivalText,
+    distanceText,
+    showShuttleLastWarningInline,
+    onStartPress,
+    onSeeSchedulePress,
+}: Readonly<MetricsRowProps>) {
+    return (
+        <View style={rowStyle}>
+            <View style={[styles.metricCell, styles.durationCell]}>
+                <Text style={styles.durationValue}>{durationValue}</Text>
+                <Text style={styles.durationUnit}>{durationUnit}</Text>
+            </View>
+
+            <View style={[styles.metricCell, styles.middleCell]}>
+                <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
+                    {arrivalText}
+                </Text>
+                <View style={styles.distanceRow}>
+                    <Text style={styles.distanceText}>{distanceText}</Text>
+                    {showShuttleLastWarningInline ? (
+                        <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
+                    ) : null}
+                </View>
+                {onSeeSchedulePress ? (
+                    <Pressable
+                        testID="shuttle-see-schedule-button"
+                        onPress={onSeeSchedulePress}
+                        style={styles.seeScheduleButton}
+                    >
+                        <Text style={styles.seeScheduleLink}>See Schedule</Text>
+                    </Pressable>
+                ) : null}
+            </View>
+
+            <View style={[styles.metricCell, styles.startCell]}>
+                <Pressable style={styles.startButton} onPress={onStartPress}>
+                    <Text style={styles.startButtonText}>Start</Text>
+                </Pressable>
+            </View>
+        </View>
+    );
+}
+
+function ShuttleModeSection({
+    showMetrics,
+    showTransitSuggestion,
+    showSameCampusRedirect,
+    shuttleSuggestionText,
+    durationValue,
+    durationUnit,
+    displayedArrivalText,
+    distanceText,
+    showShuttleLastWarningInline,
+    onStartPress,
+    onSeeSchedulePress,
+    onTransitPress,
+    onWalkPress,
+    canShowScheduleAction,
+}: Readonly<ShuttleModeSectionProps>) {
+    return (
+        <>
+            {showMetrics ? (
+                <MetricsRow
+                    rowStyle={styles.minimizedMetricsRow}
+                    durationValue={durationValue}
+                    durationUnit={durationUnit}
+                    arrivalText={displayedArrivalText}
+                    distanceText={distanceText}
+                    showShuttleLastWarningInline={showShuttleLastWarningInline}
+                    onStartPress={onStartPress}
+                    onSeeSchedulePress={onSeeSchedulePress}
+                />
+            ) : null}
+
+            {showTransitSuggestion ? (
+                <View style={styles.shuttleFallbackBlock}>
+                    <Text style={styles.shuttleNoticeText}>{shuttleSuggestionText}</Text>
+                    <View style={styles.shuttleFallbackActions}>
+                        <Pressable style={styles.seeScheduleButton} onPress={onTransitPress}>
+                            <Text style={styles.seeScheduleLink}>Check Transit</Text>
+                        </Pressable>
+                        {canShowScheduleAction ? (
+                            <Pressable
+                                testID="shuttle-see-schedule-button"
+                                onPress={onSeeSchedulePress}
+                                style={styles.seeScheduleButton}
+                            >
+                                <Text style={styles.seeScheduleLink}>See Schedule</Text>
+                            </Pressable>
+                        ) : null}
+                    </View>
+                </View>
+            ) : null}
+
+            {showSameCampusRedirect ? (
+                <Pressable style={styles.shuttleNoticeRow} onPress={onWalkPress}>
+                    <Text style={styles.shuttleNoticeText}>Both locations are on the same campus.</Text>
+                    <Text style={styles.shuttleNoticeLink}>Switch to Walk</Text>
+                </Pressable>
+            ) : null}
+        </>
+    );
+}
+
 function computeDisplayState({
     selectedMode,
     isSameCampus,
@@ -222,13 +374,6 @@ function computeDisplayState({
             !!shuttleScheduleContext?.isNextServiceDay ||
             reachableDeparturesLength === 0);
 
-    const showInlineShuttleMetrics =
-        isShuttleMode &&
-        hideMetricsRow &&
-        !!shuttleMetrics &&
-        reachableDeparturesLength > 0 &&
-        !shuttleScheduleContext?.isNextServiceDay;
-
     const activeDurationSeconds =
         isShuttleMode && shuttleMetrics
             ? shuttleMetrics.totalDurationSeconds
@@ -243,7 +388,6 @@ function computeDisplayState({
 
     return {
         hideMetricsRow,
-        showInlineShuttleMetrics,
         activeDurationSeconds,
         activeDistanceMeters,
         displayedArrivalText,
@@ -540,7 +684,6 @@ export function NavigationBottom({
 
     const {
         hideMetricsRow,
-        showInlineShuttleMetrics,
         activeDurationSeconds,
         activeDistanceMeters,
         displayedArrivalText,
@@ -577,14 +720,6 @@ export function NavigationBottom({
 
     const displayDepartureTime = formatISOToTime(timeFilter);
     const timeModeLabel = timeFilterMode === 'depart' ? 'Depart at' : 'Arrive by';
-
-    const formatTimeLabel = (time: string, baseDate: Date) => {
-        const [hoursStr, minutesStr] = time.split(':');
-        const hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-        const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), hours, minutes, 0, 0);
-        return formatDepartureTime(date);
-    };
 
     const shuttleScheduleTabs = useMemo(() => {
         if (!shuttleScheduleContext?.schedule) return [];
@@ -664,14 +799,11 @@ export function NavigationBottom({
             shuttleStartsLaterToday ||
             reachableDepartures.length === 0
         );
-    let shuttleSuggestionText = 'No more departures today — need a ride now?';
-    if (!shuttleScheduleContext?.schedule) {
-        shuttleSuggestionText = 'Service currently unavailable.';
-    } else if (shuttleScheduleContext?.isNextServiceDay) {
-        shuttleSuggestionText = 'Not running today — need a ride now?';
-    } else if (shuttleStartsLaterToday) {
-        shuttleSuggestionText = 'Shuttles are not running at the moment — need a ride now?';
-    }
+    const shuttleSuggestionText = getShuttleSuggestionText(
+        shuttleScheduleContext,
+        shuttleStartsLaterToday,
+    );
+    const showShuttleMetrics = !showSameCampusRedirect && !showTransitSuggestion;
 
     return (
         <>
@@ -741,94 +873,34 @@ export function NavigationBottom({
                     </View>
 
                     {selectedMode === 'Shuttle' ? (
-                        <>
-                            {!showSameCampusRedirect && !showTransitSuggestion ? (
-                            <View style={styles.minimizedMetricsRow}>
-                                <View style={[styles.metricCell, styles.durationCell]}>
-                                    <Text style={styles.durationValue}>{durationValue}</Text>
-                                    <Text style={styles.durationUnit}>{durationUnit}</Text>
-                                </View>
-
-                                <View style={[styles.metricCell, styles.middleCell]}>
-                                    <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                                        {displayedArrivalText}
-                                    </Text>
-                                    <View style={styles.distanceRow}>
-                                        <Text style={styles.distanceText}>{distanceText}</Text>
-                                        {showShuttleLastWarningInline ? (
-                                            <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
-                                        ) : null}
-                                    </View>
-                                    <Pressable testID="shuttle-see-schedule-button" onPress={() => setShowScheduleModal(true)} style={styles.seeScheduleButton}>
-                                        <Text style={styles.seeScheduleLink}>See Schedule</Text>
-                                    </Pressable>
-                                </View>
-
-                                <View style={[styles.metricCell, styles.startCell]}>
-                                    <Pressable style={styles.startButton} onPress={onStartPress}>
-                                        <Text style={styles.startButtonText}>Start</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                            ) : null}
-
-                            {showTransitSuggestion ? (
-                                <View style={styles.shuttleFallbackBlock}>
-                                    <Text style={styles.shuttleNoticeText}>{shuttleSuggestionText}</Text>
-                                    <View style={styles.shuttleFallbackActions}>
-                                        <Pressable
-                                            style={styles.seeScheduleButton}
-                                            onPress={() => handleModeChange('Transit')}
-                                        >
-                                            <Text style={styles.seeScheduleLink}>Check Transit</Text>
-                                        </Pressable>
-                                        {shuttleScheduleContext?.schedule ? (
-                                            <Pressable
-                                                testID="shuttle-see-schedule-button"
-                                                onPress={() => setShowScheduleModal(true)}
-                                                style={styles.seeScheduleButton}
-                                            >
-                                                <Text style={styles.seeScheduleLink}>See Schedule</Text>
-                                            </Pressable>
-                                        ) : null}
-                                    </View>
-                                </View>
-                            ) : null}
-
-                            {showSameCampusRedirect ? (
-                                <Pressable style={styles.shuttleNoticeRow} onPress={() => handleModeChange('Walk')}>
-                                    <Text style={styles.shuttleNoticeText}>Both locations are on the same campus.</Text>
-                                    <Text style={styles.shuttleNoticeLink}>Switch to Walk</Text>
-                                </Pressable>
-                            ) : null}
-                        </>
+                        <ShuttleModeSection
+                            showMetrics={showShuttleMetrics}
+                            showTransitSuggestion={showTransitSuggestion}
+                            showSameCampusRedirect={showSameCampusRedirect}
+                            shuttleSuggestionText={shuttleSuggestionText}
+                            durationValue={durationValue}
+                            durationUnit={durationUnit}
+                            displayedArrivalText={displayedArrivalText}
+                            distanceText={distanceText}
+                            showShuttleLastWarningInline={showShuttleLastWarningInline}
+                            onStartPress={onStartPress}
+                            onSeeSchedulePress={() => setShowScheduleModal(true)}
+                            onTransitPress={() => handleModeChange('Transit')}
+                            onWalkPress={() => handleModeChange('Walk')}
+                            canShowScheduleAction={!!shuttleScheduleContext?.schedule}
+                        />
                     ) : (
                         <>
                             {!hideMetricsRow && (
-                                <View style={styles.metricsRow}>
-                                    <View style={[styles.metricCell, styles.durationCell]}>
-                                        <Text style={styles.durationValue}>{durationValue}</Text>
-                                        <Text style={styles.durationUnit}>{durationUnit}</Text>
-                                    </View>
-
-                                    <View style={[styles.metricCell, styles.middleCell]}>
-                                        <Text style={styles.arrivalText} numberOfLines={1} ellipsizeMode="tail">
-                                            {displayedArrivalText}
-                                        </Text>
-                                        <View style={styles.distanceRow}>
-                                            <Text style={styles.distanceText}>{distanceText}</Text>
-                                            {showShuttleLastWarningInline ? (
-                                                <Text style={styles.lastShuttleInlineWarning}>Last shuttle for the day</Text>
-                                            ) : null}
-                                        </View>
-                                    </View>
-
-                                    <View style={[styles.metricCell, styles.startCell]}>
-                                        <Pressable style={styles.startButton} onPress={onStartPress}>
-                                            <Text style={styles.startButtonText}>Start</Text>
-                                        </Pressable>
-                                    </View>
-                                </View>
+                                <MetricsRow
+                                    rowStyle={styles.metricsRow}
+                                    durationValue={durationValue}
+                                    durationUnit={durationUnit}
+                                    arrivalText={displayedArrivalText}
+                                    distanceText={distanceText}
+                                    showShuttleLastWarningInline={showShuttleLastWarningInline}
+                                    onStartPress={onStartPress}
+                                />
                             )}
 
                         </>
