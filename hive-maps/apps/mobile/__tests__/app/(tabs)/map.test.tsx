@@ -19,6 +19,7 @@ let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
 let mockMapIdleHandler: ((event: any) => void) | null = null;
+let consoleWarnSpy: jest.SpyInstance;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -298,6 +299,12 @@ function makeShuttleRouting(overrides: any = {}) {
 // ─── beforeEach ───────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[NavigationOverlay] Recalculation failed')) {
+            return;
+        }
+    });
     jest.clearAllMocks();
     capturedDirectionsListener = null;
     mockShapeSourceOnPress = null;
@@ -314,6 +321,10 @@ beforeEach(() => {
         route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
     });
     (getNearestCampus as jest.Mock).mockReturnValue('SGW');
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
 });
 
 // ─── Early-return guards ──────────────────────────────────────────────────────

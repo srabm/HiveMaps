@@ -24,6 +24,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
+let consoleWarnSpy: jest.SpyInstance;
+let consoleErrorSpy: jest.SpyInstance;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -110,8 +112,29 @@ function errorResponse(status: number) {
 
 // Clear cache + mocks before every test so module-level state doesn't leak
 beforeEach(async () => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (
+            firstArg.includes('[Directions] Request timeout') ||
+            firstArg.includes('[Cache] Failed to persist cache to storage') ||
+            firstArg.includes('[Cache] Failed to clear persisted cache')
+        ) {
+            return;
+        }
+    });
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[Mapbox API] Error response')) {
+            return;
+        }
+    });
     jest.clearAllMocks();
     await clearDirectionsCache();
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
 });
 
 // ─── convertGoogleMapsResponse ────────────────────────────────────────────────

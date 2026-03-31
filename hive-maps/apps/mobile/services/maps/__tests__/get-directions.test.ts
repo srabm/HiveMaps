@@ -74,14 +74,22 @@ const validGooglePayload = {
 };
 
 const originalFetch = global.fetch;
+let consoleErrorSpy: jest.SpyInstance;
 
 beforeEach(() => {
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[Mapbox API] Error response')) {
+            return;
+        }
+    });
     jest.resetModules();
     process.env.EXPO_PUBLIC_MAPBOX_TOKEN = 'test-mapbox-token';
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY = 'test-google-key';
 });
 
 afterEach(() => {
+    consoleErrorSpy.mockRestore();
     global.fetch = originalFetch;
     delete process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
     delete process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
