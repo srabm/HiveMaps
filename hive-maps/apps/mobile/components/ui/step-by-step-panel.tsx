@@ -217,6 +217,81 @@ function getTransitStopSummary(step: Step | null): string[] {
     return lines;
 }
 
+function getTransitCardIcon(vehicleType: string): React.ComponentProps<typeof MaterialIcons>['name'] {
+    const normalized = vehicleType.toLowerCase();
+    if (normalized.includes('subway')) return 'subway';
+    if (normalized.includes('rail')) return 'train';
+    return 'directions-bus';
+}
+
+function formatTransitTimeLabel(raw?: string): string | null {
+    if (!raw) return null;
+    try {
+        return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return null;
+    }
+}
+
+function TransitHeadsignBlock({
+    lineName,
+    routeId,
+    transitHeadsign,
+}: Readonly<{
+    lineName: string | null;
+    routeId: string | null;
+    transitHeadsign: string | null;
+}>) {
+    const showSeparateLineName = !!lineName && lineName !== routeId;
+
+    if (showSeparateLineName) {
+        return (
+            <View style={transitCardStyles.transitMetaBlock}>
+                <Text style={transitCardStyles.transitLineName}>{lineName}</Text>
+                {transitHeadsign ? (
+                    <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+                        Towards {transitHeadsign}
+                    </Text>
+                ) : null}
+            </View>
+        );
+    }
+
+    if (!transitHeadsign) return null;
+    return (
+        <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
+            Towards {transitHeadsign}
+        </Text>
+    );
+}
+
+function TransitStopItem({
+    label,
+    stopName,
+    time,
+    iconName,
+    iconColor,
+}: Readonly<{
+    label: 'Board at' | 'Exit at';
+    stopName: string | null;
+    time: string | null;
+    iconName: React.ComponentProps<typeof MaterialIcons>['name'];
+    iconColor: string;
+}>) {
+    if (!stopName) return null;
+
+    return (
+        <View style={transitCardStyles.stopItem}>
+            <MaterialIcons name={iconName} size={14} color={iconColor} />
+            <View style={transitCardStyles.stopTextBlock}>
+                <Text style={transitCardStyles.stopLabel}>{label}</Text>
+                <Text style={transitCardStyles.stopName} numberOfLines={1}>{stopName}</Text>
+                {time ? <Text style={transitCardStyles.stopTime}>{time}</Text> : null}
+            </View>
+        </View>
+    );
+}
+
 // ─── Transit boarding card ───────────────────────────────────────────────────
 function TransitCard({ step }: Readonly<{ step: Step }>) {
     const td = step.transitDetails;
@@ -237,27 +312,9 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
     const departureStop = td.stopDetails?.departureStop?.name ?? null;
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
 
-    const transitIcon: React.ComponentProps<typeof MaterialIcons>['name'] =
-        typeof vehicleType === 'string' && vehicleType.toLowerCase().includes('subway')
-            ? 'subway'
-            : typeof vehicleType === 'string' && vehicleType.toLowerCase().includes('rail')
-              ? 'train'
-              : 'directions-bus';
-
-    const shouldShowSeparateLineName = !!lineName && lineName !== routeId;
-
-    // Format time strings like "2025-01-15T14:30:00-05:00" → "2:30 PM"
-    const fmtTime = (raw: string | undefined): string | null => {
-        if (!raw) return null;
-        try {
-            return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        } catch {
-            return null;
-        }
-    };
-
-    const depTime = fmtTime(td.stopDetails?.departureTime?.time ?? td.departureTime);
-    const arrTime = fmtTime(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
+    const transitIcon = getTransitCardIcon(vehicleType);
+    const depTime = formatTransitTimeLabel(td.stopDetails?.departureTime?.time ?? td.departureTime);
+    const arrTime = formatTransitTimeLabel(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
 
     return (
         <View style={[transitCardStyles.card, { borderLeftColor: lineColor }]}>
@@ -268,44 +325,29 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
                 {!routeId && lineName ? <Text style={transitCardStyles.lineBadgeText}>{lineName}</Text> : null}
             </View>
 
-            {shouldShowSeparateLineName ? (
-                <View style={transitCardStyles.transitMetaBlock}>
-                    <Text style={transitCardStyles.transitLineName}>{lineName}</Text>
-                    {transitHeadsign ? (
-                        <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
-                            Towards {transitHeadsign}
-                        </Text>
-                    ) : null}
-                </View>
-            ) : transitHeadsign ? (
-                <Text style={transitCardStyles.transitDirectionText} numberOfLines={1}>
-                    Towards {transitHeadsign}
-                </Text>
-            ) : null}
+            <TransitHeadsignBlock
+                lineName={lineName}
+                routeId={routeId}
+                transitHeadsign={transitHeadsign}
+            />
 
             {/* Stop info */}
             <View style={transitCardStyles.stopRow}>
-                {departureStop ? (
-                    <View style={transitCardStyles.stopItem}>
-                        <MaterialIcons name="radio-button-on" size={14} color="#059669" />
-                        <View style={transitCardStyles.stopTextBlock}>
-                            <Text style={transitCardStyles.stopLabel}>Board at</Text>
-                            <Text style={transitCardStyles.stopName} numberOfLines={1}>{departureStop}</Text>
-                            {depTime ? <Text style={transitCardStyles.stopTime}>{depTime}</Text> : null}
-                        </View>
-                    </View>
-                ) : null}
+                <TransitStopItem
+                    label="Board at"
+                    stopName={departureStop}
+                    time={depTime}
+                    iconName="radio-button-on"
+                    iconColor="#059669"
+                />
 
-                {arrivalStop ? (
-                    <View style={transitCardStyles.stopItem}>
-                        <MaterialIcons name="radio-button-off" size={14} color="#9d1e30" />
-                        <View style={transitCardStyles.stopTextBlock}>
-                            <Text style={transitCardStyles.stopLabel}>Exit at</Text>
-                            <Text style={transitCardStyles.stopName} numberOfLines={1}>{arrivalStop}</Text>
-                            {arrTime ? <Text style={transitCardStyles.stopTime}>{arrTime}</Text> : null}
-                        </View>
-                    </View>
-                ) : null}
+                <TransitStopItem
+                    label="Exit at"
+                    stopName={arrivalStop}
+                    time={arrTime}
+                    iconName="radio-button-off"
+                    iconColor="#9d1e30"
+                />
             </View>
         </View>
     );
