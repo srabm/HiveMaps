@@ -19,7 +19,7 @@ const token = !rawToken || PLACEHOLDER_TOKENS.has(rawToken) ? '' : rawToken;
 let configured = false;
 
 class MapboxMapsAdapter implements MapsProviderPort {
-  defaultStyleURL = MapboxGL.StyleURL.Street;
+  defaultStyleURL = MapboxGL.StyleURL.Outdoors;
 
   ensureConfigured() {
     if (!configured && token) {
