@@ -308,9 +308,9 @@ describe('NavigationBottom shuttle compact layout', () => {
             stopMarkers: [],
         });
         useShuttleSchedule.mockReturnValue({
-            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
             schedule: {departures: {sgw: [], loyola: []}},
-            departureTimes: ['12:20', '13:00'],
+            departureTimes: ['07:00', '12:20', '13:00'],
             directionLabel: 'SGW -> Loyola',
             showNextServiceLabel: false,
             isNextServiceDay: false,
@@ -318,7 +318,7 @@ describe('NavigationBottom shuttle compact layout', () => {
             departures: [
                 {
                     time: '12:20',
-                    departureDate: new Date('2026-02-23T12:20:00.000Z'),
+                    departureDate: new Date(2026, 1, 23, 12, 20, 0, 0),
                     minutesUntil: 20,
                     minutesFromFilter: 20,
                 },
@@ -1021,9 +1021,9 @@ describe('NavigationBottom shuttle additions', () => {
             stopMarkers: [],
         });
         useShuttleSchedule.mockReturnValue({
-            serviceDate: new Date('2026-02-23T00:00:00.000Z'),
+            serviceDate: new Date(2026, 1, 23, 0, 0, 0, 0),
             schedule: {departures: {sgw: [], loyola: []}},
-            departureTimes: ['17:30', '18:15'],
+            departureTimes: ['07:00', '17:30', '18:15'],
             directionLabel: 'SGW -> Loyola',
             showNextServiceLabel: false,
             isNextServiceDay: false,
@@ -1031,7 +1031,7 @@ describe('NavigationBottom shuttle additions', () => {
             departures: [
                 {
                     time: '18:15',
-                    departureDate: new Date('2026-02-23T18:15:00.000Z'),
+                    departureDate: new Date(2026, 1, 23, 18, 15, 0, 0),
                     minutesUntil: 30,
                     minutesFromFilter: 30,
                 },
