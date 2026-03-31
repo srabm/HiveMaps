@@ -174,29 +174,10 @@ function getStepInstructionText(step: Step | null): string {
     const routeId = transitDetails.transitLine?.nameShort ?? null;
     const lineName = transitDetails.transitLine?.name ?? null;
     const headsign = transitDetails.transitLine?.headsign ?? transitDetails.headsign ?? null;
-
-    const isRailTransit =
-        vehicleType.includes('subway') ||
-        vehicleType.includes('metro') ||
-        vehicleType.includes('rail') ||
-        vehicleType.includes('train');
-    if (isRailTransit) {
-        if (departureStop && headsign) return `Enter station ${departureStop} towards ${headsign}`;
-        if (departureStop) return `Enter station ${departureStop}`;
-        if (headsign) return `Take metro towards ${headsign}`;
-        return 'Enter station';
+    if (isRailTransitVehicle(vehicleType)) {
+        return buildRailTransitInstruction(departureStop, headsign);
     }
-
-    const vehicleLabel = vehicleType.includes('tram')
-        ? 'tram'
-        : vehicleType.includes('bus')
-          ? 'bus'
-          : 'transit';
-    if (routeId && headsign) return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
-    if (routeId) return `Take ${vehicleLabel} ${routeId}`;
-    if (lineName && headsign) return `Take ${lineName} towards ${headsign}`;
-    if (lineName) return `Take ${lineName}`;
-    return step.instruction || 'Continue';
+    return buildSurfaceTransitInstruction(vehicleType, routeId, lineName, headsign, step.instruction);
 }
 
 function getTransitStopSummary(step: Step | null): string[] {
@@ -215,6 +196,46 @@ function getTransitStopSummary(step: Step | null): string[] {
     }
 
     return lines;
+}
+
+function isRailTransitVehicle(vehicleType: string): boolean {
+    return (
+        vehicleType.includes('subway') ||
+        vehicleType.includes('metro') ||
+        vehicleType.includes('rail') ||
+        vehicleType.includes('train')
+    );
+}
+
+function buildRailTransitInstruction(
+    departureStop: string | null,
+    headsign: string | null,
+): string {
+    if (departureStop && headsign) return `Enter station ${departureStop} towards ${headsign}`;
+    if (departureStop) return `Enter station ${departureStop}`;
+    if (headsign) return `Take metro towards ${headsign}`;
+    return 'Enter station';
+}
+
+function getSurfaceVehicleLabel(vehicleType: string): 'tram' | 'bus' | 'transit' {
+    if (vehicleType.includes('tram')) return 'tram';
+    if (vehicleType.includes('bus')) return 'bus';
+    return 'transit';
+}
+
+function buildSurfaceTransitInstruction(
+    vehicleType: string,
+    routeId: string | null,
+    lineName: string | null,
+    headsign: string | null,
+    fallbackInstruction?: string,
+): string {
+    const vehicleLabel = getSurfaceVehicleLabel(vehicleType);
+    if (routeId && headsign) return `Take ${vehicleLabel} ${routeId} towards ${headsign}`;
+    if (routeId) return `Take ${vehicleLabel} ${routeId}`;
+    if (lineName && headsign) return `Take ${lineName} towards ${headsign}`;
+    if (lineName) return `Take ${lineName}`;
+    return fallbackInstruction || 'Continue';
 }
 
 function getTransitCardIcon(vehicleType: string): React.ComponentProps<typeof MaterialIcons>['name'] {
