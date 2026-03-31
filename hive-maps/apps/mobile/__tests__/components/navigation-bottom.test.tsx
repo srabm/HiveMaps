@@ -661,7 +661,7 @@ describe('NavigationBottom shuttle additions', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
 
-        fireEvent.press(getByText('See schedule'));
+        fireEvent.press(getByText('See Schedule'));
 
         await waitFor(() => {
             expect(getByText('Shuttle Schedule')).toBeTruthy();
@@ -737,7 +737,7 @@ describe('NavigationBottom shuttle additions', () => {
         );
 
         await waitFor(() => {
-            expect(getByText('See schedule')).toBeTruthy();
+            expect(getByText('See Schedule')).toBeTruthy();
         });
     });
 
@@ -771,7 +771,7 @@ describe('NavigationBottom shuttle additions', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
 
-        fireEvent.press(getByText('See schedule'));
+        fireEvent.press(getByText('See Schedule'));
 
         await waitFor(() => {
             expect(getByText('Shuttle Schedule')).toBeTruthy();
@@ -819,7 +819,7 @@ describe('NavigationBottom shuttle additions', () => {
             <NavigationBottom origin={origin} destination={destination} initialMode="Shuttle" />
         );
 
-        fireEvent.press(getByText('See schedule'));
+        fireEvent.press(getByText('See Schedule'));
 
         await waitFor(() => {
             expect(getByText('To Loyola')).toBeTruthy();
@@ -901,7 +901,7 @@ describe('NavigationBottom shuttle additions', () => {
         );
 
         expect(getByText('Shuttles are not running at the moment — need a ride now?')).toBeTruthy();
-        expect(getByText('See schedule')).toBeTruthy();
+        expect(getByText('See Schedule')).toBeTruthy();
 
         fireEvent.press(getByText('Check Transit'));
         expect(onModeChange).toHaveBeenCalledWith('Transit');
@@ -961,7 +961,7 @@ describe('NavigationBottom shuttle additions', () => {
         fireEvent.press(getByTestId('confirm-arrive-time'));
 
         expect(queryByText('Shuttles are not running at the moment — need a ride now?')).toBeNull();
-        expect(getByText('See schedule')).toBeTruthy();
+        expect(getByText('See Schedule')).toBeTruthy();
         expect(getByText('Start')).toBeTruthy();
     });
 
