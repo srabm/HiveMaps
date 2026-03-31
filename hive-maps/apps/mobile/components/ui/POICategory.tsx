@@ -39,7 +39,7 @@ export function POICategory({
                                 marginTop,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const [radiusKm, setRadiusKm] = useState<string>(String(radius ?? 1));
+    const [radiusKm] = useState<string>(String(radius ?? 1));
     const [minLat,setMinLat] = useState<number>(0);
     const [maxLat,setMaxLat] = useState<number>(0);
     const [minLon,setMinLon] = useState<number>(0);
