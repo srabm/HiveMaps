@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { PanResponder } from 'react-native';
 
 import { BuildingInfoModal } from '@/components/building-info-modal';
 
@@ -127,5 +128,40 @@ describe('BuildingInfoModal', () => {
 
     fireEvent.press(getByTestId('building-close-button'));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures vertical drag gestures only when they exceed the threshold and horizontal movement', () => {
+    const panResponderSpy = jest.spyOn(PanResponder, 'create');
+
+    render(<BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />);
+
+    const handlers = panResponderSpy.mock.calls[0][0] as any;
+
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 2, dy: 9 })).toBe(true);
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 10, dy: 9 })).toBe(false);
+    expect(handlers.onMoveShouldSetPanResponder({}, { dx: 1, dy: 7 })).toBe(false);
+
+    panResponderSpy.mockRestore();
+  });
+
+  it('minimizes on downward swipe and restores on upward swipe', () => {
+    const panResponderSpy = jest.spyOn(PanResponder, 'create');
+    const { getByTestId } = render(
+      <BuildingInfoModal visible building={baseBuilding} onClose={jest.fn()} />
+    );
+
+    const handlers = panResponderSpy.mock.calls[0][0] as any;
+
+    act(() => {
+      handlers.onPanResponderRelease({}, { dx: 0, dy: 25 });
+    });
+    expect(getByTestId('building-modal-minimized')).toBeTruthy();
+
+    act(() => {
+      handlers.onPanResponderRelease({}, { dx: 0, dy: -25 });
+    });
+    expect(getByTestId('building-modal-expanded')).toBeTruthy();
+
+    panResponderSpy.mockRestore();
   });
 });
