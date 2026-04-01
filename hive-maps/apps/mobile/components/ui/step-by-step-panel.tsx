@@ -245,14 +245,6 @@ function getTransitCardIcon(vehicleType: string): React.ComponentProps<typeof Ma
     return 'directions-bus';
 }
 
-function formatTransitTimeLabel(raw?: string): string | null {
-    if (!raw) return null;
-    try {
-        return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    } catch {
-        return null;
-    }
-}
 
 function TransitHeadsignBlock({
     lineName,
@@ -356,8 +348,8 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
     };
 
     const transitIcon = getTransitCardIcon(vehicleType);
-    const depTime = formatTransitTimeLabel(td.stopDetails?.departureTime?.time ?? td.departureTime);
-    const arrTime = formatTransitTimeLabel(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
+    const depTime = fmtTime(td.stopDetails?.departureTime?.time ?? td.departureTime);
+    const arrTime = fmtTime(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
 
     return (
         <View style={[transitCardStyles.card, { borderLeftColor: lineColor }]}>
