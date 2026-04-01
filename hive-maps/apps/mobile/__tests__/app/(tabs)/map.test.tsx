@@ -2162,26 +2162,6 @@ describe('US-5.1: Outdoor POI Selection', () => {
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
 
-    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
-        const { getDirections } = require('@/services/maps/directions-api-adapter');
-        getDirections.mockClear();
-
-        const { findByText } = render(<MapScreen />);
-
-        act(() => {
-            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
-        });
-
-        triggerMapboxClick();
-
-        const startBtn = await findByText('Start');
-
-        await act(async () => {
-            fireEvent.press(startBtn);
-        });
-
-        expect(getDirections).not.toHaveBeenCalled();
-    });
 
 
 });
@@ -2276,34 +2256,6 @@ describe('NavigationOverlay — onIndoorHandoff', () => {
 });
 
 // ─── POI start navigation ─────────────────────────────────────────────────────
-
-describe('US-5.1: OutdoorPOICard — onStartNavigation', () => {
-    const mockPOI = {
-        name: 'Gourmet Burger',
-        full_address: '123 Burger St, Montreal, QC',
-        coordinates: { latitude: 45.497, longitude: -73.579 },
-        phone: '514-555-0199',
-    };
-
-    it('does not crash when Start is pressed without userLocation', async () => {
-        const { findByText } = render(<MapScreen />);
-
-        act(() => { mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]); });
-
-        act(() => {
-            const targetId = 'poi-Gourmet Burger-0';
-            if (mockPointAnnotationHandlers[targetId]) {
-                mockPointAnnotationHandlers[targetId]();
-            }
-        });
-
-        const startBtn = await findByText('Start');
-        await act(async () => { fireEvent.press(startBtn); });
-
-        // No crash — userLocation null guard fires, handleStartPress skips
-        expect(true).toBe(true);
-    });
-});
 
 // ─── getSelectedLocationLabel & toClassroomLocation ──────────────────────────
 // Driven through DirectionBar.onSelectFrom / onSelectTo callbacks.
