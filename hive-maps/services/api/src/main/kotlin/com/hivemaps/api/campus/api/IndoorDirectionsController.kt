@@ -34,6 +34,14 @@ class IndoorDirectionsController(
         return ResponseEntity.ok(rooms)
     }
 
+    @GetMapping("/building/{building}/entrances")
+    fun getIndoorEntrances(
+        @PathVariable building: String,
+    ): ResponseEntity<Any> {
+        val entrances = indoorDirectionsService.getEntrances(building).map { it.toResponse() }
+        return ResponseEntity.ok(entrances)
+    }
+
     @GetMapping("/building/{building}/floor/{floor}/nearest-node")
     fun getNearestNode(
         @PathVariable building: String,

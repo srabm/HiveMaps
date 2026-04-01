@@ -245,14 +245,6 @@ function getTransitCardIcon(vehicleType: string): React.ComponentProps<typeof Ma
     return 'directions-bus';
 }
 
-function formatTransitTimeLabel(raw?: string): string | null {
-    if (!raw) return null;
-    try {
-        return new Date(raw).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    } catch {
-        return null;
-    }
-}
 
 function TransitHeadsignBlock({
     lineName,
@@ -333,9 +325,31 @@ function TransitCard({ step }: Readonly<{ step: Step }>) {
     const departureStop = td.stopDetails?.departureStop?.name ?? null;
     const arrivalStop = td.stopDetails?.arrivalStop?.name ?? null;
 
+    // Format time strings like "2025-01-15T14:30:00-05:00" → "2:30 PM"
+    // Parses the wall-clock time directly from the ISO string so the result is
+    // always the local time encoded in the string, regardless of device/CI timezone.
+    const fmtTime = (raw: string | undefined): string | null => {
+        if (!raw) return null;
+        try {
+            // Match "HH:MM" from the time portion, before any timezone offset.
+            // e.g. "2025-06-01T09:05:00-04:00" → hours=9, minutes=5
+            const timePattern = /T(\d{2}):(\d{2})/;
+            const m = timePattern.exec(raw);
+            if (!m) return null;
+            const hours = Number.parseInt(m[1], 10);
+            const minutes = Number.parseInt(m[2], 10);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const h12 = hours % 12 === 0 ? 12 : hours % 12;
+            const mm = String(minutes).padStart(2, '0');
+            return `${h12}:${mm} ${period}`;
+        } catch {
+            return null;
+        }
+    };
+
     const transitIcon = getTransitCardIcon(vehicleType);
-    const depTime = formatTransitTimeLabel(td.stopDetails?.departureTime?.time ?? td.departureTime);
-    const arrTime = formatTransitTimeLabel(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
+    const depTime = fmtTime(td.stopDetails?.departureTime?.time ?? td.departureTime);
+    const arrTime = fmtTime(td.stopDetails?.arrivalTime?.time ?? td.arrivalTime);
 
     return (
         <View style={[transitCardStyles.card, { borderLeftColor: lineColor }]}>
@@ -469,6 +483,12 @@ type StepByStepPanelProps = {
     onExit: () => void;
     /** Called when the user taps "End Navigation" after arriving — full teardown. */
     onArrived: () => void;
+    /**
+     * When provided, the arrived state shows "Enter Building" instead of
+     * "End Navigation" — used for outdoor→indoor handoff transitions.
+     * Tapping the button calls this instead of onArrived.
+     */
+    onIndoorHandoff?: () => void;
 };
 
 // ─── Full directions list row ────────────────────────────────────────────────
@@ -624,6 +644,7 @@ export function StepByStepPanel({
     shuttlePhase,
     onExit,
     onArrived,
+    onIndoorHandoff,
 }: Readonly<StepByStepPanelProps>) {
     const [showAllSteps, setShowAllSteps] = useState(false);
 
@@ -648,23 +669,39 @@ export function StepByStepPanel({
 
     // ── Arrived state ────────────────────────────────────────────────────────
     if (arrived) {
+        const isIndoorHandoff = !!onIndoorHandoff;
         return (
             <View style={styles.container} pointerEvents="box-none">
                 <View style={styles.topPanel}>
                     <View style={styles.mainRow}>
                         <View style={[styles.mainIconWrap, styles.mainIconWrapActive]}>
-                            <MaterialIcons name="flag" size={28} color="#111827" />
+                            <MaterialIcons
+                                name={isIndoorHandoff ? 'meeting-room' : 'flag'}
+                                size={28}
+                                color="#111827"
+                            />
                         </View>
                         <View style={styles.instructionBlock}>
-                            <Text style={styles.instructionText}>You have arrived!</Text>
+                            <Text style={styles.instructionText}>
+                                {isIndoorHandoff ? "You've arrived at the building" : 'You have arrived!'}
+                            </Text>
+                            {isIndoorHandoff && (
+                                <Text style={styles.distLabel}>Continue inside for indoor directions</Text>
+                            )}
                         </View>
                     </View>
                 </View>
                 {/* Centred End button */}
                 <View style={[styles.bottomBarBase, styles.bottomBarArrived]}>
-                    <Pressable style={styles.endButton} onPress={onArrived}>
-                        <Text style={styles.endButtonText}>End Navigation</Text>
-                    </Pressable>
+                    {isIndoorHandoff ? (
+                        <Pressable style={styles.endButton} onPress={onIndoorHandoff}>
+                            <Text style={styles.endButtonText}>Enter Building →</Text>
+                        </Pressable>
+                    ) : (
+                        <Pressable style={styles.endButton} onPress={onArrived}>
+                            <Text style={styles.endButtonText}>End Navigation</Text>
+                        </Pressable>
+                    )}
                 </View>
             </View>
         );

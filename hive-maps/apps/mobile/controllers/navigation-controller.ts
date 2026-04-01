@@ -7,6 +7,7 @@ import {
   type BuildingPoint,
 } from '@/repositories/campus-repository';
 import { mapboxMapsAdapter } from '@/services/mapbox';
+import { createClassroomSearchAdapter } from '@/services/maps/classroom-search-adapter';
 import { useAppState } from '@/state/app-state';
 import type { CampusMeta, CampusMetaById } from '@/types/campus';
 
@@ -27,6 +28,7 @@ function sortCampusesByPreference(remoteCampuses: CampusMeta[]): CampusMeta[] {
 
 export function useNavigationController() {
   const { state, setCampus, hydrated } = useAppState();
+  const mapsAdapter = useMemo(() => createClassroomSearchAdapter(mapboxMapsAdapter), []);
   const [points, setPoints] = useState<BuildingPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<BuildingPointsProgress>({
@@ -43,7 +45,7 @@ export function useNavigationController() {
     let isMounted = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const token = mapboxMapsAdapter.ensureConfigured();
+    const token = mapsAdapter.ensureConfigured();
     setTokenAvailable(!!token);
 
     const loadCampusMetadata = async () => {
@@ -104,7 +106,7 @@ export function useNavigationController() {
   const mergePoints = () => (Object.values(pointsMap) as BuildingPoint[][]).flat();
 
   const promises = allCampusIds.map((campusId) =>
-      getBuildingPointsByCampus(campusId, mapboxMapsAdapter, (p, prog) => {
+      getBuildingPointsByCampus(campusId, mapsAdapter, (p, prog) => {
           if (!mounted) return;
           pointsMap[campusId] = p;
           setPoints(mergePoints());
@@ -145,7 +147,7 @@ export function useNavigationController() {
     progress,
     campusMeta,
     tokenAvailable,
-    mapsAdapter: mapboxMapsAdapter,
+    mapsAdapter,
     error: metadataError ?? buildingsError,
   };
 }

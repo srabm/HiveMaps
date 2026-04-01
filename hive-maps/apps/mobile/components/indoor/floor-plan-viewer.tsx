@@ -11,6 +11,8 @@ import {DirectionsLine} from "@/components/ui/directions-line";
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
+import { markDestinationIndoorSessionCompleted, markOriginIndoorSessionCompleted } from '@/state/indoor-route-handoff';
+import { useRouter } from 'expo-router';
 
 export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
@@ -21,6 +23,20 @@ export type FloorPlanViewerProps = Readonly<{
     onStepFloorChange?: (floor: string) => void
     buildingCode: string
     floorId: string
+    initialFromQuery?: string
+    initialToQuery?: string
+    initialFromNodeId?: string | null
+    initialToNodeId?: string | null
+    resumeSessionId?: string | null
+    completeSessionId?: string | null
+    /** When true (outdoor→indoor handoff), skips the DirectionsModal preview
+     * state and jumps straight into active navigation. */
+    autoStartNavigation?: boolean
+    /** When true (indoor→outdoor handoff), the DirectionsModal arrived
+     * label reads "Head outside" to signal that outdoor nav will resume. */
+    indoorToOutdoor?: boolean
+    /** Passed through to DirectionsModal to inject a stairs/elevator step. */
+    stairsNotice?: 'entrance' | 'exit'
 }>
 
 type RoomFeatureProperties = {
@@ -151,7 +167,7 @@ const getCenterCoordinate = (
   const planCoordinates = collectCoordinates(planGeometry)
   const roomCoordinates = rooms?.features?.flatMap((feature) => collectCoordinates(feature.geometry)) ?? []
   const coordinates = [...planCoordinates, ...roomCoordinates]
-  
+
   return calculateBoundingBoxCenter(coordinates);
 }
 
@@ -372,18 +388,27 @@ export function FloorPlanViewer({
                                     onDirectionsActiveChange,
                                     onStepFloorChange,
                                     buildingCode,
-                                    floorId
+                                    floorId,
+                                    initialFromQuery = '',
+                                    initialToQuery = '',
+                                    initialFromNodeId = null,
+                                    initialToNodeId = null,
+                                    resumeSessionId = null,
+                                    completeSessionId = null,
+                                    autoStartNavigation = false,
+                                    indoorToOutdoor = false,
+                                    stairsNotice,
                                 }: FloorPlanViewerProps) {
-      
+  const router = useRouter();
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
-  
+
     const { accessible, setAccessible } = useIndoorNavigationState();
     const centerCoordinate = useMemo(() => getCenterCoordinate(planGeometry, rooms), [planGeometry, rooms])
     const cameraRef = useRef<MapboxGL.Camera>(null);
-    const [fromQuery, setFromQuery] = useState('');
-    const [toQuery, setToQuery] = useState('');
-    const [fromNodeId, setFromNodeId] = useState<string | null>(null);
-    const [toNodeId, setToNodeId] = useState<string | null>(null);
+    const [fromQuery, setFromQuery] = useState(initialFromQuery);
+    const [toQuery, setToQuery] = useState(initialToQuery);
+    const [fromNodeId, setFromNodeId] = useState<string | null>(initialFromNodeId);
+    const [toNodeId, setToNodeId] = useState<string | null>(initialToNodeId);
     const [indoorSteps, setIndoorSteps] = useState<IndoorDirectionsResponse[] | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
@@ -408,10 +433,13 @@ export function FloorPlanViewer({
     // Track last known user coordinates from the in-map UserLocation
     const userCoordsRef = useRef<[number, number] | null>(null);
     // Track whether nearest-node has already been resolved for the current floor
-    const nearestNodeResolvedRef = useRef(false);
+    const nearestNodeResolvedRef = useRef(Boolean(initialFromNodeId));
+    // Track which floor context the fromNodeId was auto-resolved for (so we reset on floor/building change)
+    const autoResolvedContextRef = useRef<string | null>(null);
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
+            autoResolvedContextRef.current = `${buildingCode}::${floorId}`;
             setFromNodeId(node.id);
             setFromQuery('Current Location');
         } catch (err) {
@@ -425,6 +453,7 @@ export function FloorPlanViewer({
         try {
             const steps = await fetchIndoorDirections(buildingCode, fromNodeId, toNodeId, accessible);
             setIndoorSteps(steps);
+            setCurrentNode(steps[0]?.nodes?.[0] ?? null);
         } catch (err) {
             console.warn('[IndoorDirections] No directions found:', err);
             setIndoorSteps(null);
@@ -434,6 +463,28 @@ export function FloorPlanViewer({
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
+        const currentContext = `${buildingCode}::${floorId}`;
+        // If fromNodeId was auto-resolved for a different floor/building, clear it and re-resolve
+        if (
+            fromNodeId &&
+            autoResolvedContextRef.current !== null &&
+            autoResolvedContextRef.current !== currentContext
+        ) {
+            autoResolvedContextRef.current = null;
+            nearestNodeResolvedRef.current = false;
+            setFromNodeId(null);
+            setFromQuery('');
+            const coords = userCoordsRef.current;
+            if (coords) {
+                nearestNodeResolvedRef.current = true;
+                resolveNearestNode(coords[0], coords[1]);
+            }
+            return;
+        }
+        if (fromNodeId) {
+            nearestNodeResolvedRef.current = true;
+            return;
+        }
         if (indoorSteps) return;
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
@@ -441,7 +492,7 @@ export function FloorPlanViewer({
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(coords[0], coords[1]);
         }
-    }, [buildingCode, floorId, indoorSteps, resolveNearestNode]);
+    }, [buildingCode, floorId, fromNodeId, indoorSteps, resolveNearestNode]);
 
     useEffect(() => {
         if (!fromNodeId || !toNodeId) {
@@ -475,12 +526,12 @@ export function FloorPlanViewer({
         const latitude: number = coords.latitude;
         userCoordsRef.current = [longitude, latitude];
         // Only trigger nearest-node once per floor load
-        if (!nearestNodeResolvedRef.current && !indoorSteps) {
+        if (!nearestNodeResolvedRef.current && !indoorSteps && !fromNodeId) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
         setUserLocation([longitude, latitude]);
-    }, [indoorSteps, resolveNearestNode]);
+    }, [fromNodeId, indoorSteps, resolveNearestNode]);
 
 
 
@@ -613,12 +664,12 @@ export function FloorPlanViewer({
               styleURL={MapboxGL.StyleURL.Light}
           >
 
-       
-          <MapboxGL.Camera 
+
+          <MapboxGL.Camera
             ref={cameraRef}
-            centerCoordinate={centerCoordinate} 
-            zoomLevel={18.5} 
-            animationDuration={600} 
+            centerCoordinate={centerCoordinate}
+            zoomLevel={18.5}
+            animationDuration={600}
           />
 
           <MapboxGL.UserLocation
@@ -703,7 +754,7 @@ export function FloorPlanViewer({
                 bee: require('@/assets/images/bee.png')
             }}
           />
-          
+
           {activeFloorRouteView.startTransitionMarker && (
             <MapboxGL.MarkerView
               id="indoor-floor-transition-marker-start"
@@ -737,11 +788,11 @@ export function FloorPlanViewer({
           )}
 
           {(currentNode || userLocation) && (
-            <MapboxGL.ShapeSource 
-              id="user-location-source" 
+            <MapboxGL.ShapeSource
+              id="user-location-source"
               shape={convertCoordinatesToFeature(
-                currentNode 
-                  ? [currentNode.longitude, currentNode.latitude] 
+                currentNode
+                  ? [currentNode.longitude, currentNode.latitude]
                   : userLocation!
               )}
             >
@@ -753,6 +804,7 @@ export function FloorPlanViewer({
                   iconSize: 0.25,
                   iconAllowOverlap: true,
                   iconAnchor: 'center',
+                  iconOffset: [8, 8],
                 }}
               />
             </MapboxGL.ShapeSource>
@@ -803,7 +855,7 @@ export function FloorPlanViewer({
 
       {indoorSteps && (
         <View style={styles.directionStepsContainer} pointerEvents="box-none">
-          <DirectionsModal  
+          <DirectionsModal
             visible={true}
             steps={indoorSteps}
             origin={fromQuery}
@@ -815,16 +867,34 @@ export function FloorPlanViewer({
                 if (coordinates) cameraRef.current?.setCamera({
                     centerCoordinate: coordinates,
                     zoomLevel: 21,
-                    padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
+                    // paddingTop clears the step card (~280px); paddingBottom clears the
+                    // bottom bar (~110px). Together they bias the visual centre into the
+                    // open map area between the two UI panels.
+                    padding: { paddingTop: 280, paddingLeft: 0, paddingRight: 0, paddingBottom: 110 },
                     animationDuration: 500
                 });
             }}
             onClose={() => {
+                if (resumeSessionId) {
+                    markOriginIndoorSessionCompleted(resumeSessionId);
+                    router.back();
+                    return;
+                }
+                if (completeSessionId) {
+                    markDestinationIndoorSessionCompleted(completeSessionId);
+                    router.back();
+                    return;
+                }
+                setFromQuery(toQuery);
+                setFromNodeId(toNodeId);
                 setToQuery('');
                 setToNodeId(null);
                 invalidatePendingPoiSelection();
             }}
             preStartLabel={accessible ? "Navigate" : undefined}
+            autoStart={autoStartNavigation}
+            stairsNotice={stairsNotice}
+            arrivedLabel={indoorToOutdoor ? "Head outside — outdoor navigation will resume" : undefined}
           />
         </View>
       )}
