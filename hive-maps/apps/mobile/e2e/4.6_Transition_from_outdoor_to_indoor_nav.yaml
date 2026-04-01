@@ -1,0 +1,33 @@
+appId: com.anonymous.mobile
+---
+- tapOn: Search building, address, or classroom
+- swipe:
+    start: 50%, 50%
+    end: 50%, 50%
+    duration: 2000
+- inputText: LB3.31
+- tapOn: LB3.311, Room · Floor 3
+- tapOn:
+    id: search-button
+- tapOn: Your location
+- tapOn:
+    id: clear-from
+- inputText: LB Building
+- tapOn: LB Building, 1400 Maisonneuve Blvd W
+- tapOn: Walk
+- tapOn: Start
+- assertVisible: You've arrived at the building
+- tapOn: Enter Building →
+- assertVisible: Enter on LB1, then take the stairs or elevator up to LB2 to begin
+    indoor navigation
+- tapOn: Next
+- tapOn: Next
+- tapOn: Next
+- tapOn: Next
+- tapOn: Arrived
+- assertVisible: You have arrived!
+- tapOn: End
+- tapOn:
+    text: 
+    index: 0
+- stopApp

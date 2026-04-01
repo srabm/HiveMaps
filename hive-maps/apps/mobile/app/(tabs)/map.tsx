@@ -413,6 +413,14 @@ export default function MapScreen() {
     const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
     const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
     const suppressNextCampusCameraSync = useRef(false);
+    // Flips to true when the user manually pans/zooms; reset when route endpoints
+    // change so the first auto-zoom for a brand-new route still fires.
+    const userHasManuallyPanned = useRef(false);
+    // Flips to true once the auto-zoom for the current route has fired.
+    // onMapIdle only sets userHasManuallyPanned AFTER this is true, so that
+    // programmatic camera moves during origin/destination selection don't
+    // prematurely suppress the route auto-zoom.
+    const routeAutoZoomDoneRef = useRef(false);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -428,6 +436,8 @@ export default function MapScreen() {
         setClassroomOrigin(null);
         setOriginIndoorSteps(null);
         setIndoorBeeCoordinates(null);
+        userHasManuallyPanned.current = false;
+        routeAutoZoomDoneRef.current = false;
     }
 
     function clearDestinationRouting() {
@@ -435,6 +445,8 @@ export default function MapScreen() {
         setClassroomDestination(null);
         setDestinationIndoorSteps(null);
         setIndoorBeeCoordinates(null);
+        userHasManuallyPanned.current = false;
+        routeAutoZoomDoneRef.current = false;
     }
 
     function navigateToSelectedBuilding() {
@@ -651,9 +663,11 @@ export default function MapScreen() {
         }
     }, [activeIndoorSegment, campusMetaById, isNavigating, routeFromCoordinates, routeToCoordinates, shouldStartDestinationIndoorOnly]);
 
-    // 2.4.3 — Auto-zoom camera for inter-campus routes when directions arrive
+    // 2.4.3 — Auto-zoom camera for inter-campus routes when directions first arrive.
+    // Skipped if the user has manually panned/zoomed since the last endpoint change.
     useEffect(() => {
         if (!directions || !routeValidation?.valid || isNavigating) return;
+        if (userHasManuallyPanned.current) return;
         const {route} = routeValidation;
         const bounds = getCameraBoundsForRoute(route.originCampus, route.destinationCampus, campusMetaById);
         if (bounds.bounds) {
@@ -668,6 +682,7 @@ export default function MapScreen() {
                 animationDuration: bounds.animationDuration,
             });
         }
+        routeAutoZoomDoneRef.current = true;
     }, [campusMetaById, directions, routeValidation]);
 
     useEffect(() => {
@@ -1020,6 +1035,13 @@ export default function MapScreen() {
 
         if (!Array.isArray(center) || center.length < 2) {
             return;
+        }
+
+        // Only count this as a manual pan if the route auto-zoom has already fired.
+        // This prevents programmatic focusCamera() calls during origin/destination
+        // selection from prematurely suppressing the first route auto-zoom.
+        if (!suppressNextCampusCameraSync.current && routeAutoZoomDoneRef.current) {
+            userHasManuallyPanned.current = true;
         }
 
         const nearest = getNearestCampus(center[0], center[1], campusMetaById);
@@ -1410,6 +1432,8 @@ export default function MapScreen() {
                 <View
                     testID="navigation-bottom-container"
                     style={styles.navigationBottomContainer}
+                    onLayout={() => {}}
+                    ref={(ref) => { if (!ref) navigationBottomFrame.current = null; }}
                 >
                     <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
                     <NavigationBottom
