@@ -5,6 +5,10 @@ export type MapLocation = {
   name: string;
   id: string;
   address: string;
+  kind?: 'place' | 'classroom';
+  buildingCode?: string;
+  floorId?: string;
+  indoorNodeId?: string;
 }
 export type POI = {
   name: string;
