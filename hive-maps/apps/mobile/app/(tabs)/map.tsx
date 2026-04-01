@@ -353,6 +353,7 @@ export default function MapScreen() {
             destination: {type: 'coordinate', longitude: toCoordinates[0], latitude: toCoordinates[1]},
         }, campusMetaById);
         setRouteValidation(result);
+        setPoiMarkers([]);
         // Never show the validation error modal while actively navigating —
         // recalculation uses the live GPS position which may be off-campus.
         if (!result.valid && !isNavigating) {
@@ -993,7 +994,7 @@ export default function MapScreen() {
             <OutdoorPOICard 
                 poi={selectedOutdoorPOI}
                 userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null} 
-                onClose={() => setSelectedOutdoorPOI(null)}
+                onClose={() => {setSelectedOutdoorPOI(null);}}
                 onGetDirections={() => {
                     if (!selectedOutdoorPOI) return;
                     setSeeDirectionBar(true); 
