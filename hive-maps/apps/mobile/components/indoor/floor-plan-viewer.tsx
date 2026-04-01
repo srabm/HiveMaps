@@ -867,7 +867,10 @@ export function FloorPlanViewer({
                 if (coordinates) cameraRef.current?.setCamera({
                     centerCoordinate: coordinates,
                     zoomLevel: 21,
-                    padding: { paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 200},
+                    // paddingTop clears the step card (~280px); paddingBottom clears the
+                    // bottom bar (~110px). Together they bias the visual centre into the
+                    // open map area between the two UI panels.
+                    padding: { paddingTop: 280, paddingLeft: 0, paddingRight: 0, paddingBottom: 110 },
                     animationDuration: 500
                 });
             }}
