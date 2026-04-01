@@ -1,6 +1,6 @@
 import type * as GeoJSON from 'geojson'
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MapboxGL } from '@/services/mapbox';
 import { RoomLabelLayer } from '@/components/indoor/room-label-layer';
 import { POIMarker } from '@/components/indoor/POIMarker';
@@ -21,13 +21,15 @@ export type FloorPlanViewerProps = Readonly<{
     onStepFloorChange?: (floor: string) => void
     buildingCode: string
     floorId: string
-    onError?: (message: string) => void
 }>
 
 type RoomFeatureProperties = {
   id?: string
   roomId?: string
   room_id?: string
+  nodeID?: string
+  nodeId?: string
+  node_id?: string
   code?: string
   name?: string
   label?: string
@@ -38,6 +40,12 @@ type RoomFeatureProperties = {
 type MapPressFeature = {
     id?: string | number
     properties?: RoomFeatureProperties
+}
+
+type PoiDestinationCandidate = {
+  label: string
+  coordinates: [number, number]
+  mapContextKey: string
 }
 
 const DEFAULT_MAP_CENTER: [number, number] = [-73.578, 45.496];
@@ -62,6 +70,25 @@ const getRoomLabel = (feature: MapPressFeature): string | null => {
     const label = properties.label ?? properties.name ?? properties.code ?? properties.id ?? properties.roomId
     if (typeof label === 'string' && label.trim().length > 0) return label
     return null
+}
+
+const formatPoiTypeLabel = (value?: string | null): string | null => {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return null
+  return normalized
+    .split('_')
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+const getPoiLabel = (feature: MapPressFeature): string => {
+  const explicitLabel = getRoomLabel(feature)
+  if (explicitLabel) return explicitLabel
+
+  const typedLabel = formatPoiTypeLabel(feature.properties?.type)
+  return typedLabel ? `POI: ${typedLabel}` : 'Point of interest'
 }
 
 const collectCoordinates = (geometry: GeoJSON.Geometry | null | undefined): [number, number][] => {
@@ -345,8 +372,7 @@ export function FloorPlanViewer({
                                     onDirectionsActiveChange,
                                     onStepFloorChange,
                                     buildingCode,
-                                    floorId,
-                                    onError
+                                    floorId
                                 }: FloorPlanViewerProps) {
       
   const { roomCollectionForLabels, poiFeatures } = useMemo(() => separateRoomFeatures(rooms), [rooms]);
@@ -361,6 +387,13 @@ export function FloorPlanViewer({
     const [indoorSteps, setIndoorSteps] = useState<IndoorDirectionsResponse[] | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [currentNode, setCurrentNode] = useState<IndoorNodeResponse | null>(null);
+    const mapContextKey = `${buildingCode}::${floorId}`;
+    const mapContextKeyRef = useRef(mapContextKey);
+    const poiSelectionTokenRef = useRef(0);
+    mapContextKeyRef.current = mapContextKey;
+    const invalidatePendingPoiSelection = useCallback(() => {
+      poiSelectionTokenRef.current += 1;
+    }, []);
     const nodeAdapter = useMemo(() => createIndoorNodeSearchAdapter(buildingCode), [buildingCode]);
     const floorsToTraverse = useMemo(() => {
         const startFloor = extractFloorFromNodeId(fromNodeId, buildingCode)
@@ -397,7 +430,7 @@ export function FloorPlanViewer({
             setIndoorSteps(null);
             setCurrentNode(null);
         }
-    }, [buildingCode, onError]);
+    }, [buildingCode]);
 
     // When buildingCode or floorId changes, reset the resolved flag and re-attempt if we have coordinates
     useEffect(() => {
@@ -424,6 +457,10 @@ export function FloorPlanViewer({
             onDirectionsActiveChange(!!indoorSteps);
         }
     }, [indoorSteps, onDirectionsActiveChange]);
+
+    useEffect(() => {
+      invalidatePendingPoiSelection();
+    }, [buildingCode, floorId, invalidatePendingPoiSelection]);
 
     useEffect(() => {
         if (floorsToTraverse.length > 0) {
@@ -481,19 +518,42 @@ export function FloorPlanViewer({
         })
     }, [selectedRoomFeature])
 
-    const findNearestIndoorNode = async(longitude: number, latitude: number) :Promise<string> => {
+    const findNearestIndoorNode = async(longitude: number, latitude: number) :Promise<string | null> => {
 
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
-            console.log('[NearestNode] Response ←', node);
             return node.id;
-        } catch (err) {
-            console.log('[NearestNode] No matching node found:', err instanceof Error ? err.message : err);
-            return "";
+        } catch {
+            return null;
         }
 
 
     }
+
+    const applyPoiAsDestination = async (poi: PoiDestinationCandidate) => {
+      if (indoorSteps) return;
+
+      const selectionToken = ++poiSelectionTokenRef.current;
+      const selectionContext = poi.mapContextKey;
+
+      const resolvedNodeId = await findNearestIndoorNode(poi.coordinates[0], poi.coordinates[1]);
+
+      const isLatestSelection = selectionToken === poiSelectionTokenRef.current;
+      const sameMapContext = selectionContext === mapContextKeyRef.current;
+      if (!isLatestSelection || !sameMapContext) return;
+
+      setToQuery(poi.label);
+      setToNodeId(null);
+      if (resolvedNodeId) {
+        setToNodeId(resolvedNodeId);
+      }
+      cameraRef.current?.setCamera({
+        centerCoordinate: poi.coordinates,
+        zoomLevel: 21,
+        animationDuration: 500,
+      });
+    }
+
     const handleRoomPress = async (event: any) => {
         const feature = event?.features?.[0] as MapPressFeature | undefined;
         if (!feature) return;
@@ -502,9 +562,12 @@ export function FloorPlanViewer({
         if (!roomId || !onPressRoom) return;
 
         onPressRoom(roomId);
+        const shouldSetDestinationFromRoom = Boolean(fromQuery) && !toQuery;
+        if (shouldSetDestinationFromRoom) {
+            invalidatePendingPoiSelection();
+        }
 
         let nodeId = feature.properties?.nodeID;
-        console.log("nodeID :"+ nodeId);
         if (typeof nodeId !== "string") {
             return;
         }
@@ -529,9 +592,8 @@ export function FloorPlanViewer({
                 return;
             }
                 const g = await findNearestIndoorNode(longitude, latitude);
-            if(g === "") {return;}
+            if (!g) {return;}
                 nodeId = g;
-                console.log(g);
         }
         if (!fromQuery) {
             setFromNodeId(String(nodeId));
@@ -583,7 +645,7 @@ export function FloorPlanViewer({
 
           <MapboxGL.ShapeSource
             id="indoor-rooms-source"
-            shape={rooms}
+            shape={roomCollectionForLabels ?? rooms}
             onPress={handleRoomPress}
             testID="indoor-rooms-source"
           >
@@ -697,13 +759,17 @@ export function FloorPlanViewer({
           )}
 
           {poiFeatures.map((poi, index) => {
-            const coords = poi.geometry.type === 'Point' 
-              ? (poi.geometry as GeoJSON.Point).coordinates 
+            const rawCoordinates = poi.geometry.type === 'Point'
+              ? (poi.geometry as GeoJSON.Point).coordinates
               : getGeometryCenter(poi.geometry);
+            const coords: [number, number] = [rawCoordinates[0], rawCoordinates[1]];
 
-            const poiId = poi.properties?.id || `poi-fallback-${index}`;
+            const poiId = String(poi.properties?.id || `poi-fallback-${index}`);
             const poiType = poi.properties?.type as string;
-            const poiLabel = poi.properties?.label as string | undefined;
+            const poiLabel = getPoiLabel({
+              id: poi.id as string | number,
+              properties: poi.properties as RoomFeatureProperties,
+            });
 
             return (
               <MapboxGL.MarkerView
@@ -711,7 +777,20 @@ export function FloorPlanViewer({
                 id={`poi-${poiId}`}
                 coordinate={coords}
               >
-                <POIMarker type={poiType} label={poiLabel} size={22} />
+                <Pressable
+                  testID={`indoor-poi-marker-${poiId}`}
+                  style={styles.poiPressable}
+                  onPress={() => {
+                    if (indoorSteps) return;
+                    void applyPoiAsDestination({
+                      label: poiLabel,
+                      coordinates: coords,
+                      mapContextKey,
+                    });
+                  }}
+                >
+                  <POIMarker type={poiType} label={poiLabel} size={22} />
+                </Pressable>
               </MapboxGL.MarkerView>
             );
           })}
@@ -743,6 +822,7 @@ export function FloorPlanViewer({
             onClose={() => {
                 setToQuery('');
                 setToNodeId(null);
+                invalidatePendingPoiSelection();
             }}
             preStartLabel={accessible ? "Navigate" : undefined}
           />
@@ -756,7 +836,10 @@ export function FloorPlanViewer({
             fromValue={fromQuery}
             toValue={toQuery}
             onChangeFrom={setFromQuery}
-            onChangeTo={setToQuery}
+            onChangeTo={(text) => {
+              setToQuery(text);
+              invalidatePendingPoiSelection();
+            }}
             onSelectFrom={(mapLocation, coordinates) => {
               setFromQuery(mapLocation.name);
               setFromNodeId(mapLocation.id);
@@ -769,6 +852,7 @@ export function FloorPlanViewer({
             onSelectTo={(mapLocation, coordinates) => {
               setToQuery(mapLocation.name);
               setToNodeId(mapLocation.id);
+              invalidatePendingPoiSelection();
               if (coordinates) cameraRef.current?.setCamera({
                 centerCoordinate: coordinates,
                 zoomLevel: 21,
@@ -782,6 +866,7 @@ export function FloorPlanViewer({
             onClearTo={() => {
               setToQuery('');
               setToNodeId(null);
+              invalidatePendingPoiSelection();
             }}
             onResetFrom={() => {
               setFromQuery('');
@@ -794,12 +879,14 @@ export function FloorPlanViewer({
               setFromNodeId(toNodeId);
               setToQuery(tempQuery);
               setToNodeId(tempNodeId);
+              invalidatePendingPoiSelection();
             }}
             onClose={() => {
               setFromQuery('');
               setFromNodeId(null);
               setToQuery('');
               setToNodeId(null);
+              invalidatePendingPoiSelection();
             }}
             fromPlaceholder="From room (e.g. H8.835)"
             toPlaceholder="To room (e.g. H8.841)"
@@ -871,6 +958,10 @@ const styles = StyleSheet.create({
         marginTop: 10,
         marginLeft: 10,
         zIndex: 1000,
+    },
+    poiPressable: {
+      padding: 2,
+      borderRadius: 12,
     },
     transitionMarkerIcon: {
         width: 24,

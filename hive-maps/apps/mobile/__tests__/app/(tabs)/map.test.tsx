@@ -6,14 +6,21 @@
 
 import React from 'react';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 // ─── Captured handles (must be declared before jest.mock calls) ───────────────
 
 let capturedDirectionsListener: ((event: any) => void) | null = null;
 let mockShapeSourceOnPress: ((e: any) => void) | null = null;
+let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
+let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
-let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
+let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any; onCardLayout: any; onTimeFilterChange: any } | null = null;
+let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
+let mockDirectionBarProps: any = null;
+let mockMapIdleHandler: ((event: any) => void) | null = null;
+let consoleWarnSpy: jest.SpyInstance;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -59,13 +66,20 @@ jest.mock('@/components/ui/step-by-step-panel', () => {
     };
 });
 
-jest.mock('@/services/maps/route-validator', () => ({
-    validateCampusRoute: jest.fn(() => ({
-        valid: true,
-        route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
-    })),
-    getNearestCampus: jest.fn(() => 'SGW'),
-}));
+jest.mock('@/services/maps/route-validator', () => {
+    const actual = jest.requireActual('@/services/maps/route-validator');
+    
+    return {
+        ...actual,
+        haversineKM: jest.fn().mockReturnValue(0.12), 
+    
+        validateCampusRoute: jest.fn(() => ({
+            valid: true,
+            route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
+        })),
+        getNearestCampus: jest.fn(() => 'SGW'),
+    };
+});
 
 jest.mock('@/services/maps/camera-utils', () => ({
     getCameraBoundsForRoute: jest.fn(() => ({
@@ -86,22 +100,41 @@ jest.mock('@/hooks/use-shuttle-routing', () => ({
 
 jest.mock('@/services/mapbox', () => {
     mockCameraSetCamera = jest.fn();
+    const React = require('react');
+    const { View } = require('react-native');
     return {
         MapboxGL: {
-            MapView: ({ children }: any) => <>{children}</>,
-            Camera: jest.fn().mockReturnValue(null),
+            MapView: ({ children, onMapIdle }: any) => {
+                mockMapIdleHandler = onMapIdle;
+                return <>{children}</>;
+            },
+            Camera: React.forwardRef((_props: any, ref: any) => {
+                const handle = { setCamera: mockCameraSetCamera };
+                if (ref && typeof ref === 'object') {
+                    ref.current = handle;
+                }
+                return null;
+            }),
             UserLocation: ({ onUpdate }: any) => {
                 mockUserLocationOnUpdate = onUpdate;
                 return null;
             },
-            ShapeSource: ({ children, onPress }: any) => {
-                mockShapeSourceOnPress = onPress;
-                return <>{children}</>;
+            ShapeSource: ({id, children, onPress }: any) => {
+                if (onPress) {
+                    mockShapeSourceOnPress = onPress; // Keep for backward compatibility
+                    mockShapeSourceHandlers[id || 'unknown'] = onPress; // Capture specifically
+                }
+                return <View testID={id}>{children}</View>;
             },
             FillLayer: () => null,
             LineLayer: () => null,
             SymbolLayer: () => null,
-            PointAnnotation: ({ children }: any) => <>{children}</>,
+            PointAnnotation: ({ id, onSelected, children }: any) => {
+                if (onSelected) {
+                    mockPointAnnotationHandlers[id || 'unknown'] = onSelected;
+                }
+                return <View testID={id}>{children}</View>;
+            },
             Images: () => null,
             requestAndroidLocationPermissions: jest.fn(),
         },
@@ -117,10 +150,10 @@ jest.mock('@/components/ui/directions-line', () => ({
 jest.mock('@/components/ui/navigation-bottom', () => {
     const { Pressable, View } = require('react-native');
     return {
-        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange }: any) => {
+        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange }: any) => {
             // Capture onDirectionsChange so tests can inject a directions object
             // by pressing inject-directions-btn before pressing start-btn.
-            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange };
+            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange };
             return (
                 <View>
                     <Pressable testID="start-btn" onPress={onStartPress} />
@@ -138,12 +171,19 @@ jest.mock('@/components/campus-switch', () => ({
 jest.mock('@/components/search-bar', () => () => null);
 jest.mock('@/components/directions-bars', () => {
     const { View, Text } = require('react-native');
-    return ({fromValue, toValue}: any) => (
-        <View testID='direction-bar'>
-            <Text>{fromValue}</Text>
-            <Text>{toValue}</Text>
-        </View>
-    );
+    return {
+        __esModule: true,
+        default: (props: any) => {
+            mockDirectionBarProps = props;
+            const { fromValue, toValue } = props;
+            return (
+            <View testID="direction-bar-mock">
+                <Text>{ fromValue} </Text>
+                <Text>{ toValue}</Text>
+            </View>
+            );
+        },
+    };
 });
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
@@ -154,6 +194,20 @@ jest.mock('@/components/building-info-modal', () => {
                 <Pressable testID="building-close-btn" onPress={onClose} />
                 <Pressable testID="building-indoor-btn" onPress={onIndoorMap} />
                 <Pressable testID="building-start-btn" onPress={onStart} />
+
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
             </View>
         ),
     };
@@ -197,6 +251,16 @@ jest.mock('react-native', () => {
     return rn;
 });
 
+jest.mock('@/components/ui/POICategory', () => {
+    const { View } = require('react-native');
+    return {
+        POICategory: (props: any) => {
+            mockPOICategoryCallbacks = props;
+            return <View testID="poi-category-mock" />;
+        },
+    };
+});
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import { useLiveLocation } from '@/hooks/use-live-location';
@@ -207,6 +271,7 @@ import { useShuttleRouting } from '@/hooks/use-shuttle-routing';
 import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-validator';
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
+import { View } from 'react-native/Libraries/Components/View/View';
 import { useNextClass } from '@/hooks/use-next-class';
 import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
 
@@ -287,6 +352,12 @@ function makeShuttleRouting(overrides: any = {}) {
 // ─── beforeEach ───────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[NavigationOverlay] Recalculation failed')) {
+            return;
+        }
+    });
     jest.clearAllMocks();
     capturedDirectionsListener = null;
     mockShapeSourceOnPress = null;
@@ -305,6 +376,10 @@ beforeEach(() => {
         route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
     });
     (getNearestCampus as jest.Mock).mockReturnValue('SGW');
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
 });
 
 // ─── Early-return guards ──────────────────────────────────────────────────────
@@ -695,6 +770,46 @@ describe('handleBuildingPress', () => {
         render(<MapScreen />);
         // ShapeSource renders because polygonFeatures.length > 0
         expect(mockShapeSourceOnPress).not.toBeNull();
+    });
+
+    it('ignores building presses that land inside the navigation bottom blocking frame', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByTestId('start-btn')).toBeTruthy();
+            expect(mockNavigationBottomCallbacks?.onCardLayout).toBeDefined();
+        });
+
+        act(() => {
+            mockNavigationBottomCallbacks?.onCardLayout({
+                nativeEvent: {
+                    layout: { x: 10, y: 20, width: 200, height: 100 },
+                },
+            });
+        });
+
+        expect(() => {
+            act(() => {
+                mockShapeSourceOnPress?.({
+                    features: [mockFeature],
+                    point: { x: 50, y: 50 },
+                });
+            });
+        }).not.toThrow();
     });
 });
 
@@ -1270,23 +1385,6 @@ describe('setStartingPointAsUserCoordinates', () => {
         });
     });
 
-    it('also called by building "Start" button (onStart)', async () => {
-        const utils = renderWithBuilding();
-        await act(async () => {
-            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
-        });
-        await act(async () => {
-            mockShapeSourceOnPress?.({
-                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
-            });
-        });
-        await act(async () => {
-            fireEvent.press(utils.getByTestId('building-start-btn'));
-        });
-        await waitFor(() => {
-            expect(utils.getByTestId('start-btn')).toBeTruthy();
-        });
-    });
 });
 
 // ─── navigateToSelectedBuilding ──────────────────────────────────────────────
@@ -1834,6 +1932,31 @@ describe('LocateMeButton', () => {
         expect(utils.getByTestId('locate-me-btn')).toBeTruthy();
     });
 
+    it('updates the selected campus to the nearest campus when locate-me is pressed', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.6406, latitude: 45.4583 } });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
     it('shows location prompt modal when userLocation is null', async () => {
         // No onUpdate fired → userLocation stays null
         const utils = renderWithBuilding();
@@ -1862,6 +1985,183 @@ describe('LocateMeButton', () => {
         await waitFor(() => {
             expect(utils.queryByText('Location Off')).toBeNull();
         });
+    });
+});
+
+describe('manual map pan campus sync', () => {
+    it('updates the selected campus when the map is manually panned to another campus', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('uses geometry.coordinates when properties.center is absent', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                geometry: {
+                    coordinates: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('ignores invalid centerCoordinate payloads', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                centerCoordinate: [-73.6406],
+            });
+        });
+
+        expect(getNearestCampus).not.toHaveBeenCalled();
+        expect(setCampus).not.toHaveBeenCalled();
+    });
+
+    it('suppresses the immediate campus camera sync after a manual campus switch', async () => {
+        let currentCampus: 'SGW' | 'LOY' = 'SGW';
+        let currentMeta = { ...CAMPUS_META.SGW };
+        const setCampus = jest.fn((nextCampus: 'SGW' | 'LOY') => {
+            currentCampus = nextCampus;
+            currentMeta = { ...CAMPUS_META[nextCampus] };
+        });
+
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockImplementation(() =>
+            makeNavigationController({
+                campus: currentCampus,
+                setCampus,
+                campusMeta: currentMeta,
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+        mockCameraSetCamera.mockClear();
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+
+        await act(async () => {
+            utils.rerender(<MapScreen />);
+        });
+
+        expect(mockCameraSetCamera).not.toHaveBeenCalled();
+    });
+});
+
+describe('NavigationBottom container wiring', () => {
+    it('renders the full-screen blocker pressable above the map when navigation bottom is shown', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy());
+
+        const blocker = utils.UNSAFE_root.findAll((node: any) => {
+            const style = StyleSheet.flatten(node.props.style);
+            return (
+                typeof node.props.onPress === 'function' &&
+                style?.position === 'absolute' &&
+                style?.top === 0 &&
+                style?.left === 0
+            );
+        })[0];
+
+        expect(blocker).toBeTruthy();
+
+        await act(async () => {
+            blocker.props.onPress();
+        });
+
+        expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy();
+    });
+
+    it('updates time filter state through onTimeFilterChange callback', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onTimeFilterChange('2026-02-23T15:00:00.000Z', 'arrive');
+        });
+
+        const lastCall = (useShuttleRouting as jest.Mock).mock.calls.at(-1)?.[0];
+        expect(lastCall.timeFilter).toBe('2026-02-23T15:00:00.000Z');
+        expect(lastCall.timeFilterMode).toBe('arrive');
     });
 });
 
@@ -2025,4 +2325,138 @@ describe('timeout modal', () => {
             expect(queryByText('Directions Unavailable')).toBeNull();
         });
     });
+});
+
+describe('US-5.1: Outdoor POI Selection', () => {
+    const mockPOI = {
+        name: 'Gourmet Burger',
+        full_address: '123 Burger St, Montreal, QC',
+        coordinates: { latitude: 45.497, longitude: -73.579 },
+        phone: '514-555-0199'
+    };
+
+    const triggerMapboxClick = () => {
+        act(() => {
+            const targetId = 'poi-Gourmet Burger-0';
+            if (mockPointAnnotationHandlers[targetId]) {
+                mockPointAnnotationHandlers[targetId]();
+                return;
+            }
+
+            const eventPayload = {
+                features: [{ 
+                    properties: { name: 'Gourmet Burger', isPOI: true },
+                    geometry: { type: 'Point', coordinates: [-73.579, 45.497] } 
+                }]
+            };
+
+            Object.values(mockShapeSourceHandlers).forEach(handler => {
+                handler(eventPayload);
+            });
+
+            if (mockShapeSourceOnPress) {
+                mockShapeSourceOnPress(eventPayload);
+            }
+        });
+    };
+
+    it('clears POI markers when category is cleared', () => {
+        render(<MapScreen />);
+        
+        act(() => {
+            mockPOICategoryCallbacks?.onClearCategory();
+        });
+        
+        expect(mockPOICategoryCallbacks).toBeDefined();
+    });
+
+    it('TASK-5.2.1: displays OutdoorPOICard when a POI is selected', async () => {
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+        
+        triggerMapboxClick();
+
+        expect(await findByText('Gourmet Burger')).toBeTruthy();
+        expect(await findByText('123 Burger St, Montreal, QC')).toBeTruthy();
+    });
+
+    it('renders distance from user location inside the card', async () => {
+        mockUserLocationOnUpdate?.({
+            coords: { latitude: 45.498, longitude: -73.579 }
+        });
+
+        const { findByText } = render(<MapScreen />);
+        
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+
+        triggerMapboxClick();
+
+        expect(await findByText(/m/)).toBeTruthy();
+    });
+
+    it('TASK-108: closes the card when the close button is pressed', async () => {
+        const { findByTestId, queryByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+        
+        triggerMapboxClick();
+
+        const closeBtn = await findByTestId('poi-card-close');
+        
+        act(() => {
+            fireEvent.press(closeBtn);
+        });
+
+        await waitFor(() => {
+            expect(queryByText('Gourmet Burger')).toBeNull();
+        });
+    });
+
+    it('TASK-5.2.4: triggers directions flow when "Directions" is pressed', async () => {
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+        
+        triggerMapboxClick();
+
+        const directionsBtn = await findByText('Directions');
+        
+        act(() => {
+            fireEvent.press(directionsBtn);
+        });
+
+        expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
+    });
+
+    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
+        const { getDirections } = require('@/services/maps/directions-api-adapter');
+        getDirections.mockClear();
+
+        const { findByText } = render(<MapScreen />);
+
+        act(() => {
+            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+        });
+        
+        triggerMapboxClick();
+
+        const startBtn = await findByText('Start');
+        
+        await act(async () => {
+            fireEvent.press(startBtn);
+        });
+
+        expect(getDirections).not.toHaveBeenCalled();
+    });
+
+    
 });

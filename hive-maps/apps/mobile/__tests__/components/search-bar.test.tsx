@@ -21,6 +21,7 @@ const createMapsAdapter = (): jest.Mocked<MapsProviderPort> => ({
   retrieve: jest.fn().mockResolvedValue({ lat: 45.497, lng: -73.579 }),
   reverse: jest.fn().mockResolvedValue(null),
   forward: jest.fn().mockResolvedValue(null),
+  categorySearch: jest.fn(),
   defaultStyleURL: "",
 });
 
@@ -124,7 +125,7 @@ describe('MapSearchBar tests', () => {
     expect(onClear).toHaveBeenCalled();
   });
 
-  it('calls onClickButton when navigate button is pressed', () => {
+  it('calls onClickButton when search button is pressed', () => {
     const onClickButton = jest.fn();
 
     const { getByTestId } = render(
@@ -134,7 +135,7 @@ describe('MapSearchBar tests', () => {
       />
     );
 
-    const button = getByTestId('navigate-button');
+    const button = getByTestId('search-button');
     fireEvent.press(button);
     expect(onClickButton).toHaveBeenCalled();
   });

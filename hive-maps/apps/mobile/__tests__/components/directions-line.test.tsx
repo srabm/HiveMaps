@@ -106,6 +106,54 @@ describe('DirectionsLine rendering', () => {
             : lineLayer.props.style;
         expect(flatStyle.lineDasharray).toBeUndefined();
     });
+
+    it('includes the start endpoint when showStartEndpoint is true', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                })}
+                showStartEndpoint={true}
+                showEndEndpoint={false}
+            />,
+        );
+
+        const endpointsShape = mockShapeSource.mock.calls[1][0].shape;
+        expect(endpointsShape.features).toEqual([
+            expect.objectContaining({
+                id: 'start-point',
+                properties: {type: 'start'},
+                geometry: expect.objectContaining({
+                    type: 'Point',
+                    coordinates: [-120.2, 38.5],
+                }),
+            }),
+        ]);
+    });
+
+    it('includes the end endpoint when showEndEndpoint is true', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                })}
+                showStartEndpoint={false}
+                showEndEndpoint={true}
+            />,
+        );
+
+        const endpointsShape = mockShapeSource.mock.calls[1][0].shape;
+        expect(endpointsShape.features).toEqual([
+            expect.objectContaining({
+                id: 'end-point',
+                properties: {type: 'end'},
+                geometry: expect.objectContaining({
+                    type: 'Point',
+                    coordinates: [-126.453, 43.252],
+                }),
+            }),
+        ]);
+    });
 });
 
 //task 2.3.4 display distance and estimated travel time

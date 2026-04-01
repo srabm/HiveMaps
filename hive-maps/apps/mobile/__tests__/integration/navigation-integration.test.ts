@@ -22,6 +22,22 @@ import { useStepNavigator, distanceMetres } from '@/hooks/use-step-navigator';
 import type { StepNavigatorState, ShuttlePhaseBoundaries } from '@/hooks/use-step-navigator';
 import type { Step } from '@/services/maps/directions-api-adapter';
 import type { LiveLocation } from '@/hooks/use-live-location';
+
+let consoleWarnSpy: jest.SpyInstance;
+
+beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[StepNavigator] Off-route confirmed')) {
+            return;
+        }
+    });
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function loc(lat: number, lon: number): LiveLocation {

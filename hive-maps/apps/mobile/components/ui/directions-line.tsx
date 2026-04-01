@@ -18,6 +18,8 @@ interface DirectionsDisplayProps {
     lineDasharray?: number[];
     useIndoorData?:boolean;
     IndoorDirections?: IndoorDirectionsResponse[];
+    showStartEndpoint?: boolean;
+    showEndEndpoint?: boolean;
 }
 
 /**
@@ -80,6 +82,8 @@ export function DirectionsLine({
                                    lineDasharray,
                                    useIndoorData = false,
                                    IndoorDirections,
+                                   showStartEndpoint = true,
+                                   showEndEndpoint = true,
                                }: Readonly<DirectionsDisplayProps>) {
 
 
@@ -130,22 +134,22 @@ export function DirectionsLine({
             return {
                 type: 'FeatureCollection' as const,
                 features: [
-                    {
+                    ...(showStartEndpoint ? [{
                         type: 'Feature' as const,
                         id: 'start-point',
                         geometry: {type: 'Point' as const, coordinates: coordinates[0]},
                         properties: {type: 'start'},
-                    },
-                    {
+                    }] : []),
+                    ...(showEndEndpoint ? [{
                         type: 'Feature' as const,
                         id: 'end-point',
                         geometry: {type: 'Point' as const, coordinates: coordinates[coordinates.length - 1]},
                         properties: {type: 'end'},
-                    },
+                    }] : []),
                 ],
             };
         },
-        [coordinates],
+        [coordinates, showEndEndpoint, showStartEndpoint],
     );
 
     if (!coordinates.length) return null;

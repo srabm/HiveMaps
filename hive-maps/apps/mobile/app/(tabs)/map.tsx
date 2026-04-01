@@ -1,6 +1,6 @@
 import { Href, useRouter } from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform} from 'react-native';
+import {ActivityIndicator, StyleSheet, View, Text, Image, Modal, Pressable, Platform, LayoutChangeEvent} from 'react-native';
 
 import DirectionBar from "@/components/directions-bars";
 import { PolygonUtils } from '@/domain/PolygonUtils';
@@ -36,6 +36,9 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import {POICategory,type POI} from "@/components/ui/POICategory";
+import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
+import { DestinationPin } from '@/components/ui/destination-pin';
 import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
 import { useNextClass } from '@/hooks/use-next-class';
 import { parseLocationReference, type NextClassResult } from '@/services/next-class-parser';
@@ -379,8 +382,8 @@ export default function MapScreen() {
     const [timeFilterMode, setTimeFilterMode] = useState<'depart' | 'arrive'>('depart');
     const [showTimeoutModal, setShowTimeoutModal] = useState(false);
     const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
-
-  const [from, setFrom] = useState<string>("");
+    const [poiMarkers, setPoiMarkers] = useState<POI[]>([]);
+    const [from, setFrom] = useState<string>("");
     const [to, setTo] = useState<string>("");
     const [fromCoordinates, setFromCoordinates] = useState<Coordinates | null>(null);
     const [toCoordinates, setToCoordinates] = useState<Coordinates | null>(null);
@@ -402,6 +405,9 @@ export default function MapScreen() {
         destinationStopName: string;
         shuttleDurationSeconds: number;
     } | null>(null);
+    const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+    const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
+    const suppressNextCampusCameraSync = useRef(false);
 
     const nextClassDestination = useMemo(() => {
         return resolveNextClassDestination(nextClassResult, points);
@@ -534,6 +540,10 @@ export default function MapScreen() {
 
     useEffect(() => {
         if (!campusMeta) return;
+        if (suppressNextCampusCameraSync.current) {
+            suppressNextCampusCameraSync.current = false;
+            return;
+        }
         cameraRef.current?.setCamera({
             centerCoordinate: campusMeta.center,
             zoomLevel: campusMeta.zoom,
@@ -719,6 +729,19 @@ export default function MapScreen() {
     }, [toCoordinates, campusMetaById, setCampus]);
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
+        const tapPoint = (e as { point?: { x?: number; y?: number } }).point;
+        const blockingFrame = navigationBottomFrame.current;
+        if (
+            tapPoint?.x != null &&
+            tapPoint?.y != null &&
+            blockingFrame &&
+            tapPoint.x >= blockingFrame.x &&
+            tapPoint.x <= blockingFrame.x + blockingFrame.width &&
+            tapPoint.y >= blockingFrame.y &&
+            tapPoint.y <= blockingFrame.y + blockingFrame.height
+        ) {
+            return;
+        }
         const f = e.features[0];
         const point = points.find(p => p.id === f.properties?.id);
         const details = point?.details as BuildingDetails | undefined;
@@ -737,6 +760,31 @@ export default function MapScreen() {
         });
     }, [isNavigating, points]);
 
+    const handleNavigationBottomLayout = useCallback((event: LayoutChangeEvent) => {
+        navigationBottomFrame.current = event.nativeEvent.layout;
+    }, []);
+
+    const handleMapIdle = useCallback((event: any) => {
+        if (isNavigating) return;
+
+        const center =
+            event?.properties?.center ??
+            event?.geometry?.coordinates ??
+            event?.centerCoordinate;
+
+        if (!Array.isArray(center) || center.length < 2) {
+            return;
+        }
+
+        const nearest = getNearestCampus(center[0], center[1], campusMetaById);
+        if (!nearest || nearest === campus) {
+            return;
+        }
+
+        suppressNextCampusCameraSync.current = true;
+        setCampus(nearest);
+    }, [campus, campusMetaById, isNavigating, setCampus]);
+
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
     if (!hydrated || !campusMeta) return <ThemedView style={styles.centered}><ActivityIndicator/></ThemedView>;
@@ -748,6 +796,7 @@ export default function MapScreen() {
                 style={StyleSheet.absoluteFill}
                 logoEnabled={false}
                 scaleBarEnabled={false}
+                onMapIdle={handleMapIdle}
             >
                 <MapboxGL.Camera
                     ref={cameraRef}
@@ -811,7 +860,7 @@ export default function MapScreen() {
               aboveLayerID="road-label"
               style={{
                 fillColor: '#9d1e30',
-                fillOpacity: 0.6,
+                fillOpacity: 0.78,
               }}
             />
 
@@ -831,8 +880,8 @@ export default function MapScreen() {
                             aboveLayerID="campus-buildings-pattern"
                             filter={['==', ['get', 'isUserBuilding'], true]}
                             style={{
-                                fillColor: '#ffffff',
-                                fillOpacity: 0.35,
+                                fillColor: '#F8D7DD',
+                                fillOpacity: 0.42,
                             }}
                         />
 
@@ -841,37 +890,40 @@ export default function MapScreen() {
                             id="campus-buildings-outline"
                             aboveLayerID="campus-buildings-pattern"
                             style={{
-                                lineColor: '#ffffff',
-                                lineWidth: 2,
+                                lineColor: '#6F1120',
+                                lineWidth: 2.2,
                             }}
                         />
                     </MapboxGL.ShapeSource>
                 )}
-                {fromCoordinates &&
-                    <MapboxGL.PointAnnotation
-                        key='fromPoint'
-                        id='fromPoint'
-                        coordinate={fromCoordinates}
-                    >
-                        <View/>
-                    </MapboxGL.PointAnnotation>
-                }
-
                 {toCoordinates &&
                     <MapboxGL.PointAnnotation
                         key='toPoint'
                         id='toPoint'
                         coordinate={toCoordinates}
                     >
-                        <View style={{alignItems: 'center', justifyContent: 'center'}}>
-                            <Text style={{fontSize: 28, color: '#d32f2f'}}>🚩</Text>
-                        </View>
+                        <DestinationPin />
                     </MapboxGL.PointAnnotation>
                 }
+
+                {poiMarkers.length > 0 && poiMarkers.map((poi, index) => (
+                    <MapboxGL.PointAnnotation
+                        key={`poi-${poi.name}-${index}`}
+                        id={`poi-${poi.name}-${index}`}
+                        coordinate={[poi.coordinates.longitude, poi.coordinates.latitude]}
+                        onSelected={() => setSelectedOutdoorPOI(poi)}
+                    >
+                        <View style={styles.poiMarker}>
+                            <Text style={styles.poiMarkerText}>📍</Text>
+                        </View>
+                    </MapboxGL.PointAnnotation>
+                ))}
                 {directions && selectedMode !== 'Shuttle' && (
                     <DirectionsLine
                         directions={directions}
                         infoCardPosition="top"
+                        showStartEndpoint={true}
+                        showEndEndpoint={false}
                     />
                 )}
                 {selectedMode === 'Shuttle' && (
@@ -1019,6 +1071,15 @@ export default function MapScreen() {
                         }}
                     />
                 }
+                    {(!isNavigating && !toCoordinates && !fromCoordinates) &&
+                    <POICategory
+                        userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
+                        radius={0.8}
+                        onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
+                        onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
+                        marginTop={seeDirectionBar ? 11 : 65}
+                    />}
+
                 </>
                 )}
             </View>
@@ -1055,7 +1116,11 @@ export default function MapScreen() {
             ) : null}
 
             {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
-                <View style={styles.navigationBottomContainer}>
+                <View
+                    testID="navigation-bottom-container"
+                    style={styles.navigationBottomContainer}
+                >
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
                     <NavigationBottom
                         campuses={campusMetaById}
                         origin={{
@@ -1069,6 +1134,7 @@ export default function MapScreen() {
                         onDirectionsChange={setDirections}
                         onModeChange={setSelectedMode}
                         onTimeFilterChange={(t, m) => { setTimeFilter(t); setTimeFilterMode(m); }}
+                        onCardLayout={handleNavigationBottomLayout}
                         onStartPress={handleStartPress}
                     />
                 </View>
@@ -1105,8 +1171,12 @@ export default function MapScreen() {
             <LocateMeButton
                 style={styles.locateButton}
                 onPress={async () => {
-                    if (cameraRef.current && userLocation) {
-                        cameraRef.current.setCamera({
+                    if (userLocation) {
+                        const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
+                        if (nearest) {
+                            setCampus(nearest);
+                        }
+                        cameraRef.current?.setCamera({
                             centerCoordinate: userLocation,
                             zoomLevel: Math.max(campusMeta.zoom, 17),
                             animationDuration: 600,
@@ -1128,7 +1198,33 @@ export default function MapScreen() {
                     setShowLocationPrompt(true);
                 }}
             />
-
+            <OutdoorPOICard 
+                poi={selectedOutdoorPOI}
+                userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null} 
+                onClose={() => setSelectedOutdoorPOI(null)}
+                onGetDirections={() => {
+                    if (!selectedOutdoorPOI) return;
+                    setSeeDirectionBar(true); 
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    if (userLocation) {
+                        setFrom("Your location");
+                        setFromCoordinates(userLocation);
+                        fromCoordinatesIsUserLocation.current = true;
+                    }
+                    setSelectedOutdoorPOI(null);
+                }}
+                onStartNavigation={() => {
+                    if (!selectedOutdoorPOI || !userLocation) return;
+                    setTo(selectedOutdoorPOI.name);
+                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
+                    setFrom("Your location");
+                    setFromCoordinates(userLocation);
+                    
+                    handleStartPress(); 
+                    setSelectedOutdoorPOI(null);
+                }}
+            />
             <Modal
                 transparent
                 animationType="fade"
@@ -1178,7 +1274,6 @@ export default function MapScreen() {
         }
     }}
         onDirections={navigateToSelectedBuilding}
-        onStart={navigateToSelectedBuilding} //temporary implementation
       />
 
             <Modal
@@ -1334,6 +1429,42 @@ const styles = StyleSheet.create({
         right: 4,
         bottom: 5,
         zIndex: 15,
+    },
+    poiMarker: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    poiMarkerText: {
+        fontSize: 24,
+    },
+    poiCallout: {
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+    },
+    poiCalloutContainer: {
+        width: 180,
+        minHeight: 60,
+        backgroundColor: '#ffffff',
+        borderRadius: 10,
+        padding: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    poiCalloutTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1a1a1a',
+        marginBottom: 4,
+        flexWrap: 'wrap',
+    },
+    poiCalloutAddress: {
+        fontSize: 11,
+        color: '#666666',
+        lineHeight: 15,
+        flexWrap: 'wrap',
     },
     nextClassStatusContainer: {
         left: 16,

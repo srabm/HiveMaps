@@ -211,12 +211,17 @@ export function convertGoogleMapsResponse(data: any): DirectionsResponse {
         // Google Maps stores transitDetails directly at step level
         if (step.transitDetails) {
             const stopDetails = step.transitDetails.stopDetails;
+            const transitLine = step.transitDetails.transitLine ?? {};
 
             transitDetails = {
                 arrivalTime: stopDetails?.arrivalTime,
                 departureTime: stopDetails?.departureTime,
+                headsign: step.transitDetails.headsign ?? stopDetails?.headsign ?? transitLine?.headsign,
                 stopDetails: stopDetails,
-                transitLine: step.transitDetails.transitLine
+                transitLine: {
+                    ...transitLine,
+                    nameShort: transitLine?.nameShort ?? transitLine?.shortName,
+                },
             };
         }
 

@@ -2,17 +2,17 @@ import {fetchNearestNode} from '@/services/http/indoor-api';
 
 /**
  * Integration tests for indoor-api that call the real backend.
- * These tests require a running backend server and are SKIPPED in CI.
+ * These tests require a running backend server and are SKIPPED unless explicitly enabled.
  *
  * TO RUN LOCALLY:
  *   npm run test:integration
  *
- * These tests will be skipped in GitHub Actions and other CI environments
- * because there is no backend server running in CI.
+ * These tests should only run when a developer explicitly opts in and has
+ * a local backend running.
  */
 
-const isCI = process.env.CI === 'true';
-const describeIntegration = isCI ? describe.skip : describe;
+const shouldRunIntegration = process.env.RUN_INDOOR_API_INTEGRATION === 'true';
+const describeIntegration = shouldRunIntegration ? describe : describe.skip;
 
 describeIntegration('indoor-api integration tests (real backend)', () => {
     beforeAll(() => {
