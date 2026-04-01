@@ -216,6 +216,13 @@ class IndoorDirectionsService(
             .filter { it.label == "Room" && (floor == null || it.floor == floor)}
     }
 
+    fun getEntrances(building: String): List<IndoorNode> {
+        return indoorDirectionsRepository.findIndoorNodesByBuilding(building)
+            .values
+            .filter { it.label == "Entrance" }
+            .sortedBy { it.id }
+    }
+
     private fun getDistance(startLongitude: Double, startLatitude: Double, endLongitude: Double, endLatitude: Double): Double {
         val earthRadius = 6371000.0 //meter
 

@@ -1,6 +1,6 @@
 appId: com.anonymous.mobile
 ---
-- tapOn: Search building or address
+- tapOn: Search building, address, or classroom
 - swipe:
     start: 50%, 50%
     end: 50%, 50%
@@ -9,7 +9,8 @@ appId: com.anonymous.mobile
 - tapOn: Vanier Library
 - tapOn:
     point: 51%,68%
-- tapOn: Directions
+- tapOn:
+    id: "navigate-button"
 - swipe:
     start: 50%, 50%
     end: 50%, 50%

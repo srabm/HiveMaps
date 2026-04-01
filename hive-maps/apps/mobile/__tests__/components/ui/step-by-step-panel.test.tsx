@@ -184,6 +184,16 @@ describe('Normal navigation', () => {
         expect(getByText('Arriving at destination')).toBeTruthy();
     });
 
+    it('renders "Then: Continue" when nextStep instruction is empty', () => {
+        const { getByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                nextStep={makeStep({ instruction: '' })}
+            />
+        );
+        expect(getByText('Then: Continue')).toBeTruthy();
+    });
+
     it('falls back to "Continue" when step instruction is empty', () => {
         const { getAllByText } = render(
             <StepByStepPanel
@@ -247,6 +257,43 @@ describe('Expandable step list', () => {
         fireEvent.press(getByText('Then: Step two'));
         expect(getAllByText('Step one').length).toBeGreaterThanOrEqual(1);
         expect(getAllByText('Step two').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('renders the arrival flag icon for an arrival step in the expanded list', () => {
+        const steps = [
+            makeStep({ instruction: 'Step one' }),
+            makeStep({ instruction: 'Arrive at destination', maneuver: 'arrive' }),
+        ];
+        const { getByText, getAllByTestId } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={steps}
+                currentStep={steps[0]}
+                nextStep={steps[1]}
+                currentStepIndex={0}
+            />
+        );
+        fireEvent.press(getByText('Then: Arrive at destination'));
+        expect(getAllByTestId('icon-flag').length).toBeGreaterThan(0);
+    });
+
+    it('does not render an expanded-row distance when the step distance is zero', () => {
+        const steps = [
+            makeStep({ instruction: 'Step one', distance: 0 }),
+            makeStep({ instruction: 'Step two', maneuver: 'turn', maneuverModifier: 'right' }),
+        ];
+        const { getByText, queryByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={steps}
+                currentStep={steps[0]}
+                nextStep={steps[1]}
+                currentStepIndex={0}
+                distanceToNextTurn={null}
+            />
+        );
+        fireEvent.press(getByText('Then: Step two'));
+        expect(queryByText(/^0 m$/)).toBeNull();
     });
 });
 
@@ -424,6 +471,31 @@ describe('TransitCard', () => {
         );
         expect(getByText('Exit at')).toBeTruthy();
         expect(getByText('McGill')).toBeTruthy();
+    });
+
+    it('renders the transit departure and arrival times', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText(/9:00/i)).toBeTruthy();
+        expect(getByText(/9:05/i)).toBeTruthy();
+    });
+
+    it('does not render transit times when they are absent', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: { name: 'Green Line', nameShort: '24', color: '#16a34a' },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { queryByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(queryByText(/9:00/i)).toBeNull();
+        expect(queryByText(/9:05/i)).toBeNull();
     });
 
     it('falls back to full line name when nameShort is absent', () => {
@@ -702,6 +774,28 @@ describe('TransitCard', () => {
         expect(queryByText('Board at')).toBeNull();
         expect(queryByText('Exit at')).toBeNull();
     });
+
+    it('renders the shuttle ride label when shuttle transit details are active', () => {
+        const shuttleStep = makeStep({
+            instruction: 'Ride the Concordia Shuttle',
+            maneuver: 'depart',
+            transitDetails: {
+                transitLine: { name: 'Concordia Shuttle', nameShort: 'Shuttle', color: '#e5a712' },
+                stopDetails: {
+                    departureStop: { name: 'Loyola Stop' },
+                    arrivalStop: { name: 'SGW Stop' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                currentStep={shuttleStep}
+                shuttlePhase="shuttle"
+            />
+        );
+        expect(getByText('Ride the Concordia Shuttle')).toBeTruthy();
+    });
 });
 
 // ─── Bottom stats bar ─────────────────────────────────────────────────────────
@@ -752,6 +846,21 @@ describe('Bottom stats bar', () => {
 });
 
 // ─── formatDist helper (via rendered output) ──────────────────────────────────
+
+describe('Maneuver fallback', () => {
+    it('falls back to the straight icon and warns for an unknown maneuver', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const { getByTestId } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                currentStep={makeStep({ maneuver: 'mystery-maneuver' })}
+            />
+        );
+        expect(getByTestId('icon-straight')).toBeTruthy();
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+    });
+});
 
 describe('formatDist display values', () => {
     // Both props set to the same value so the same text appears in both the
