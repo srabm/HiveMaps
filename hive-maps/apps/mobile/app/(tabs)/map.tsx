@@ -29,7 +29,7 @@ import {
     addDirectionsListener,
     getDirections,
 } from '@/services/maps/directions-api-adapter';
-import {fetchIndoorDirections, fetchIndoorEntrances, type IndoorDirectionsResponse, type IndoorNodeResponse} from '@/services/http/indoor-api';
+import {fetchIndoorDirections, fetchIndoorEntrances, fetchIndoorRooms, type IndoorDirectionsResponse, type IndoorNodeResponse} from '@/services/http/indoor-api';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, getNearestCampus, type ValidationResult} from '@/services/maps/route-validator';
@@ -201,6 +201,72 @@ type ResolvedNextClassDestination = {
 
 function getBuildingCodeFromRoomCode(roomCode: string): string {
     return roomCode.split('-')[0]?.toUpperCase() ?? '';
+}
+
+function getRoomNumberFromRoomCode(roomCode: string): string {
+    return roomCode.split('-').slice(1).join('-').toUpperCase();
+}
+
+function normalizeIndoorNodeIdentifier(value: string): string {
+    let normalized = '';
+
+    for (const character of value.toUpperCase()) {
+        const characterCode = character.charCodeAt(0);
+        const isAlphaNumeric =
+            (characterCode >= 48 && characterCode <= 57) ||
+            (characterCode >= 65 && characterCode <= 90);
+
+        if (isAlphaNumeric) {
+            normalized += character;
+        }
+    }
+
+    return normalized;
+}
+
+function buildIndoorNodeIdCandidates(buildingCode: string, roomNumber: string): string[] {
+    const normalizedBuildingCode = buildingCode.trim().toUpperCase();
+    const normalizedRoomNumber = roomNumber.trim().toUpperCase();
+    if (!normalizedBuildingCode || !normalizedRoomNumber) {
+        return [];
+    }
+
+    const candidates = new Set<string>([
+        `${normalizedBuildingCode}${normalizedRoomNumber}`,
+    ]);
+
+    if (!normalizedRoomNumber.includes('.') && normalizedRoomNumber.length > 0) {
+        candidates.add(`${normalizedBuildingCode}${normalizedRoomNumber[0]}.${normalizedRoomNumber}`);
+    }
+
+    return [...candidates];
+}
+
+async function resolveIndoorRoomDestination(roomCode: string): Promise<(ClassroomDestination & { coordinates: Coordinates }) | null> {
+    const buildingCode = getBuildingCodeFromRoomCode(roomCode);
+    const roomNumber = getRoomNumberFromRoomCode(roomCode);
+    if (!buildingCode || !roomNumber) {
+        return null;
+    }
+
+    const candidateIds = new Set(
+        buildIndoorNodeIdCandidates(buildingCode, roomNumber).map(normalizeIndoorNodeIdentifier)
+    );
+    if (candidateIds.size === 0) {
+        return null;
+    }
+
+    const rooms = await fetchIndoorRooms(buildingCode);
+    const matchedRoom = rooms.find((room) => candidateIds.has(normalizeIndoorNodeIdentifier(room.id)));
+    if (!matchedRoom) {
+        return null;
+    }
+
+    return {
+        buildingCode,
+        nodeId: matchedRoom.id,
+        coordinates: [matchedRoom.longitude, matchedRoom.latitude],
+    };
 }
 
 function normalizeBuildingName(value: string): string {
@@ -591,11 +657,11 @@ export default function MapScreen() {
         routeAutoZoomDoneRef.current = false;
     }
 
-    function startDirectionsToNextClass() {
+    async function startDirectionsToNextClass() {
         if (!nextClassDestination) return;
         setStartingPointAsUserCoordinates();
+        clearDestinationRouting();
         setTo(nextClassDestination.roomCode);
-        setToCoordinates(nextClassDestination.coordinates);
         setCampus(nextClassDestination.campus);
         setSeeDirectionBar(true);
         setDismissedNextClassEventId(nextClassDestination.eventId);
@@ -605,6 +671,22 @@ export default function MapScreen() {
             zoomLevel: 18,
             animationDuration: 800,
         });
+
+        try {
+            const indoorDestination = await resolveIndoorRoomDestination(nextClassDestination.roomCode);
+            if (indoorDestination) {
+                setClassroomDestination({
+                    buildingCode: indoorDestination.buildingCode,
+                    nodeId: indoorDestination.nodeId,
+                });
+                setToCoordinates(indoorDestination.coordinates);
+                return;
+            }
+        } catch (error) {
+            console.warn('Failed to resolve next class indoor room', error);
+        }
+
+        setToCoordinates(nextClassDestination.coordinates);
     }
 
     function navigateToSelectedBuilding() {
@@ -1636,7 +1718,7 @@ export default function MapScreen() {
                 </View>
             ) : null}
 
-            {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && (
+            {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && routeFromCoordinates && routeToCoordinates && (
                 <View
                     testID="navigation-bottom-container"
                     style={styles.navigationBottomContainer}

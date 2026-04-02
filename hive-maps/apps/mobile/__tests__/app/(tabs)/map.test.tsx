@@ -300,6 +300,7 @@ jest.mock('@/state/indoor-route-handoff', () => ({
 }));
 
 jest.mock('@/services/http/indoor-api', () => ({
+    fetchIndoorRooms: jest.fn().mockResolvedValue([]),
     fetchIndoorDirections: jest.fn().mockResolvedValue([]),
     fetchIndoorEntrances: jest.fn().mockResolvedValue([]),
 }));
@@ -315,7 +316,7 @@ import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-val
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
 import { View } from 'react-native/Libraries/Components/View/View';
-import { fetchIndoorDirections, fetchIndoorEntrances } from '@/services/http/indoor-api';
+import { fetchIndoorDirections, fetchIndoorEntrances, fetchIndoorRooms } from '@/services/http/indoor-api';
 import { useNextClass } from '@/hooks/use-next-class';
 import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
 
@@ -416,6 +417,9 @@ beforeEach(() => {
     (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
     (useGoogleCalendarEvents as jest.Mock).mockReturnValue({ events: [], error: null, status: 'loaded' });
     (useNextClass as jest.Mock).mockReturnValue({ result: { status: 'none' }, lastChecked: null });
+    (fetchIndoorRooms as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorEntrances as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorDirections as jest.Mock).mockResolvedValue([]);
     // jest.clearAllMocks() wipes implementations set in jest.mock factories — restore them.
     (validateCampusRoute as jest.Mock).mockReturnValue({
         valid: true,
@@ -1132,8 +1136,73 @@ describe('next class prompt', () => {
             fireEvent.press(utils.getByTestId('next-class-prompt-start'));
         });
 
-        expect(utils.getByTestId('direction-bar')).toBeTruthy();
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
         expect(utils.getByText('Your location')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+    it('resolves an indoor classroom destination for the next class when room data is available', async () => {
+        const setCampus = jest.fn();
+        const indoorRoom = {
+            id: 'H9.920',
+            label: 'Room',
+            wheelchairAccessible: true,
+            floor: '9',
+            building: 'H',
+            longitude: -73.57872,
+            latitude: 45.49703,
+        };
+        const entrance = {
+            id: 'H_ENTRANCE',
+            label: 'Entrance',
+            wheelchairAccessible: true,
+            floor: '1',
+            building: 'H',
+            longitude: -73.57868,
+            latitude: 45.49697,
+        };
+
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+        (fetchIndoorRooms as jest.Mock).mockResolvedValue([indoorRoom]);
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([entrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk inside', nodes: [entrance, indoorRoom] },
+        ]);
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+
+        await waitFor(() => {
+            expect(fetchIndoorRooms).toHaveBeenCalledWith('H');
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalledWith('H', 'H_ENTRANCE', 'H9.920');
+        });
+
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
         expect(utils.getByText('H-920')).toBeTruthy();
         expect(setCampus).toHaveBeenCalledWith('SGW');
     });
