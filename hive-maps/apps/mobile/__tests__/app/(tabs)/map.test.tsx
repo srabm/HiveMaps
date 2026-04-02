@@ -171,7 +171,7 @@ jest.mock('@/components/campus-badge', () => ({
 jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
-jest.mock('@/components/directions-bars', () => {
+jest.mock('@/components/search-bar', () => {
     const { View } = require('react-native');
     return {
         __esModule: true,
