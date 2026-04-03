@@ -23,6 +23,7 @@ type POICategoryChipsProps = {
     onSelectCategory?: (category: string, pois: POI[]) => void;
     onClearCategory?: () => void;
     marginTop?: number;
+    clearTrigger?: number;
 };
 
 
@@ -37,6 +38,7 @@ export function POICategory({
                                 onSelectCategory,
                                 onClearCategory,
                                 marginTop,
+                                clearTrigger,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const [radiusKm] = useState<string>(String(radius ?? 1));
@@ -44,7 +46,10 @@ export function POICategory({
     const [maxLat,setMaxLat] = useState<number>(0);
     const [minLon,setMinLon] = useState<number>(0);
     const [maxLon,setMaxLon] = useState<number>(0);
-
+    useEffect(() => {
+        if (!clearTrigger) return;
+        handleClearActive();
+    }, [clearTrigger]);
     useEffect(() => {
         if (!userLocation ) return;
         const getBoundaries = (coordinates:[number, number] , distanceFromCenterToTheBorder:number)=> {

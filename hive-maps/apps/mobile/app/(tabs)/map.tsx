@@ -360,6 +360,8 @@ export default function MapScreen() {
         mapsAdapter,
         error,
     } = useNavigationController();
+    const [poiClearTrigger, setPoiClearTrigger] = useState(0);
+    const clearPOICategory = () => setPoiClearTrigger(t => t + 1);
     const colorScheme = useColorScheme();
     const cameraRef = useRef<MapboxGL.Camera>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
@@ -1305,6 +1307,7 @@ export default function MapScreen() {
                         }}
                         onSelectBuilding={(mapLocation, coordinates) => {
                             setTo(getSelectedLocationLabel(mapLocation));
+                            clearPOICategory();
                             setClassroomDestination(toClassroomDestination(mapLocation));
                             if (!cameraRef.current) return;
                             if (coordinates) {
@@ -1423,6 +1426,7 @@ export default function MapScreen() {
                         onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
                         onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
                         marginTop={seeDirectionBar ? 11 : 65}
+                        clearTrigger={poiClearTrigger}
                     />}
 
                 </>
