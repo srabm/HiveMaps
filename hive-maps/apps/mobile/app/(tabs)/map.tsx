@@ -211,7 +211,10 @@ function normalizeIndoorNodeIdentifier(value: string): string {
     let normalized = '';
 
     for (const character of value.toUpperCase()) {
-        const characterCode = character.charCodeAt(0);
+        const characterCode = character.codePointAt(0);
+        if (characterCode === undefined) {
+            continue;
+        }
         const isAlphaNumeric =
             (characterCode >= 48 && characterCode <= 57) ||
             (characterCode >= 65 && characterCode <= 90);
@@ -293,7 +296,10 @@ function normalizeBuildingName(value: string): string {
             continue;
         }
 
-        const characterCode = character.charCodeAt(0);
+        const characterCode = character.codePointAt(0);
+        if (characterCode === undefined) {
+            continue;
+        }
         const isAlphaNumeric =
             (characterCode >= 48 && characterCode <= 57) ||
             (characterCode >= 65 && characterCode <= 90);
@@ -349,13 +355,14 @@ function resolveNextClassDestination(
         return null;
     }
 
-    const matchingPoint = parsedLocation.buildingCode
-        ? points.find(
+    let matchingPoint: ReturnType<typeof useNavigationController>['points'][number] | undefined;
+    if (parsedLocation.buildingCode) {
+        matchingPoint = points.find(
             (point) => point.building.code.toUpperCase() === parsedLocation.buildingCode
-        )
-        : parsedLocation.buildingName
-            ? findBuildingPointByName(parsedLocation.buildingName, points)
-            : undefined;
+        );
+    } else if (parsedLocation.buildingName) {
+        matchingPoint = findBuildingPointByName(parsedLocation.buildingName, points);
+    }
 
     if (!matchingPoint) {
         return null;
@@ -1718,7 +1725,7 @@ export default function MapScreen() {
                 </View>
             ) : null}
 
-            {fromCoordinates && toCoordinates && routeValidation?.valid && !isNavigating && routeFromCoordinates && routeToCoordinates && (
+            {fromCoordinates && toCoordinates && (routeValidation?.valid || shouldStartDestinationIndoorOnly) && !isNavigating && routeFromCoordinates && routeToCoordinates && (
                 <View
                     testID="navigation-bottom-container"
                     style={styles.navigationBottomContainer}

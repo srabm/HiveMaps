@@ -3,7 +3,6 @@ import {ThemedText} from '@/components/themed-text';
 import {ThemedView} from '@/components/themed-view';
 import {Colors, Fonts} from '@/constants/theme';
 import {useColorScheme} from '@/hooks/use-color-scheme';
-import { setConnected } from '@rnmapbox/maps';
 
 type NextClassPromptProps = {
     body: string;
