@@ -45,6 +45,14 @@ jest.mock('@/hooks/use-step-navigator', () => ({
     useStepNavigator: jest.fn(),
 }));
 
+jest.mock('@/hooks/use-google-calendar-events', () => ({
+    useGoogleCalendarEvents: jest.fn(),
+}));
+
+jest.mock('@/hooks/use-next-class', () => ({
+    useNextClass: jest.fn(),
+}));
+
 jest.mock('@/components/ui/step-by-step-panel', () => {
     const { View, Text, Pressable } = require('react-native');
     return {
@@ -174,23 +182,57 @@ jest.mock('@/components/search-bar', () => {
     };
 });
 jest.mock('@/components/directions-bars', () => {
-    const { View } = require('react-native');
+    const { View, Text } = require('react-native');
     return {
         __esModule: true,
         default: (props: any) => {
             mockDirectionBarProps = props;
-            return <View testID="direction-bar-mock" />;
+            const { fromValue, toValue } = props;
+            return (
+            <View testID="direction-bar-mock">
+                <Text>{ fromValue} </Text>
+                <Text>{ toValue}</Text>
+            </View>
+            );
         },
     };
 });
 jest.mock('@/components/building-info-modal', () => {
     const { Pressable, View } = require('react-native');
     return {
-        BuildingInfoModal: ({ onDirections, onClose, onIndoorMap }: any) => (
+        BuildingInfoModal: ({ onDirections, onClose, onIndoorMap, onStart }: any) => (
             <View>
                 <Pressable testID="building-directions-btn" onPress={onDirections} />
                 <Pressable testID="building-close-btn" onPress={onClose} />
                 <Pressable testID="building-indoor-btn" onPress={onIndoorMap} />
+                <Pressable testID="building-start-btn" onPress={onStart} />
+
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
             </View>
         ),
     };
@@ -258,6 +300,7 @@ jest.mock('@/state/indoor-route-handoff', () => ({
 }));
 
 jest.mock('@/services/http/indoor-api', () => ({
+    fetchIndoorRooms: jest.fn().mockResolvedValue([]),
     fetchIndoorDirections: jest.fn().mockResolvedValue([]),
     fetchIndoorEntrances: jest.fn().mockResolvedValue([]),
 }));
@@ -273,7 +316,10 @@ import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-val
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
 import { View } from 'react-native/Libraries/Components/View/View';
-import { fetchIndoorDirections, fetchIndoorEntrances } from '@/services/http/indoor-api';
+import { fetchIndoorDirections, fetchIndoorEntrances, fetchIndoorRooms } from '@/services/http/indoor-api';
+import { useNextClass } from '@/hooks/use-next-class';
+import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
+
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -369,6 +415,11 @@ beforeEach(() => {
     (useLiveLocation as jest.Mock).mockReturnValue({ location: null });
     (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav());
     (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
+    (useGoogleCalendarEvents as jest.Mock).mockReturnValue({ events: [], error: null, status: 'loaded' });
+    (useNextClass as jest.Mock).mockReturnValue({ result: { status: 'none' }, lastChecked: null });
+    (fetchIndoorRooms as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorEntrances as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorDirections as jest.Mock).mockResolvedValue([]);
     // jest.clearAllMocks() wipes implementations set in jest.mock factories — restore them.
     (validateCampusRoute as jest.Mock).mockReturnValue({
         valid: true,
@@ -1027,6 +1078,345 @@ function renderWithBuilding() {
     return render(<MapScreen />);
 }
 
+describe('next class prompt', () => {
+    it('renders a prompt when the next class is in a known building', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+    });
+    it('starts directions to the next class when the prompt button is pressed', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+        });
+
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
+        expect(utils.getByText('Your location')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+    it('resolves an indoor classroom destination for the next class when room data is available', async () => {
+        const setCampus = jest.fn();
+        const indoorRoom = {
+            id: 'H9.920',
+            label: 'Room',
+            wheelchairAccessible: true,
+            floor: '9',
+            building: 'H',
+            longitude: -73.57872,
+            latitude: 45.49703,
+        };
+        const entrance = {
+            id: 'H_ENTRANCE',
+            label: 'Entrance',
+            wheelchairAccessible: true,
+            floor: '1',
+            building: 'H',
+            longitude: -73.57868,
+            latitude: 45.49697,
+        };
+
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+        (fetchIndoorRooms as jest.Mock).mockResolvedValue([indoorRoom]);
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([entrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk inside', nodes: [entrance, indoorRoom] },
+        ]);
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+
+        await waitFor(() => {
+            expect(fetchIndoorRooms).toHaveBeenCalledWith('H');
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalledWith('H', 'H_ENTRANCE', 'H9.920');
+        });
+
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+    it('shows a visible no-location status when the next class location is invalid', () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(getByText('No location found')).toBeTruthy();
+        expect(
+            getByText("We couldn't find a room in COMP 445 Tutorial. Update the event location to continue.")
+        ).toBeTruthy();
+    });
+    it('renders a prompt for a builder-style location by resolving the building from points', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText, queryByText} = render(<MapScreen />);
+
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+        expect(queryByText('No location found')).toBeNull();
+    });
+    it('matches a dataset building name that contains the parsed builder-style name', () => {
+        const aliasPoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'Henry F. Hall Building',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [aliasPoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Henry F. Hall Building.')
+        ).toBeTruthy();
+    });
+    it('matches when the parsed builder-style name contains the dataset building name', () => {
+        const shortNamePoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'John Molson',
+                code: 'MB',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [shortNamePoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMM 305 Lecture',
+                    location: 'Sir George Williams Campus - John Molson School of Business Rm 2.130',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to COMM 305 Lecture. Your next class is in Room MB-2.130, John Molson.')
+        ).toBeTruthy();
+    });
+    it('dismisses the no-location status card', async () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-no-location-dismiss'));
+        });
+
+        expect(utils.queryByText('No location found')).toBeNull();
+    });
+    it('does not render a prompt when the next class building cannot be resolved', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'XX-920',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'Unknown Building Class',
+                    location: 'XX-920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {queryByText} = render(<MapScreen />);
+
+        expect(queryByText('Your next class is coming up!')).toBeNull();
+    });
+    it('re-shows the next class prompt when a different event becomes active after dismissal', async () => {
+        let currentResult: any = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T09:30:00.000Z'),
+            event: {
+                id: 'event1',
+                summary: 'SOEN 341 Tutorial',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                end: { dateTime: '2025-01-15T10:20:00.000Z' },
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockImplementation(() => ({
+            result: currentResult,
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        }));
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-dismiss'));
+        });
+
+        expect(utils.queryByText('Your next class is coming up!')).toBeNull();
+
+        currentResult = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T10:30:00.000Z'),
+            event: {
+                id: 'event2',
+                summary: 'COMP 472 Lecture',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T10:30:00.000Z' },
+                end: { dateTime: '2025-01-15T11:45:00.000Z' },
+            },
+        };
+
+        utils.rerender(<MapScreen />);
+
+        expect(utils.getByText('Your next class is coming up!')).toBeTruthy();
+        expect(
+            utils.getByText('Navigate to COMP 472 Lecture. Your next class is in Room H-920, Hall Building.')
+        ).toBeTruthy();
+    });
+});
 /**
  * Full sequence to get NavigationOverlay mounted:
  * 1. Render with a building point (ShapeSource active)

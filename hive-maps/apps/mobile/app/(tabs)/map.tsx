@@ -18,6 +18,7 @@ import MapSearchBar from '@/components/search-bar';
 import {Coordinates, MapLocation} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
 import {NavigationBottom} from "@/components/ui/navigation-bottom";
+import { NextClassPrompt } from '@/components/next-class-prompt';
 import {
     DirectionsResponse,
     DirectionsRequest,
@@ -28,7 +29,7 @@ import {
     addDirectionsListener,
     getDirections,
 } from '@/services/maps/directions-api-adapter';
-import {fetchIndoorDirections, fetchIndoorEntrances, type IndoorDirectionsResponse, type IndoorNodeResponse} from '@/services/http/indoor-api';
+import {fetchIndoorDirections, fetchIndoorEntrances, fetchIndoorRooms, type IndoorDirectionsResponse, type IndoorNodeResponse} from '@/services/http/indoor-api';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleRouteOverlay} from '@/components/ui/shuttle-route-overlay';
 import {validateCampusRoute, getNearestCampus, type ValidationResult} from '@/services/maps/route-validator';
@@ -41,6 +42,9 @@ import { consumeCompletedDestinationIndoorSession, consumeCompletedOriginIndoorS
 import {POICategory,type POI} from "@/components/ui/POICategory";
 import { OutdoorPOICard } from '@/components/ui/outdoor-poi-card';
 import { DestinationPin } from '@/components/ui/destination-pin';
+import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
+import { useNextClass } from '@/hooks/use-next-class';
+import { parseLocationReference, type NextClassResult } from '@/services/next-class-parser';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -186,6 +190,195 @@ function buildIndoorSummary(steps: IndoorDirectionsResponse[] | null): Direction
     };
 }
 
+type ResolvedNextClassDestination = {
+    buildingName: string;
+    campus: string;
+    coordinates: Coordinates;
+    eventId: string;
+    eventSummary: string;
+    roomCode: string;
+};
+
+function getBuildingCodeFromRoomCode(roomCode: string): string {
+    return roomCode.split('-')[0]?.toUpperCase() ?? '';
+}
+
+function getRoomNumberFromRoomCode(roomCode: string): string {
+    return roomCode.split('-').slice(1).join('-').toUpperCase();
+}
+
+function normalizeIndoorNodeIdentifier(value: string): string {
+    let normalized = '';
+
+    for (const character of value.toUpperCase()) {
+        const characterCode = character.codePointAt(0);
+        if (characterCode === undefined) {
+            continue;
+        }
+        const isAlphaNumeric =
+            (characterCode >= 48 && characterCode <= 57) ||
+            (characterCode >= 65 && characterCode <= 90);
+
+        if (isAlphaNumeric) {
+            normalized += character;
+        }
+    }
+
+    return normalized;
+}
+
+function buildIndoorNodeIdCandidates(buildingCode: string, roomNumber: string): string[] {
+    const normalizedBuildingCode = buildingCode.trim().toUpperCase();
+    const normalizedRoomNumber = roomNumber.trim().toUpperCase();
+    if (!normalizedBuildingCode || !normalizedRoomNumber) {
+        return [];
+    }
+
+    const candidates = new Set<string>([
+        `${normalizedBuildingCode}${normalizedRoomNumber}`,
+    ]);
+
+    if (!normalizedRoomNumber.includes('.') && normalizedRoomNumber.length > 0) {
+        candidates.add(`${normalizedBuildingCode}${normalizedRoomNumber[0]}.${normalizedRoomNumber}`);
+    }
+
+    return [...candidates];
+}
+
+async function resolveIndoorRoomDestination(roomCode: string): Promise<(ClassroomDestination & { coordinates: Coordinates }) | null> {
+    const buildingCode = getBuildingCodeFromRoomCode(roomCode);
+    const roomNumber = getRoomNumberFromRoomCode(roomCode);
+    if (!buildingCode || !roomNumber) {
+        return null;
+    }
+
+    const candidateIds = new Set(
+        buildIndoorNodeIdCandidates(buildingCode, roomNumber).map(normalizeIndoorNodeIdentifier)
+    );
+    if (candidateIds.size === 0) {
+        return null;
+    }
+
+    const rooms = await fetchIndoorRooms(buildingCode);
+    const matchedRoom = rooms.find((room) => candidateIds.has(normalizeIndoorNodeIdentifier(room.id)));
+    if (!matchedRoom) {
+        return null;
+    }
+
+    return {
+        buildingCode,
+        nodeId: matchedRoom.id,
+        coordinates: [matchedRoom.longitude, matchedRoom.latitude],
+    };
+}
+
+function normalizeBuildingName(value: string): string {
+    let normalized = '';
+    let inParentheses = false;
+    let previousWasSpace = true;
+
+    for (const character of value.toUpperCase()) {
+        if (character === '(') {
+            inParentheses = true;
+            if (!previousWasSpace && normalized.length > 0) {
+                normalized += ' ';
+                previousWasSpace = true;
+            }
+            continue;
+        }
+
+        if (character === ')') {
+            inParentheses = false;
+            continue;
+        }
+
+        if (inParentheses) {
+            continue;
+        }
+
+        const characterCode = character.codePointAt(0);
+        if (characterCode === undefined) {
+            continue;
+        }
+        const isAlphaNumeric =
+            (characterCode >= 48 && characterCode <= 57) ||
+            (characterCode >= 65 && characterCode <= 90);
+        if (isAlphaNumeric) {
+            normalized += character;
+            previousWasSpace = false;
+            continue;
+        }
+
+        if (!previousWasSpace && normalized.length > 0) {
+            normalized += ' ';
+            previousWasSpace = true;
+        }
+    }
+
+    return normalized.trim();
+}
+
+function findBuildingPointByName(
+    buildingName: string,
+    points: ReturnType<typeof useNavigationController>['points']
+): ReturnType<typeof useNavigationController>['points'][number] | undefined {
+    const normalizedTarget = normalizeBuildingName(buildingName);
+
+    return points.find((point) => {
+        const normalizedCandidate = normalizeBuildingName(point.building.name);
+        return (
+            normalizedCandidate === normalizedTarget ||
+            normalizedCandidate.includes(normalizedTarget) ||
+            normalizedTarget.includes(normalizedCandidate)
+        );
+    });
+}
+
+function resolveNextClassDestination(
+    nextClassResult: NextClassResult,
+    points: ReturnType<typeof useNavigationController>['points']
+): ResolvedNextClassDestination | null {
+    if (nextClassResult.status === 'none') {
+        return null;
+    }
+
+    const parsedLocation = nextClassResult.status === 'found'
+        ? {
+            buildingCode: getBuildingCodeFromRoomCode(nextClassResult.roomCode),
+            buildingName: null,
+            roomCode: nextClassResult.roomCode,
+            roomNumber: nextClassResult.roomCode.split('-').slice(1).join('-') || null,
+        }
+        : parseLocationReference(nextClassResult.event.location);
+
+    if (!parsedLocation?.roomNumber) {
+        return null;
+    }
+
+    let matchingPoint: ReturnType<typeof useNavigationController>['points'][number] | undefined;
+    if (parsedLocation.buildingCode) {
+        matchingPoint = points.find(
+            (point) => point.building.code.toUpperCase() === parsedLocation.buildingCode
+        );
+    } else if (parsedLocation.buildingName) {
+        matchingPoint = findBuildingPointByName(parsedLocation.buildingName, points);
+    }
+
+    if (!matchingPoint) {
+        return null;
+    }
+
+    const roomCode = parsedLocation.roomCode ?? `${matchingPoint.building.code.toUpperCase()}-${parsedLocation.roomNumber}`;
+
+    return {
+        buildingName: matchingPoint.building.name,
+        campus: matchingPoint.building.campus,
+        coordinates: matchingPoint.building.center,
+        eventId: nextClassResult.event.id,
+        eventSummary: nextClassResult.event.summary ?? 'Your next class',
+        roomCode,
+    };
+}
 
 // ─── NavigationOverlay ────────────────────────────────────────────────────────
 // Extracted as its own component so hooks (useLiveLocation, useStepNavigator)
@@ -362,6 +555,8 @@ export default function MapScreen() {
     } = useNavigationController();
     const colorScheme = useColorScheme();
     const cameraRef = useRef<MapboxGL.Camera>(null);
+    const {events: calendarEvents} = useGoogleCalendarEvents();
+    const {result: nextClassResult} = useNextClass({events: calendarEvents});
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
     const [locationPermissionStatus, setLocationPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
     const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -398,6 +593,7 @@ export default function MapScreen() {
     const [navigationUsesLiveLocation, setNavigationUsesLiveLocation] = useState(false);
     const activeDestinationCoordinates = routeToCoordinates ?? toCoordinates;
     const destinationEntranceTarget = navigationOrigin ?? routeFromCoordinates ?? fromCoordinates;
+    const [dismissedNextClassEventId, setDismissedNextClassEventId] = useState<string | null>(null);
     // Snapshotted at onStartPress — never mutated by live hook re-fetches during navigation.
     const [activeSteps, setActiveSteps] = useState<Step[]>([]);
     const [activeShuttlePhaseBoundaries, setActiveShuttlePhaseBoundaries] = useState<ShuttlePhaseBoundaries | undefined>(undefined);
@@ -421,6 +617,25 @@ export default function MapScreen() {
     // programmatic camera moves during origin/destination selection don't
     // prematurely suppress the route auto-zoom.
     const routeAutoZoomDoneRef = useRef(false);
+
+    const nextClassDestination = useMemo(() => {
+        return resolveNextClassDestination(nextClassResult, points);
+    }, [nextClassResult, points]);
+
+    const activeNextClassEventId = nextClassResult.status === 'none'
+        ? null
+        : nextClassResult.event.id;
+
+    useEffect(() => {
+        if (!activeNextClassEventId) {
+            setDismissedNextClassEventId(null);
+            return;
+        }
+
+        if (dismissedNextClassEventId && dismissedNextClassEventId !== activeNextClassEventId) {
+            setDismissedNextClassEventId(null);
+        }
+    }, [activeNextClassEventId, dismissedNextClassEventId]);
 
     function setStartingPointAsUserCoordinates() {
         setFrom('Your location');
@@ -447,6 +662,38 @@ export default function MapScreen() {
         setIndoorBeeCoordinates(null);
         userHasManuallyPanned.current = false;
         routeAutoZoomDoneRef.current = false;
+    }
+
+    async function startDirectionsToNextClass() {
+        if (!nextClassDestination) return;
+        setStartingPointAsUserCoordinates();
+        clearDestinationRouting();
+        setTo(nextClassDestination.roomCode);
+        setCampus(nextClassDestination.campus);
+        setSeeDirectionBar(true);
+        setDismissedNextClassEventId(nextClassDestination.eventId);
+        setSelectedBuilding(null);
+        cameraRef.current?.setCamera({
+            centerCoordinate: nextClassDestination.coordinates,
+            zoomLevel: 18,
+            animationDuration: 800,
+        });
+
+        try {
+            const indoorDestination = await resolveIndoorRoomDestination(nextClassDestination.roomCode);
+            if (indoorDestination) {
+                setClassroomDestination({
+                    buildingCode: indoorDestination.buildingCode,
+                    nodeId: indoorDestination.nodeId,
+                });
+                setToCoordinates(indoorDestination.coordinates);
+                return;
+            }
+        } catch (error) {
+            console.warn('Failed to resolve next class indoor room', error);
+        }
+
+        setToCoordinates(nextClassDestination.coordinates);
     }
 
     function navigateToSelectedBuilding() {
@@ -735,6 +982,25 @@ export default function MapScreen() {
     }, []);
 
     const theme = Colors[colorScheme ?? 'light'];
+    const shouldShowNextClassPrompt = Boolean(
+        !isNavigating &&
+        !seeDirectionBar &&
+        nextClassDestination &&
+        dismissedNextClassEventId !== nextClassDestination.eventId
+    );
+    const shouldShowNoLocationStatus = Boolean(
+        !isNavigating &&
+        !seeDirectionBar &&
+        nextClassResult.status === 'no_location' &&
+        !nextClassDestination &&
+        dismissedNextClassEventId !== nextClassResult.event.id
+    );
+    const nextClassPromptBody = nextClassDestination
+        ? `Navigate to ${nextClassDestination.eventSummary}. Your next class is in Room ${nextClassDestination.roomCode}, ${nextClassDestination.buildingName}.`
+        : null;
+    const nextClassNoLocationBody = nextClassResult.status === 'no_location'
+        ? `We couldn't find a room in ${nextClassResult.event.summary ?? 'your next class'}. Update the event location to continue.`
+        : null;
 
   // --- FEATURE BUILDER ---
   const polygonFeatures = useMemo(() => buildPolygonFeatures(points, userLocation), [points, userLocation]);
@@ -1428,7 +1694,38 @@ export default function MapScreen() {
                 )}
             </View>
 
-            {routeFromCoordinates && routeToCoordinates && (routeValidation?.valid || shouldStartDestinationIndoorOnly) && !isNavigating && !activeIndoorSegment && (
+            {shouldShowNextClassPrompt && nextClassPromptBody ? (
+                <NextClassPrompt
+                    body={nextClassPromptBody}
+                    onDismiss={() => setDismissedNextClassEventId(nextClassDestination?.eventId ?? null)}
+                    onStartDirections={startDirectionsToNextClass}
+                    title='Your next class is coming up!'
+                />
+            ): null}
+
+            {shouldShowNoLocationStatus && nextClassNoLocationBody ? (
+                <View pointerEvents='box-none' style={styles.nextClassStatusContainer}>
+                    <ThemedView
+                        style={[
+                            styles.nextClassStatusCard,
+                            {backgroundColor: theme.background},
+                        ]}
+                    >
+                        <ThemedText style={styles.nextClassStatusTitle}>No location found</ThemedText>
+                        <ThemedText style={styles.nextClassStatusBody}>{nextClassNoLocationBody}</ThemedText>
+                        <Pressable
+                            accessibilityRole='button'
+                            onPress={() => setDismissedNextClassEventId(nextClassResult.status === 'no_location' ? nextClassResult.event.id : null)}
+                            style={styles.nextClassStatusButton}
+                            testID='next-class-no-location-dismiss'
+                        >
+                            <ThemedText style={styles.nextClassStatusButtonText}>Dismiss</ThemedText>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            ) : null}
+
+            {fromCoordinates && toCoordinates && (routeValidation?.valid || shouldStartDestinationIndoorOnly) && !isNavigating && routeFromCoordinates && routeToCoordinates && (
                 <View
                     testID="navigation-bottom-container"
                     style={styles.navigationBottomContainer}
@@ -1789,5 +2086,46 @@ const styles = StyleSheet.create({
         color: '#666666',
         lineHeight: 15,
         flexWrap: 'wrap',
+    },
+    nextClassStatusContainer: {
+        left: 16,
+        position: 'absolute',
+        right: 16,
+        top: '30%',
+        zIndex: 20,
+    },
+    nextClassStatusCard: {
+        borderRadius: 24,
+        elevation: 12,
+        paddingHorizontal: 22,
+        paddingVertical: 18,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 10},
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+    },
+    nextClassStatusTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 18,
+        textAlign: 'center',
+    },
+    nextClassStatusBody: {
+        fontSize: 15,
+        lineHeight: 22,
+        marginBottom: 18,
+        textAlign: 'center',
+    },
+    nextClassStatusButton: {
+        alignSelf: 'stretch',
+        backgroundColor: '#5b5b5b',
+        borderRadius: 14,
+        paddingVertical: 14,
+    },
+    nextClassStatusButtonText: {
+        color: '#ffffff',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
     },
 });
