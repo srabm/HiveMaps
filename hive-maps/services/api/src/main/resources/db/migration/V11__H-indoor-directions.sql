@@ -934,9 +934,38 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('H9_E295', 'E295', true, 'H9.J35', 'H9.J42', 'H', 7.276664201416841),
 ('H9_E296', 'E296', true, 'H9.J42', 'H9.J35', 'H', 7.276664201416841),
 ('H9_E297', 'E297', true, 'H9.J42', 'H9.J41', 'H', 5.166516686311854),
-('H9_E298', 'E298', true, 'H9.J41', 'H9.J42', 'H', 5.166516686311854);
+('H9_E298', 'E298', true, 'H9.J41', 'H9.J42', 'H', 5.166516686311854),
 
+-- cross floor elevator edges --
+('E366', 'elevator', true, 'H9.ELEVATOR_1', 'H8.ELEVATOR_1', 'H', 0.32490908887822595),
+('E367', 'elevator', true, 'H8.ELEVATOR_1', 'H9.ELEVATOR_1', 'H', 0.32490908887822595),
+('E370', 'elevator', true, 'H9.ELEVATOR_2', 'H8.ELEVATOR_2', 'H', 0.0826328437956866),
+('E371', 'elevator', true, 'H8.ELEVATOR_2', 'H9.ELEVATOR_2', 'H', 0.0826328437956866),
 
+-- cross floor stair edges --
+('E368', 'stairs', false, 'H8.STAIRS_1', 'H9.STAIRS_1', 'H', 0.3920425908070085),
+('E369', 'stairs', false, 'H9.STAIRS_1', 'H8.STAIRS_1', 'H', 0.3920425908070085),
+
+-- cross floor escalator edges --
+('E384', 'escalator', false, 'H8.ESCALATOR_UP', 'H9.ESCALATOR_END', 'H', 10.13863797908295),
+('E385', 'escalator', false, 'H9.ESCALATOR_END', 'H8.ESCALATOR_UP', 'H', 10.13863797908295),
+
+('E372', 'hallway', true, 'H8.ELEVATOR_2', 'H8.842', 'H', 1.9783608743817775),
+('E373', 'hallway', true, 'H8.842', 'H8.ELEVATOR_2', 'H', 1.9783608743817775),
+('E374', 'hallway', true, 'H8.J28', 'H8.ELEVATOR_2', 'H', 6.879055500353568),
+('E375', 'hallway', true, 'H8.ELEVATOR_2', 'H8.J28', 'H', 6.879055500353568),
+('E376', 'hallway', true, 'H9.ELEVATOR_2', 'H9.J14', 'H', 2.535771122902938),
+('E377', 'hallway', true, 'H9.J14', 'H9.ELEVATOR_2', 'H', 2.535771122902938),
+('E378', 'hallway', true, 'H9.ELEVATOR_2', 'H9.J15', 'H', 2.4078599462971693),
+('E379', 'hallway', true, 'H9.J15', 'H9.ELEVATOR_2', 'H', 2.4078599462971693),
+('E380', 'hallway', true, 'H9.ELEVATOR_2', 'H9.ROOM.28', 'H', 0.8570544139158146),
+('E381', 'hallway', true, 'H9.ROOM.28', 'H9.ELEVATOR_2', 'H', 0.8570544139158146),
+('E382', 'hallway', true, 'H9.ELEVATOR_2', 'H9.ROOM.27_1', 'H', 1.2044213807230433),
+('E383', 'hallway', true, 'H9.ROOM.27_1', 'H9.ELEVATOR_2', 'H', 1.2044213807230433),
+('E386', 'hallway', true, 'H8.J33', 'H8.ESCALATOR_UP', 'H', 2.8996044475578593),
+('E387', 'hallway', true, 'H8.ESCALATOR_UP', 'H8.J33', 'H', 2.8996044475578593),
+('E388', 'hallway', true, 'H9.J13', 'H9.ESCALATOR_END', 'H', 5.52328487222848),
+('E389', 'hallway', true, 'H9.ESCALATOR_END', 'H9.J13', 'H', 5.52328487222848);
 
 
 -- VIRTUAL NODES --
