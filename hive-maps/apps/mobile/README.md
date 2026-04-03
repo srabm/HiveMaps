@@ -22,9 +22,10 @@ Configure `hive-maps/apps/mobile/.env`:
   - Android emulator: `http://10.0.2.2:8080`
   - iOS simulator: `http://localhost:8080`
 - `EXPO_PUBLIC_MAPBOX_TOKEN` (required to render maps + geocode markers)
+- `EXPO_PUBLIC_CLARITY_PROJECT_ID` (optional; enables Microsoft Clarity mobile analytics)
 - `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` (required for native builds; Mapbox "downloads:read")
 
-Alternatively, you can set defaults in `app.json` under `expo.extra` (`apiBaseUrl`, `mapboxAccessToken`), but `.env` is preferred for local dev.
+Alternatively, you can set defaults in `app.json` under `expo.extra` (`apiBaseUrl`, `mapboxAccessToken`, `clarityProjectId`), but `.env` is preferred for local dev.
 
 ## Map Behavior
 - The campus badge and toggle live on the Map screen (`app/(tabs)/map.tsx`).
