@@ -1,0 +1,23 @@
+appId: com.anonymous.mobile
+---
+
+# Prerequisites:
+# - Google Calendar is already connected in the app.
+# - The nearest upcoming class starts within the next 2 hours.
+# - Its location field is empty or invalid, for example:
+#   "Online - Async"
+
+# US 3.3: invalid or missing locations do not crash the app.
+- extendedWaitUntil:
+    visible: "No location found"
+    timeout: 75000
+
+- assertVisible: "No location found"
+- assertVisible:
+    id: "next-class-no-location-dismiss"
+
+- tapOn:
+    id: "next-class-no-location-dismiss"
+- assertNotVisible: "No location found"
+
+- stopApp

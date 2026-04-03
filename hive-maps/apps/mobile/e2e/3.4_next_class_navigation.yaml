@@ -1,0 +1,40 @@
+appId: com.anonymous.mobile
+---
+# Prerequisites:
+# - Google Calendar is already connected in the app.
+# - There is an upcoming class within the next 2 hours.
+# - The event location is parseable by the app, for example:
+#   "Sir George Williams Campus - LB Building Rm 3.311"
+
+- extendedWaitUntil:
+    visible: "Your next class is coming up!"
+    timeout: 20000
+
+# US 3.3: the system identifies the nearest upcoming event and parses its location.
+- assertVisible:
+    id: "next-class-start-directions"
+- assertVisible: "Start Directions"
+
+# US 3.4: tapping the prompt starts the normal navigation flow.
+- tapOn:
+    id: "next-class-start-directions"
+
+# US 3.4: destination is auto-filled with the parsed room number and the
+# route preview is rendered before navigation starts.
+- extendedWaitUntil:
+    visible: "Your location"
+    timeout: 10000
+- assertVisible: "Your location"
+- assertVisible: "LB-3.311"
+- assertVisible:
+    id: "navigation-bottom-container"
+- tapOn: "Walk"
+- assertVisible: "Start"
+
+# Starting the previewed route should enter the navigation flow.
+- tapOn: "Start"
+- extendedWaitUntil:
+    visible: "End"
+    timeout: 10000
+
+- stopApp
