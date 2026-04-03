@@ -1,4 +1,4 @@
-import {parseRoomCode, getNextClass, type CalendarEvent} from '../../services/next-class-parser';
+import {parseLocationReference, parseRoomCode, getNextClass, type CalendarEvent} from '../../services/next-class-parser';
 
 const NOW = new Date('2025-01-15T09:00:00.000Z');
 
@@ -25,14 +25,40 @@ describe('parseRoomCode', () => {
         it('parses FG building room', () => expect(parseRoomCode('FG-B050')).toBe('FG-B050'));
         it('extracts room in a longer string', () => expect(parseRoomCode('SGW / MB-S2.330')).toBe('MB-S2.330'));
         it('uppercases the result', () => expect(parseRoomCode('h-820')).toBe('H-820'));
+        it('parses a Visual Schedule Builder location with an explicit building code', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Faubourg Tower (FB) Rm S150')).toBe('FB-S150'));
     });
 
     describe('invalid or empty inputs', () => {
         it('returns null for online class', () => expect(parseRoomCode('Online - Async')).toBeNull());
         it('returns null for TBA', () => expect(parseRoomCode('TBA')).toBeNull());
+        it('returns null when a builder location has a room but no building name', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Rm 920')).toBeNull());
+        it('returns null when a builder location uses an unknown building name', () =>
+            expect(parseRoomCode('Sir George Williams Campus - Imaginary Building Rm 920')).toBeNull());
         it('return null for empty string', () => expect(parseRoomCode('')).toBeNull());
         it('returns null for null input', () => expect(parseRoomCode(null)).toBeNull());
         it('returns null for undefined input', () => expect(parseRoomCode(undefined)).toBeNull());
+    });
+});
+
+describe('parseLocationReference', () => {
+    it('extracts building name and room number from a builder-style location', () => {
+        expect(parseLocationReference('Sir George Williams Campus - Hall Building Rm 920')).toEqual({
+            buildingCode: null,
+            buildingName: 'Hall Building',
+            roomCode: null,
+            roomNumber: '920',
+        });
+    });
+
+    it('extracts an explicit building code and room number when present', () => {
+        expect(parseLocationReference('Sir George Williams Campus - Faubourg Tower (FB) Rm S150')).toEqual({
+            buildingCode: 'FB',
+            buildingName: null,
+            roomCode: 'FB-S150',
+            roomNumber: 'S150',
+        });
     });
 });
 
@@ -113,6 +139,17 @@ describe('getNextClass', () => {
             const result = getNextClass(events, NOW);
             expect(result.status).toBe('found');
             if (result.status === 'found') expect(result.roomCode).toBe('MB-3.255');
+        });
+        it('returns no_location for the Visual Schedule Builder hall format until a building dataset resolves it', () => {
+            const events = [makeEvent('e1', 30, 'Sir George Williams Campus - Hall Building Rm 920')];
+            const result = getNextClass(events, NOW);
+            expect(result.status).toBe('no_location');
+        });
+        it('handles the Visual Schedule Builder format with a building code in parentheses', () => {
+            const events = [makeEvent('e1', 30, 'Sir George Williams Campus - Faubourg Tower (FB) Rm S150')];
+            const result = getNextClass(events, NOW);
+            expect(result.status).toBe('found');
+            if (result.status === 'found') expect(result.roomCode).toBe('FB-S150');
         });
     });
 
