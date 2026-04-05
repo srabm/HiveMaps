@@ -3507,4 +3507,17 @@ describe('Accessibility Toggle and Modal', () => {
             expect(queryByText('Accessibility Mode')).toBeNull();
         });
     });
+
+    it('dismisses the modal via onRequestClose', async () => {
+    const { getByTestId, queryByText } = render(<MapScreen />);
+    
+    fireEvent.press(getByTestId('accessibility-toggle'));
+    await waitFor(() => expect(queryByText('Accessibility Mode')).toBeTruthy());
+
+    fireEvent(getByTestId('accessibility-modal'), 'requestClose');
+    
+    await waitFor(() => {
+        expect(queryByText('Accessibility Mode')).toBeNull();
+    });
+});
 });

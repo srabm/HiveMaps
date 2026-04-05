@@ -1976,6 +1976,7 @@ export default function MapScreen() {
                 animationType="fade"
                 visible={showAccessibilityModal}
                 onRequestClose={() => setShowAccessibilityModal(false)}
+                testID='accessibility-modal'
             >
                 <View style={styles.modalBackdrop}>
                     <Pressable
