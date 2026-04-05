@@ -1,6 +1,5 @@
 INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon, lat) VALUES
 ('H_ENTRANCE', 'Entrance', true, '1', 'H', -73.57868635323575, 45.496974706215035),
-('H1.110', 'Room', true, '1', 'H', -73.5788271718138, 45.49704851641514),
 ('H1_E1', 'Junction', true, '1', 'H', -73.5787562243582, 45.49702568456171),
 ('LB_ENTRANCE', 'Entrance', true, '2', 'LB', -73.57830242370292, 45.4969326666722),
 ('CC_ENTRANCE', 'Entrance', true, '1', 'CC', -73.64059508815996, 45.45843198951718);
