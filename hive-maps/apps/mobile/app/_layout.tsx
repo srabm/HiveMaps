@@ -1,6 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Clarity from '@microsoft/react-native-clarity';
-import Constants from 'expo-constants';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -16,15 +15,12 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    const envProjectId = process.env.EXPO_PUBLIC_CLARITY_PROJECT_ID ?? '';
-    const extraProjectId = Constants.expoConfig?.extra?.clarityProjectId ?? '';
-    const clarityProjectId = envProjectId || extraProjectId;
+    const clarityProjectId = process.env.EXPO_PUBLIC_CLARITY_PROJECT_ID ?? '';
+    if (!clarityProjectId) return;
 
-    if (typeof clarityProjectId !== 'string' || clarityProjectId === 'YOUR_CLARITY_PROJECT_ID') {
-      return;
-    }
-
-    Clarity.initialize(clarityProjectId);
+    Clarity.initialize(clarityProjectId, {
+      logLevel: Clarity.LogLevel.Verbose,
+    });
   }, []);
 
   return (
