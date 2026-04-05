@@ -49,6 +49,9 @@ import { parseLocationReference, type NextClassResult } from '@/services/next-cl
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
+const MIN_MAP_ZOOM = 3;
+const MAX_MAP_ZOOM = 22;
+const ZOOM_STEP = 1;
 
 function buildPolygonFeatures(points: ReturnType<typeof useNavigationController>['points'], userLocation: [number, number] | null) {
     const polys = [];
@@ -591,6 +594,7 @@ export default function MapScreen() {
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
+    const [currentZoomLevel, setCurrentZoomLevel] = useState<number>(15);
     const [navigationOrigin, setNavigationOrigin] = useState<Coordinates | null>(null);
     const [navigationUsesLiveLocation, setNavigationUsesLiveLocation] = useState(false);
     const activeDestinationCoordinates = routeToCoordinates ?? toCoordinates;
@@ -937,6 +941,7 @@ export default function MapScreen() {
 
     useEffect(() => {
         if (!campusMeta) return;
+        setCurrentZoomLevel(campusMeta.zoom);
         if (suppressNextCampusCameraSync.current) {
             suppressNextCampusCameraSync.current = false;
             return;
@@ -952,6 +957,7 @@ export default function MapScreen() {
     const SEARCH_FOCUS_ZOOM = 18;
     const focusCamera = (coordinates: [number, number] | null) => {
         if (!cameraRef.current || !coordinates) return;
+        setCurrentZoomLevel(SEARCH_FOCUS_ZOOM);
         cameraRef.current.setCamera({
             centerCoordinate: coordinates,
             zoomLevel: SEARCH_FOCUS_ZOOM,
@@ -1297,6 +1303,11 @@ export default function MapScreen() {
     const handleMapIdle = useCallback((event: any) => {
         if (isNavigating) return;
 
+        const zoom = event?.properties?.zoom;
+        if (typeof zoom === 'number' && Number.isFinite(zoom)) {
+            setCurrentZoomLevel(zoom);
+        }
+
         const center =
             event?.properties?.center ??
             event?.geometry?.coordinates ??
@@ -1321,6 +1332,21 @@ export default function MapScreen() {
         suppressNextCampusCameraSync.current = true;
         setCampus(nearest);
     }, [campus, campusMetaById, isNavigating, setCampus]);
+
+    const adjustZoom = useCallback((direction: 1 | -1) => {
+        if (!cameraRef.current) return;
+
+        const nextZoomLevel = Math.max(
+            MIN_MAP_ZOOM,
+            Math.min(MAX_MAP_ZOOM, currentZoomLevel + direction * ZOOM_STEP),
+        );
+
+        setCurrentZoomLevel(nextZoomLevel);
+        cameraRef.current.setCamera({
+            zoomLevel: nextZoomLevel,
+            animationDuration: 250,
+        });
+    }, [currentZoomLevel]);
 
     if (!tokenAvailable) return <ThemedView style={styles.centered}><ThemedText>No Token</ThemedText></ThemedView>;
     if (error) return <ThemedView style={styles.centered}><ThemedText>{error}</ThemedText></ThemedView>;
@@ -1796,34 +1822,58 @@ export default function MapScreen() {
             )}
 
             {!activeIndoorSegment && (
-                <LocateMeButton
-                    style={styles.locateButton}
-                    onPress={async () => {
-                        if (cameraRef.current && userLocation) {
-                            const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
-                            if (nearest) setCampus(nearest);
-                            cameraRef.current.setCamera({
-                                centerCoordinate: userLocation,
-                                zoomLevel: Math.max(campusMeta.zoom, 17),
-                                animationDuration: 600,
-                            });
-                            return;
-                        }
-                        if (
-                            Platform.OS === 'android' &&
-                            locationPermissionStatus !== 'granted' &&
-                            typeof MapboxGL.requestAndroidLocationPermissions === 'function'
-                        ) {
-                            const granted = await MapboxGL.requestAndroidLocationPermissions();
-                            if (granted) {
-                                setLocationPermissionStatus('granted');
+                <View style={styles.mapControls}>
+                    <View style={styles.zoomControls}>
+                        <Pressable
+                            testID="zoom-in-button"
+                            accessibilityRole="button"
+                            accessibilityLabel="Zoom in"
+                            style={({ pressed }) => [styles.zoomButton, pressed && styles.zoomButtonPressed]}
+                            onPress={() => adjustZoom(1)}
+                        >
+                            <Text style={styles.zoomButtonText}>+</Text>
+                        </Pressable>
+                        <Pressable
+                            testID="zoom-out-button"
+                            accessibilityRole="button"
+                            accessibilityLabel="Zoom out"
+                            style={({ pressed }) => [styles.zoomButton, pressed && styles.zoomButtonPressed]}
+                            onPress={() => adjustZoom(-1)}
+                        >
+                            <Text style={styles.zoomButtonText}>-</Text>
+                        </Pressable>
+                    </View>
+                    <LocateMeButton
+                        style={styles.locateButton}
+                        onPress={async () => {
+                            if (cameraRef.current && userLocation) {
+                                const nearest = getNearestCampus(userLocation[0], userLocation[1], campusMetaById);
+                                if (nearest) setCampus(nearest);
+                                const nextZoomLevel = Math.max(campusMeta.zoom, 17);
+                                setCurrentZoomLevel(nextZoomLevel);
+                                cameraRef.current.setCamera({
+                                    centerCoordinate: userLocation,
+                                    zoomLevel: nextZoomLevel,
+                                    animationDuration: 600,
+                                });
                                 return;
                             }
-                            setLocationPermissionStatus('denied');
-                        }
-                        setShowLocationPrompt(true);
-                    }}
-                />
+                            if (
+                                Platform.OS === 'android' &&
+                                locationPermissionStatus !== 'granted' &&
+                                typeof MapboxGL.requestAndroidLocationPermissions === 'function'
+                            ) {
+                                const granted = await MapboxGL.requestAndroidLocationPermissions();
+                                if (granted) {
+                                    setLocationPermissionStatus('granted');
+                                    return;
+                                }
+                                setLocationPermissionStatus('denied');
+                            }
+                            setShowLocationPrompt(true);
+                        }}
+                    />
+                </View>
             )}
             <OutdoorPOICard
                 poi={selectedOutdoorPOI}
@@ -1996,10 +2046,42 @@ const styles = StyleSheet.create({
         bottom: 40,
         alignItems: 'center',
     },
-    locateButton: {
+    mapControls: {
         position: 'absolute',
         right: 16,
         bottom: '35%',
+        gap: 12,
+        alignItems: 'center',
+    },
+    zoomControls: {
+        gap: 8,
+        alignItems: 'center',
+    },
+    zoomButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ffffff',
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowOffset: { width: 0, height: 3 },
+        shadowRadius: 6,
+        elevation: 6,
+    },
+    zoomButtonPressed: {
+        transform: [{ scale: 0.98 }],
+        shadowOpacity: 0.12,
+    },
+    zoomButtonText: {
+        color: '#11181C',
+        fontSize: 24,
+        fontWeight: '600',
+        lineHeight: 26,
+    },
+    locateButton: {
+        position: 'relative',
     },
     modalBackdrop: {
         flex: 1,

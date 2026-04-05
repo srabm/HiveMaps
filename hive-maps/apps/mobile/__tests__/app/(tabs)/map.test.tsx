@@ -2101,6 +2101,24 @@ describe('LocateMeButton', () => {
             expect(utils.queryByText('Location Off')).toBeNull();
         });
     });
+
+    it('zooms in and out from the right-side zoom controls', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('zoom-in-button'));
+        });
+        expect(mockCameraSetCamera).toHaveBeenCalledWith(
+            expect.objectContaining({ zoomLevel: 16, animationDuration: 250 })
+        );
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('zoom-out-button'));
+        });
+        expect(mockCameraSetCamera).toHaveBeenLastCalledWith(
+            expect.objectContaining({ zoomLevel: 15, animationDuration: 250 })
+        );
+    });
 });
 
 describe('manual map pan campus sync', () => {

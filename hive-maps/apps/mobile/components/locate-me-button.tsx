@@ -33,9 +33,9 @@ export function LocateMeButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 50,
-    width: 50,
-    borderRadius: 25,
+    height: 38,
+    width: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
@@ -50,8 +50,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
   },
   icon: {
-    width: 24,
-    height: 36,
+    width: 18,
+    height: 28,
     resizeMode: 'contain',
   },
 });
