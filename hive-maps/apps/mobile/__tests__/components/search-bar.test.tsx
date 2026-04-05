@@ -40,7 +40,7 @@ describe('MapSearchBar tests', () => {
       <MapSearchBar toValue="Hall" />
     );
 
-    const input = getByPlaceholderText('Search building or address');
+    const input = getByPlaceholderText('Search building, address, or classroom');
     expect(input.props.value).toBe('Hall');
   });
 
@@ -52,7 +52,7 @@ describe('MapSearchBar tests', () => {
     );
 
     fireEvent.changeText(
-      getByPlaceholderText('Search building or address'),
+      getByPlaceholderText('Search building, address, or classroom'),
       'Hall'
     );
 
@@ -125,7 +125,7 @@ describe('MapSearchBar tests', () => {
     expect(onClear).toHaveBeenCalled();
   });
 
-  it('calls onClickButton when navigate button is pressed', () => {
+  it('calls onClickButton when search button is pressed', () => {
     const onClickButton = jest.fn();
 
     const { getByTestId } = render(
@@ -135,7 +135,7 @@ describe('MapSearchBar tests', () => {
       />
     );
 
-    const button = getByTestId('navigate-button');
+    const button = getByTestId('search-button');
     fireEvent.press(button);
     expect(onClickButton).toHaveBeenCalled();
   });

@@ -216,7 +216,7 @@ jobs:
     name: SonarQube
     runs-on: ubuntu-latest
     needs: [mobile-unit]
-    if: ${{ always() && !cancelled() }}
+    if: ${{ always() && !cancelled() && needs.mobile-unit.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:

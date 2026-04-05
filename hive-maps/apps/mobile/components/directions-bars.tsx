@@ -123,68 +123,68 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
 
     return (
         <View style={styles.container}>
-
-            <View style={styles.inputs}>
-                {/* From a particular direction (starting direction)*/}
-                <View>
-                    <View style={styles.inputRow}>
-                        <TouchableOpacity testID="reset-button" onPress={onResetFrom}>
-                            <Image
-                                source={require("../assets/images/bee.png")}
-                                style={{ width: 40, height: 40 }}
-                                resizeMode="contain"
+            <View style={styles.content}>
+                <View style={styles.inputs}>
+                    {/* From a particular direction (starting direction)*/}
+                    <View>
+                        <View style={styles.inputRow}>
+                            <TouchableOpacity testID="reset-button" onPress={onResetFrom}>
+                                <Image
+                                    source={require("../assets/images/bee.png")}
+                                    style={styles.beeIcon}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+                            <TextInput
+                                value={fromValue}
+                                placeholder={fromPlaceholder}
+                                style={styles.input}
+                                onFocus={() => setActiveField("from")}
+                                onChangeText={(text) => {
+                                    onChangeFrom?.(text);
+                                }}
                             />
-                        </TouchableOpacity>
-                        <TextInput
-                            value={fromValue}
-                            placeholder={fromPlaceholder}
-                            style={styles.input}
-                            onFocus={() => setActiveField("from")}
-                            onChangeText={(text) => {
-                                onChangeFrom?.(text);
-                            }}
-                        />
-                        <TouchableOpacity testID="clear-from" onPress={onClearFrom}>
-                            <Ionicons name="close" size={20} />
-                        </TouchableOpacity>
+                            <TouchableOpacity testID="clear-from" onPress={onClearFrom}>
+                                <Ionicons name="close" size={20} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {activeField === "from" &&
+                            renderSuggestions(fromSuggestions, onSelectFrom)}
                     </View>
 
-                    {activeField === "from" &&
-                        renderSuggestions(fromSuggestions, onSelectFrom)}
-                </View>
+                    {/* To a particular direction (Finishing directions) */}
+                    <View>
+                        <View style={styles.inputRow}>
+                            <Ionicons name="navigate-outline" size={20} color="#000" />
+                            <TextInput
+                                value={toValue}
+                                placeholder={toPlaceholder}
+                                style={styles.input}
+                                onFocus={() => setActiveField("to")}
+                                onChangeText={(text) => {
+                                    onChangeTo?.(text);
+                                }}
+                            />
+                            <TouchableOpacity testID="clear-to" onPress={onClearTo}>
+                                <Ionicons name="close" size={20} />
+                            </TouchableOpacity>
+                        </View>
 
-                {/* To a particular direction (Finishing directions) */}
-                <View>
-                    <View style={styles.inputRow}>
-                        <Ionicons name="navigate-outline" size={20} color="#000" />
-                        <TextInput
-                            value={toValue}
-                            placeholder={toPlaceholder}
-                            style={styles.input}
-                            onFocus={() => setActiveField("to")}
-                            onChangeText={(text) => {
-                                onChangeTo?.(text);
-                            }}
-                        />
-                        <TouchableOpacity testID="clear-to" onPress={onClearTo}>
-                            <Ionicons name="close" size={20} />
-                        </TouchableOpacity>
+                        {activeField === "to" &&
+                            renderSuggestions(toSuggestions, onSelectTo)}
                     </View>
-
-                    {activeField === "to" &&
-                        renderSuggestions(toSuggestions, onSelectTo)}
                 </View>
-            </View>
 
-            {/* Actions such as swapping the directions and closing the directions bars*/}
-            <View style={styles.actions}>
-                <TouchableOpacity testID="swap-button" onPress={onSwap} style={styles.actionButton}>
-                    <Ionicons name="swap-vertical" size={22} />
-                </TouchableOpacity>
+                <View style={styles.controls}>
+                    <TouchableOpacity testID="close-button" onPress={onClose} style={styles.closeButton}>
+                        <Ionicons name="close" size={24} color="#000" />
+                    </TouchableOpacity>
 
-                <TouchableOpacity testID="close-button" onPress={onClose} style={styles.actionButton}>
-                    <Ionicons name="ban-outline" size={22} />
-                </TouchableOpacity>
+                    <TouchableOpacity testID="swap-button" onPress={onSwap} style={styles.swapButton}>
+                        <Ionicons name="swap-vertical" size={22} />
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -195,40 +195,60 @@ export default DirectionBar;
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: "#FFB74D",
-        borderRadius: 16,
-        padding: 12,
-        width: "99%",
+        backgroundColor: "rgba(157, 30, 48, 0.86)",
+        borderRadius: 12,
+        padding: 8,
+        width: "97%",
         alignSelf: "center",
+    },
+    content: {
         flexDirection: "row",
-        gap: 12,
+        alignItems: "stretch",
+        gap: 8,
     },
     inputs: {
         flex: 1,
-        gap: 8,
+        gap: 6,
     },
     inputRow: {
         backgroundColor: "#fff",
         borderRadius: 10,
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+        paddingHorizontal: 7,
+        paddingVertical: 4,
+        minHeight: 48,
+    },
+    beeIcon: {
+        width: 28,
+        height: 28,
     },
     input: {
         flex: 1,
-        marginHorizontal: 8,
-        fontSize: 14,
+        marginHorizontal: 5,
+        fontSize: 12,
     },
-    actions: {
+    controls: {
+        width: 42,
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+    },
+    closeButton: {
+        position: "absolute",
+        top: 0,
+        width: 28,
+        height: 28,
+        alignItems: "center",
         justifyContent: "center",
     },
-    actionButton: {
+    swapButton: {
         backgroundColor: "#FFD180",
-        padding: 8,
-        borderRadius: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 9,
         alignItems: "center",
-        marginBottom:10,
+        justifyContent: "center",
     },
     suggestions: {
         backgroundColor: "#fff",

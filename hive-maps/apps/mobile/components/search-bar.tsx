@@ -13,7 +13,7 @@ interface MapSearchBarProps {
     onClear?: () => void;
 }
 
-const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placeholder = "Search building or address",onChangeText,onSelectBuilding,onClickButton,onClear}) => {
+const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placeholder = "Search building, address, or classroom",onChangeText,onSelectBuilding,onClickButton,onClear}) => {
     const [listAppearance, setListAppearance] = useState<boolean>(true);
     const [suggestions, setSuggestions] = useState<MapLocation[]>([]);
     const sessionToken = useRef(Date.now().toString());
@@ -51,7 +51,6 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placehol
     return (
         <View style={styles.container}>
             <View style={styles.searchBox}>
-                <Ionicons name="search" size={20} color="#555" style={styles.icon} />
                 <TextInput
                     style={styles.input}
                     placeholder={placeholder}
@@ -69,12 +68,14 @@ const MapSearchBar: React.FC<MapSearchBarProps> = ({mapsAdapter,toValue,placehol
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                    testID='navigate-button'
-                    style={styles.circleButton}
+                    testID='search-button'
+                    accessibilityRole="button"
+                    accessibilityLabel="Open directions search"
+                    style={styles.searchButton}
                     onPress={onClickButton}
                     activeOpacity={0.7}
                 >
-                    <Ionicons name="navigate" size={18} color="#fff" />
+                    <Ionicons name="search" size={18} color="#9d1e30" />
                 </TouchableOpacity>
             </View>
 
@@ -129,8 +130,16 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 5, // Android shadow
     },
-    icon: {
-        marginRight: 8,
+    searchButton: {
+        width: 32,
+        height: 32,
+        marginLeft: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 8,
+        backgroundColor: "#f6e6e9",
+        borderWidth: 1,
+        borderColor: "#d9aab2",
     },
     input: {
         flex: 1,
@@ -167,14 +176,4 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: "#666",
     },
-    circleButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#2563eb', // blue
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: 8,
-    },
-
 });

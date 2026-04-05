@@ -10,10 +10,10 @@ const MUTED       = "#AAAAAA";
 const BORDER      = "#EFEFEF";
 
 const { height: SCREEN_H } = Dimensions.get("window");
+const FIXED_H      = 158;
 const MIN_HEIGHT   = SCREEN_H * 0.3;
-const DEFAULT_HEIGHT = SCREEN_H * 0.5;
+const DEFAULT_HEIGHT = FIXED_H;
 const MAX_HEIGHT   = SCREEN_H * 0.85;
-const FIXED_H      = 195;
 
 
 const DIRECTION_IMAGES: Record<string, any> = {
@@ -32,22 +32,43 @@ function formatArrivalTime(durationMinutes: number): string {
     return arrival.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function buildAugmentedSteps(steps: IndoorDirectionsResponse[]): IndoorDirectionsResponse[] {
+const STAIRS_STEP_ENTRANCE: IndoorDirectionsResponse = {
+    direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
+    distance: 0,
+    description: "Enter on LB1, then take the stairs or elevator up to LB2 to begin indoor navigation",
+    nodes: [],
+};
+
+const STAIRS_STEP_EXIT: IndoorDirectionsResponse = {
+    direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
+    distance: 0,
+    description: "Take the stairs or elevator down from LB2 to LB1 to exit the building",
+    nodes: [],
+};
+
+function buildAugmentedSteps(
+    steps: IndoorDirectionsResponse[],
+    stairsNotice?: 'entrance' | 'exit',
+): IndoorDirectionsResponse[] {
     if (steps.length === 0) return steps;
 
     const lastStep = steps.at(-1);
     const lastNode = lastStep?.nodes?.at(-1);
     if (!lastStep || !lastNode) return steps;
 
-    return [
+    const withArrival: IndoorDirectionsResponse[] = [
         ...steps,
         {
-            direction: "DEFAULT",
+            direction: "DEFAULT" as IndoorDirectionsResponse['direction'],
             distance: 0,
             description: "You have arrived at your destination",
             nodes: [lastNode],
         },
     ];
+
+    if (stairsNotice === 'entrance') return [STAIRS_STEP_ENTRANCE, ...withArrival];
+    if (stairsNotice === 'exit') return [...withArrival, STAIRS_STEP_EXIT];
+    return withArrival;
 }
 
 export interface DirectionsModalProps {
@@ -56,9 +77,23 @@ export interface DirectionsModalProps {
     origin?: string;
     destination?: string;
     onClose: () => void;
+    onArrived?: () => void;
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
     preStartLabel?: string;
+    /** Skip the pre-start summary screen and jump directly into navigation. */
+    autoStart?: boolean;
+    /**
+     * 'entrance' — prepends a step telling the user to go from LB1 up to LB2.
+     * 'exit'     — appends a step telling the user to go from LB2 down to LB1.
+     * undefined  — no stairs step injected.
+     */
+    stairsNotice?: 'entrance' | 'exit';
+    /**
+     * When provided, overrides the "You have arrived!" text shown at the end
+     * of navigation — used for indoor→outdoor handoff.
+     */
+    arrivedLabel?: string;
 }
 
 function getFirstNode(step: IndoorDirectionsResponse): IndoorNodeResponse | null {
@@ -76,13 +111,19 @@ function getRemainingDistance(steps: IndoorDirectionsResponse[], currentIndex: n
     return Math.round(steps.slice(currentIndex).reduce((sum, step) => sum + (step.distance ?? 0), 0));
 }
 
+const ARRIVED_DESCRIPTION = "You have arrived at your destination";
+
 function getThenLabel(nextStep: IndoorDirectionsResponse | null): string {
-    if (!nextStep) {
+    if (!nextStep || nextStep.description === ARRIVED_DESCRIPTION) {
         return "Then: You have arrived at your destination";
     }
 
     const distanceLabel = nextStep.distance > 0 ? ` ${nextStep.distance.toFixed(2)}m` : "";
-    return `Then: ${nextStep.description}${distanceLabel}`;
+    return `Then: ${stripTrailingDistance(nextStep.description)}${distanceLabel}`;
+}
+
+function stripTrailingDistance(description: string): string {
+    return description.replace(/ \d+(?:\.\d+)?m$/i, '').trim();
 }
 
 function renderExpandedSteps(
@@ -99,7 +140,7 @@ function renderExpandedSteps(
                 />
             </View>
             <View style={styles.stepTextWrap}>
-                <Text style={styles.stepTitle}>{step.description}</Text>
+                <Text style={styles.stepTitle}>{stripTrailingDistance(step.description)}</Text>
                 {step.distance > 0 ? <Text style={styles.stepSub}>{step.distance.toFixed(1)} m</Text> : null}
                 {step.nodes[0]?.floor ? (
                     <Text style={styles.stepFloor}>Floor {step.nodes[0].floor} - {step.nodes[0].building}</Text>
@@ -115,15 +156,19 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     origin = "Your location",
     destination,
     onClose,
+    onArrived,
     onCurrentNodeChange,
     beeImageSource,
     preStartLabel = "Walk",
+    autoStart = false,
+    stairsNotice,
+    arrivedLabel,
 }) => {
-    const augmentedSteps = buildAugmentedSteps(steps);
+    const augmentedSteps = buildAugmentedSteps(steps, stairsNotice);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [sheetHeight, setSheetHeight] = useState(DEFAULT_HEIGHT);
-    const [hasStarted, setHasStarted] = useState<boolean>(false);
+    const [hasStarted, setHasStarted] = useState<boolean>(autoStart);
     const [hasArrived, setHasArrived] = useState(false);
 
     const [showAllSteps, setShowAllSteps] = useState(false);
@@ -159,6 +204,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
             setCurrentIndex(0);
             setSheetHeight(DEFAULT_HEIGHT);
             setHasArrived(false);
+            setHasStarted(autoStart);
             setShowAllSteps(false);
             fadeAnim.setValue(1);
             Animated.timing(sheetAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
@@ -221,13 +267,16 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     const handleArrived = () => {
         setHasArrived(true);
         setShowAllSteps(false);
+        onArrived?.();
     };
 
     const renderStartedContent = () => (
         <View>
             {hasArrived ? (
                 <View style={styles.arrivedContent}>
-                    <Text style={styles.arrivedText}>You have arrived!</Text>
+                    <Text style={styles.arrivedText}>
+                        {arrivedLabel ?? "You have arrived!"}
+                    </Text>
                 </View>
             ) : (
                 <>
@@ -269,7 +318,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                         />
                     </View>
                     <View style={styles.stepTextWrap}>
-                        <Text style={styles.stepTitle}>{currentStep.description}</Text>
+                        <Text style={styles.stepTitle}>{stripTrailingDistance(currentStep.description)}</Text>
                         {currentStep.distance > 0 ? <Text style={styles.stepSub}>{currentStep.distance.toFixed(1)} m</Text> : null}
                         {currentStep.nodes[0]?.floor ? (
                             <Text style={styles.stepFloor}>Floor {currentStep.nodes[0].floor} - {currentStep.nodes[0].building}</Text>
@@ -329,10 +378,10 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     );
 
     const renderBottomBar = () => (
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, hasArrived && styles.bottomBarArrived]}>
             {hasArrived ? (
                 <TouchableOpacity style={styles.endBtnSolo} onPress={onClose} activeOpacity={0.82}>
-                    <Text style={styles.endBtnText}>End</Text>
+                    <Text style={styles.endBtnText}>{arrivedLabel ? "Head Outside" : "End"}</Text>
                 </TouchableOpacity>
             ) : (
                 <>
@@ -405,11 +454,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingTop: 18,
         paddingBottom: 18,
+        alignItems: "center",
     },
     arrivedText: {
         fontSize: 20,
         fontWeight: "700",
         color: DARK,
+        textAlign: "center",
     },
     listContent: { paddingBottom: 8 },
     currentStepRow: { borderTopWidth: 1, borderTopColor: "#EEEEEE" },
@@ -446,11 +497,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#EEEEEE",
     },
-    thenText: { flex: 1, fontSize: 14, color: MUTED, fontWeight: "600" },
+    thenText: { flex: 1, fontSize: 14, color: "#4B5563", fontWeight: "600" },
     thenChevron: { fontSize: 14, color: MUTED, fontWeight: "700" },
     expandedSteps: { maxHeight: 240 },
-    preStartContainer: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18 },
-    preStartHeader: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+    preStartContainer: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 12 },
+    preStartHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
     preStartLabel: { fontSize: 16, fontWeight: "600", color: DARK },
     preStartRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     preStartEta: { alignItems: "center", minWidth: 36 },
@@ -459,7 +510,7 @@ const styles = StyleSheet.create({
     preStartInfo: { flex: 1 },
     preStartArrive: { fontSize: 14, fontWeight: "600", color: DARK },
     preStartDist: { fontSize: 12, color: MUTED, marginTop: 2 },
-    startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 18 },
+    startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 9, paddingHorizontal: 18 },
     startBtnText: { color: BG, fontSize: 14, fontWeight: "700" },
     bottomBar: {
         position: "absolute",
@@ -505,6 +556,9 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
         alignItems: "center",
+        justifyContent: "center",
+    },
+    bottomBarArrived: {
         justifyContent: "center",
     },
     endBtnSolo: {

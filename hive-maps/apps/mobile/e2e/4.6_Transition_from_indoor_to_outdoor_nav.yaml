@@ -1,0 +1,36 @@
+appId: com.anonymous.mobile
+---
+- tapOn: "Search building, address, or classroom"
+- swipe:
+    start: "50%, 50%"
+    end: "50%, 50%"
+    duration: 2000
+- inputText: "LB3.31"
+- tapOn: "LB3.311, Room · Floor 3"
+- tapOn:
+    id: "search-button"
+- tapOn: "Your location"
+- tapOn:
+    id: "clear-from"
+- inputText: "MB1."
+- tapOn: "MB1.434, Room · Floor 1"
+- tapOn: "Start"
+- assertVisible: "MB Building - Indoor Map"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Arrived"
+- assertVisible: "Head outside — outdoor navigation will resume"
+- tapOn: "Head Outside"
+- assertVisible: "Drive northwest on Rue Guy."
+- tapOn: "End"
+- tapOn:
+    text: ""
+    index: 0
+- tapOn:
+    point: "90%,10%"
+- stopApp

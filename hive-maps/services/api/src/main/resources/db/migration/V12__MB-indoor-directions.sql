@@ -294,8 +294,8 @@ INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_no
 ('MBS2_1_E109', 'escalator', false, 'MBS2.ESCALATOR', 'MB1.ESCALATOR', 'MB', 21.176195093263363),
 ('MB1_S2_E110', 'escalator', false, 'MB1.ESCALATOR', 'MBS2.ESCALATOR', 'MB', 21.176195093263363),
 
-('MB1_S2_E121', 'hallway', false, 'MB1.STAIRS', 'MBS2.STAIRS', 'MB', 15.784331413115755),
-('MBS2_1_E122', 'hallway', false, 'MBS2.STAIRS', 'MB1.STAIRS', 'MB', 15.784331413115755);
+('MB1_S2_E121', 'stairs', false, 'MB1.STAIRS', 'MBS2.STAIRS', 'MB', 15.784331413115755),
+('MBS2_1_E122', 'stairs', false, 'MBS2.STAIRS', 'MB1.STAIRS', 'MB', 15.784331413115755);
 
 -- VIRTUAL NODES --
 
