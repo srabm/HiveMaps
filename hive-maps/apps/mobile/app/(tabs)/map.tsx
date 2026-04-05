@@ -117,11 +117,13 @@ type SelectedBuilding = {
 type ClassroomDestination = {
     buildingCode: string;
     nodeId: string;
+    floorId: string;
 };
 
 type ClassroomOrigin = {
     buildingCode: string;
     nodeId: string;
+    floorId: string;
 };
 
 const ENTRANCE_PROXIMITY_METERS = 20;
@@ -146,6 +148,7 @@ function toClassroomLocation(mapLocation: MapLocation): ClassroomOrigin | null {
     return {
         buildingCode: mapLocation.buildingCode,
         nodeId: mapLocation.indoorNodeId,
+        floorId: mapLocation.floorId,
     };
 }
 
@@ -268,6 +271,7 @@ async function resolveIndoorRoomDestination(roomCode: string): Promise<(Classroo
     return {
         buildingCode,
         nodeId: matchedRoom.id,
+        floorId: matchedRoom.floor,
         coordinates: [matchedRoom.longitude, matchedRoom.latitude],
     };
 }
@@ -590,6 +594,7 @@ export default function MapScreen() {
     const [seeDirectionBar, setSeeDirectionBar] = useState<boolean>(false);
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
+    const [showSameBuildingIndoorPrompt, setShowSameBuildingIndoorPrompt] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
     const [navigationOrigin, setNavigationOrigin] = useState<Coordinates | null>(null);
     const [navigationUsesLiveLocation, setNavigationUsesLiveLocation] = useState(false);
@@ -666,6 +671,21 @@ export default function MapScreen() {
         routeAutoZoomDoneRef.current = false;
     }
 
+    function resetNavigationPoints() {
+        setFrom('');
+        setFromCoordinates(null);
+        clearOriginRouting();
+        fromCoordinatesIsUserLocation.current = false;
+        setTo('');
+        setToCoordinates(null);
+        clearDestinationRouting();
+        setDirections(null);
+        setRouteValidation(null);
+        setPendingStartSegment(null);
+        setShowValidationError(false);
+        setShowSameBuildingIndoorPrompt(false);
+    }
+
     async function startDirectionsToNextClass() {
         if (!nextClassDestination) return;
         setStartingPointAsUserCoordinates();
@@ -687,6 +707,7 @@ export default function MapScreen() {
                 setClassroomDestination({
                     buildingCode: indoorDestination.buildingCode,
                     nodeId: indoorDestination.nodeId,
+                    floorId: indoorDestination.floorId,
                 });
                 setToCoordinates(indoorDestination.coordinates);
                 return;
@@ -842,6 +863,19 @@ export default function MapScreen() {
         return getStraightLineDistance(fromCoordinates, routeToCoordinates) <= ENTRANCE_PROXIMITY_METERS;
     }, [classroomDestination, fromCoordinates, routeToCoordinates]);
 
+    const sameBuildingIndoorPromptCandidate = useMemo(() => {
+        if (!classroomOrigin || !classroomDestination) return null;
+        if (classroomOrigin.buildingCode !== classroomDestination.buildingCode) return null;
+        if (classroomOrigin.nodeId === classroomDestination.nodeId) return null;
+
+        const matchingBuilding = points.find(
+            (point) => point.building.code?.toUpperCase() === classroomOrigin.buildingCode.toUpperCase(),
+        );
+
+        if (!matchingBuilding?.building.hasIndoorMap) return null;
+        return matchingBuilding;
+    }, [classroomDestination, classroomOrigin, points]);
+
     const showRouteOverview = useMemo(() => {
         if (isNavigating || activeIndoorSegment) return false;
         if (!routeFromCoordinates || !routeToCoordinates) return false;
@@ -908,10 +942,14 @@ export default function MapScreen() {
         // Never show the validation error modal while actively navigating —
         // recalculation uses the live GPS position which may be off-campus.
         if (!result.valid && !isNavigating && !activeIndoorSegment && !shouldStartDestinationIndoorOnly) {
-            setShowValidationError(true);
+            const shouldPromptIndoorNavigation =
+                result.error === 'SAME_ORIGIN_AND_DESTINATION' &&
+                sameBuildingIndoorPromptCandidate !== null;
+            setShowValidationError(!shouldPromptIndoorNavigation);
+            setShowSameBuildingIndoorPrompt(shouldPromptIndoorNavigation);
             setDirections(null);
         }
-    }, [activeIndoorSegment, campusMetaById, isNavigating, routeFromCoordinates, routeToCoordinates, shouldStartDestinationIndoorOnly]);
+    }, [activeIndoorSegment, campusMetaById, isNavigating, routeFromCoordinates, routeToCoordinates, sameBuildingIndoorPromptCandidate, shouldStartDestinationIndoorOnly]);
 
     // 2.4.3 — Auto-zoom camera for inter-campus routes when directions first arrive.
     // Skipped if the user has manually panned/zoomed since the last endpoint change.
@@ -1168,6 +1206,32 @@ export default function MapScreen() {
         );
     }, [campusMeta, classroomDestination, destinationIndoorSteps, needsLbStairsNotice, router, to]);
 
+    const openSameBuildingIndoorMap = useCallback(() => {
+        if (!classroomOrigin || !classroomDestination || !sameBuildingIndoorPromptCandidate) return;
+
+        const campusId = sameBuildingIndoorPromptCandidate.building.campus || campusMeta?.id;
+        const campusQuery = campusId ? `&campus=${encodeURIComponent(campusId)}` : '';
+        const floorQuery = classroomOrigin.floorId
+            ? `?floor=${encodeURIComponent(classroomOrigin.floorId)}${campusQuery}`
+            : campusId
+                ? `?campus=${encodeURIComponent(campusId)}`
+                : '';
+        const fromLabel = encodeURIComponent(from);
+        const toLabel = encodeURIComponent(to);
+
+        setActiveIndoorSegment(null);
+        setIsNavigating(false);
+        setIndoorBeeCoordinates(null);
+        setDirections(null);
+        setShowValidationError(false);
+        setShowSameBuildingIndoorPrompt(false);
+        setSeeDirectionBar(false);
+
+        router.push(
+            `/indoor/${encodeURIComponent(classroomOrigin.buildingCode)}${floorQuery}${floorQuery ? '&' : '?'}fromNode=${encodeURIComponent(classroomOrigin.nodeId)}&toNode=${encodeURIComponent(classroomDestination.nodeId)}&fromLabel=${fromLabel}&toLabel=${toLabel}` as Href
+        );
+    }, [campusMeta?.id, classroomDestination, classroomOrigin, from, router, sameBuildingIndoorPromptCandidate, to]);
+
     useEffect(() => {
         if (pendingStartSegment !== 'origin') return;
         if (!originIndoorSteps) return;
@@ -1195,6 +1259,12 @@ export default function MapScreen() {
 
         beginOutdoorNavigation();
     }, [beginOutdoorNavigation, classroomOrigin, destinationIndoorSteps, directions, openDestinationIndoorMap, openOriginIndoorMap, originIndoorSteps, selectedMode, shouldStartDestinationIndoorOnly]);
+
+    useEffect(() => {
+        if (!showSameBuildingIndoorPrompt) return;
+        if (sameBuildingIndoorPromptCandidate) return;
+        setShowSameBuildingIndoorPrompt(false);
+    }, [sameBuildingIndoorPromptCandidate, showSameBuildingIndoorPrompt]);
 
     useFocusEffect(
         useCallback(() => {
@@ -1588,6 +1658,7 @@ export default function MapScreen() {
                             setTo('');
                             setToCoordinates(null);
                             clearDestinationRouting();
+                            setShowSameBuildingIndoorPrompt(false);
                         }}
                     />
                 }
@@ -1599,10 +1670,12 @@ export default function MapScreen() {
                         onChangeFrom={(text) => {
                             setFrom(text);
                             clearOriginRouting();
+                            setShowSameBuildingIndoorPrompt(false);
                         }}
                         onChangeTo={(text) => {
                             setTo(text);
                             clearDestinationRouting();
+                            setShowSameBuildingIndoorPrompt(false);
                         }}
                         onSelectFrom={(mapLocation, coordinates) => {
                             setFrom(getSelectedLocationLabel(mapLocation));
@@ -1639,12 +1712,14 @@ export default function MapScreen() {
                             clearOriginRouting();
                             fromCoordinatesIsUserLocation.current = false;
                             setDirections(null);
+                            setShowSameBuildingIndoorPrompt(false);
                         }}
                         onClearTo={() => {
                             setTo("");
                             setToCoordinates(null);
                             clearDestinationRouting();
                             setDirections(null);
+                            setShowSameBuildingIndoorPrompt(false);
                         }}
                         onSwap={() => {
                             // Swap text
@@ -1674,14 +1749,7 @@ export default function MapScreen() {
                         }}
                         onClose={() => {
                             setSeeDirectionBar(false);
-                            setFrom('');
-                            setFromCoordinates(null);
-                            clearOriginRouting();
-                            fromCoordinatesIsUserLocation.current = false;
-                            setDirections(null);
-                            setTo('');
-                            setToCoordinates(null);
-                            clearDestinationRouting();
+                            resetNavigationPoints();
                         }}
                     />
                 }
@@ -1928,6 +1996,47 @@ export default function MapScreen() {
             <Modal
                 transparent
                 animationType="fade"
+                visible={showSameBuildingIndoorPrompt}
+                onRequestClose={() => setShowSameBuildingIndoorPrompt(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowSameBuildingIndoorPrompt(false)}
+                    />
+                    <ThemedView
+                        style={[
+                            styles.modalCard,
+                            {backgroundColor: theme.background, borderColor: theme.icon},
+                        ]}
+                    >
+                        <ThemedText type="subtitle" style={styles.modalTitle}>
+                            Start Indoor Navigation?
+                        </ThemedText>
+                        <ThemedText style={styles.modalBody}>
+                            These rooms are in the same building. Do you wish to start indoor navigation?
+                        </ThemedText>
+                        <View style={styles.modalButtonRow}>
+                            <Pressable
+                                style={[styles.modalSecondaryButton, {borderColor: theme.icon}]}
+                                onPress={resetNavigationPoints}
+                            >
+                                <Text style={[styles.modalSecondaryButtonText, {color: theme.text}]}>Cancel</Text>
+                            </Pressable>
+                            <Pressable
+                                style={[styles.modalButton, {backgroundColor: '#9d1e30'}]}
+                                onPress={openSameBuildingIndoorMap}
+                            >
+                                <Text style={styles.modalButtonText}>Let&apos;s Go!</Text>
+                            </Pressable>
+                        </View>
+                    </ThemedView>
+                </View>
+            </Modal>
+
+            <Modal
+                transparent
+                animationType="fade"
                 visible={showTimeoutModal}
                 onRequestClose={() => setShowTimeoutModal(false)}
             >
@@ -2021,14 +2130,31 @@ const styles = StyleSheet.create({
     modalBody: {
         marginBottom: 16,
     },
+    modalButtonRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 10,
+    },
     modalButton: {
         alignSelf: 'flex-start',
         borderRadius: 12,
         paddingVertical: 10,
         paddingHorizontal: 16,
     },
+    modalSecondaryButton: {
+        alignSelf: 'flex-start',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderWidth: 1,
+        backgroundColor: 'transparent',
+    },
     modalButtonText: {
         color: '#ffffff',
+        fontWeight: '600',
+    },
+    modalSecondaryButtonText: {
         fontWeight: '600',
     },
     searchContainer: {
