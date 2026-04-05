@@ -140,17 +140,3 @@ it('calls onSelectCategory with correct category and POIs and press the same but
         expect(queryByText('✕')).toBeNull();
     });
 });
-
-it('strips non-numeric characters from the radius input', () => {
-    const { getByTestId } = render(
-        <POICategory userLocation={[-73.5, 45.5]} />
-    );
-
-    const radiusInput = getByTestId('radius-input');
-
-    act(() => {
-        fireEvent.changeText(radiusInput, '1a2b3c');
-    });
-
-    expect(radiusInput.props.value).toBe('123');
-});

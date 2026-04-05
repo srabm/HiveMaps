@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { haversineKM } from '@/services/maps/route-validator';
@@ -9,17 +9,14 @@ interface OutdoorPOICardProps {
     userLocation: { latitude: number; longitude: number } | null;
     onClose: () => void;
     onGetDirections: () => void;
-    onStartNavigation: () => void;
 }
 
 export function OutdoorPOICard({ 
     poi, 
     userLocation, 
     onClose, 
-    onGetDirections,
-    onStartNavigation 
+    onGetDirections
 }: Readonly<OutdoorPOICardProps>) {
-    const [isFavourite, setIsFavourite] = useState(false);
 
     if (!poi) return null;
 
@@ -74,23 +71,6 @@ export function OutdoorPOICard({
                 >
                     <MaterialIcons name="directions" size={14} color="#ffffff" />
                     <Text style={styles.primaryBtnText}>Directions</Text>
-                </Pressable>
-
-                <Pressable 
-                    style={[styles.actionBtn, styles.primaryBtn]} 
-                    onPress={onStartNavigation}
-                >
-                    <MaterialIcons name="navigation" size={18} color="#ffffff" />
-                    <Text style={styles.primaryBtnText}>Start</Text>
-                </Pressable>
-
-                <Pressable 
-                    style={[styles.actionBtn, styles.primaryBtn]} 
-                    onPress={() => setIsFavourite(!isFavourite)}
-                    testID="fav-btn"
-                >
-                    <MaterialIcons name={isFavourite ? "star" : "star-outline"} size={18} color="#ffffff" />
-                    <Text style={styles.primaryBtnText}>Favourite</Text>
                 </Pressable>
             </View>
         </View>

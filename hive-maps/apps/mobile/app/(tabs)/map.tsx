@@ -553,6 +553,8 @@ export default function MapScreen() {
         mapsAdapter,
         error,
     } = useNavigationController();
+    const [poiClearTrigger, setPoiClearTrigger] = useState(0);
+    const clearPOICategory = () => setPoiClearTrigger(t => t + 1);
     const colorScheme = useColorScheme();
     const cameraRef = useRef<MapboxGL.Camera>(null);
     const {events: calendarEvents} = useGoogleCalendarEvents();
@@ -902,6 +904,7 @@ export default function MapScreen() {
             destination: {type: 'coordinate', longitude: routeToCoordinates[0], latitude: routeToCoordinates[1]},
         }, campusMetaById);
         setRouteValidation(result);
+        setPoiMarkers([]);
         // Never show the validation error modal while actively navigating —
         // recalculation uses the live GPS position which may be off-campus.
         if (!result.valid && !isNavigating && !activeIndoorSegment && !shouldStartDestinationIndoorOnly) {
@@ -1570,6 +1573,7 @@ export default function MapScreen() {
                         }}
                         onSelectBuilding={(mapLocation, coordinates) => {
                             setTo(getSelectedLocationLabel(mapLocation));
+                            clearPOICategory();
                             setClassroomDestination(toClassroomDestination(mapLocation));
                             if (!cameraRef.current) return;
                             if (coordinates) {
@@ -1681,13 +1685,14 @@ export default function MapScreen() {
                         }}
                     />
                 }
-                    {(!isNavigating && !toCoordinates && !fromCoordinates) &&
+                    {(!isNavigating && (to ==="" || from ==="") && (!toCoordinates || !fromCoordinates)) &&
                     <POICategory
                         userLocation={userLocation ?? fromCoordinates ?? toCoordinates}
                         radius={0.8}
                         onSelectCategory={(category, pois) => {setPoiMarkers(pois);setSelectedOutdoorPOI(null);}}
                         onClearCategory={() => {setPoiMarkers([]); setSelectedOutdoorPOI(null);}}
                         marginTop={seeDirectionBar ? 11 : 65}
+                        clearTrigger={poiClearTrigger}
                     />}
 
                 </>
@@ -1822,8 +1827,8 @@ export default function MapScreen() {
             )}
             <OutdoorPOICard
                 poi={selectedOutdoorPOI}
-                userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null}
-                onClose={() => setSelectedOutdoorPOI(null)}
+                userLocation={userLocation ? { longitude: userLocation[0], latitude: userLocation[1] } : null} 
+                onClose={() => {setSelectedOutdoorPOI(null);}}
                 onGetDirections={() => {
                     if (!selectedOutdoorPOI) return;
                     setSeeDirectionBar(true);
@@ -1834,16 +1839,7 @@ export default function MapScreen() {
                         setFromCoordinates(userLocation);
                         fromCoordinatesIsUserLocation.current = true;
                     }
-                    setSelectedOutdoorPOI(null);
-                }}
-                onStartNavigation={() => {
-                    if (!selectedOutdoorPOI || !userLocation) return;
-                    setTo(selectedOutdoorPOI.name);
-                    setToCoordinates([selectedOutdoorPOI.coordinates.longitude, selectedOutdoorPOI.coordinates.latitude]);
-                    setFrom("Your location");
-                    setFromCoordinates(userLocation);
-
-                    handleStartPress();
+                    setPoiMarkers([]);
                     setSelectedOutdoorPOI(null);
                 }}
             />
