@@ -17,6 +17,7 @@ import { MapboxGL } from '@/services/mapbox';
 import MapSearchBar from '@/components/search-bar';
 import {Coordinates, MapLocation} from '@/services/maps/maps-provider';
 import {DirectionsLine} from "@/components/ui/directions-line";
+import { SegmentedDirectionsLine } from '@/components/ui/segmented-directions-line';
 import {NavigationBottom} from "@/components/ui/navigation-bottom";
 import { NextClassPrompt } from '@/components/next-class-prompt';
 import {
@@ -37,6 +38,7 @@ import {getCameraBoundsForRoute} from '@/services/maps/camera-utils';
 import {useLiveLocation} from '@/hooks/use-live-location';
 import {useStepNavigator, type ShuttlePhaseBoundaries} from '@/hooks/use-step-navigator';
 import {StepByStepPanel} from '@/components/ui/step-by-step-panel';
+import { ROUTE_STYLE_TOKENS } from '@/constants/route-styles';
 import { useFocusEffect } from '@react-navigation/native';
 import { consumeCompletedDestinationIndoorSession, consumeCompletedOriginIndoorSession } from '@/state/indoor-route-handoff';
 import {POICategory,type POI} from "@/components/ui/POICategory";
@@ -1062,7 +1064,7 @@ export default function MapScreen() {
                 transitLine: {
                     name: 'Concordia Shuttle',
                     nameShort: 'Shuttle',
-                    color: '#e5a712',
+                    color: ROUTE_STYLE_TOKENS.shuttle.color,
                 },
                 stopDetails: {
                     departureStop: { name: originName },
@@ -1456,8 +1458,9 @@ export default function MapScreen() {
                     </MapboxGL.PointAnnotation>
                 ))}
                 {directions && selectedMode !== 'Shuttle' && !activeIndoorSegment && (
-                    <DirectionsLine
+                    <SegmentedDirectionsLine
                         directions={directions}
+                        mode={selectedMode}
                         infoCardPosition="top"
                         showStartEndpoint={true}
                         showEndEndpoint={false}
@@ -1469,8 +1472,9 @@ export default function MapScreen() {
                         sourceId="origin-indoor-source"
                         layerId="origin-indoor-layer"
                         endpointId="origin-indoor-endpoints"
-                        lineColor="#9d1e30"
-                        lineWidth={6}
+                        lineColor={ROUTE_STYLE_TOKENS.indoor.color}
+                        lineWidth={ROUTE_STYLE_TOKENS.indoor.width}
+                        lineDasharray={ROUTE_STYLE_TOKENS.indoor.dasharray}
                         showInfoCard={false}
                         showEndpoints={false}
                         useIndoorData={true}
@@ -1483,8 +1487,9 @@ export default function MapScreen() {
                         sourceId="destination-indoor-source"
                         layerId="destination-indoor-layer"
                         endpointId="destination-indoor-endpoints"
-                        lineColor="#9d1e30"
-                        lineWidth={6}
+                        lineColor={ROUTE_STYLE_TOKENS.indoor.color}
+                        lineWidth={ROUTE_STYLE_TOKENS.indoor.width}
+                        lineDasharray={ROUTE_STYLE_TOKENS.indoor.dasharray}
                         showInfoCard={false}
                         showEndpoints={false}
                         useIndoorData={true}
@@ -1498,9 +1503,9 @@ export default function MapScreen() {
                         sourceId="origin-outdoor-connector-source"
                         layerId="origin-outdoor-connector-layer"
                         endpointId="origin-outdoor-connector-endpoints"
-                        lineColor="#9ca3af"
-                        lineWidth={3}
-                        lineDasharray={[1.5, 1.5]}
+                        lineColor={ROUTE_STYLE_TOKENS.indoor.color}
+                        lineWidth={ROUTE_STYLE_TOKENS.indoor.width}
+                        lineDasharray={ROUTE_STYLE_TOKENS.indoor.dasharray}
                         showInfoCard={false}
                         showEndpoints={false}
                     />
@@ -1512,9 +1517,9 @@ export default function MapScreen() {
                         sourceId="destination-outdoor-connector-source"
                         layerId="destination-outdoor-connector-layer"
                         endpointId="destination-outdoor-connector-endpoints"
-                        lineColor="#9ca3af"
-                        lineWidth={3}
-                        lineDasharray={[1.5, 1.5]}
+                        lineColor={ROUTE_STYLE_TOKENS.indoor.color}
+                        lineWidth={ROUTE_STYLE_TOKENS.indoor.width}
+                        lineDasharray={ROUTE_STYLE_TOKENS.indoor.dasharray}
                         showInfoCard={false}
                         showEndpoints={false}
                     />

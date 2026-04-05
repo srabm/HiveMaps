@@ -4,6 +4,7 @@ import {MapboxGL} from '@/services/mapbox';
 import {DirectionsLine} from '@/components/ui/directions-line';
 import type {DirectionsResponse} from '@/services/maps/directions-api-adapter';
 import type {ShuttleStop} from '@/services/data/shuttle-stops';
+import { ROUTE_STYLE_TOKENS } from '@/constants/route-styles';
 
 type ShuttleRouteOverlayProps = {
     walkToStop: DirectionsResponse | null;
@@ -26,10 +27,10 @@ export function ShuttleRouteOverlay({
                 <DirectionsLine
                     directions={walkToStop}
                     infoCardPosition="top"
-                    lineColor="#6B7280"
-                    lineWidth={6}
+                    lineColor={ROUTE_STYLE_TOKENS.walking.color}
+                    lineWidth={ROUTE_STYLE_TOKENS.walking.width}
                     showInfoCard={false}
-                    lineDasharray={[2, 2]}
+                    lineDasharray={ROUTE_STYLE_TOKENS.walking.dasharray}
                     sourceId="shuttle-walk-to-source"
                     layerId="shuttle-walk-to-layer"
                 />
@@ -38,8 +39,8 @@ export function ShuttleRouteOverlay({
                 <DirectionsLine
                     directions={shuttleLeg}
                     infoCardPosition="top"
-                    lineColor="#e5a712"
-                    lineWidth={7}
+                    lineColor={ROUTE_STYLE_TOKENS.shuttle.color}
+                    lineWidth={ROUTE_STYLE_TOKENS.shuttle.width}
                     showInfoCard={false}
                     sourceId="shuttle-leg-source"
                     layerId="shuttle-leg-layer"
@@ -49,10 +50,10 @@ export function ShuttleRouteOverlay({
                 <DirectionsLine
                     directions={walkFromStop}
                     infoCardPosition="top"
-                    lineColor="#6B7280"
-                    lineWidth={6}
+                    lineColor={ROUTE_STYLE_TOKENS.walking.color}
+                    lineWidth={ROUTE_STYLE_TOKENS.walking.width}
                     showInfoCard={false}
-                    lineDasharray={[2, 2]}
+                    lineDasharray={ROUTE_STYLE_TOKENS.walking.dasharray}
                     sourceId="shuttle-walk-from-source"
                     layerId="shuttle-walk-from-layer"
                 />

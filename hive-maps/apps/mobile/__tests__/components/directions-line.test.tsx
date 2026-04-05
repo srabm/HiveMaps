@@ -95,7 +95,7 @@ describe('DirectionsLine rendering', () => {
         expect(flatStyle.lineDasharray).toEqual([2, 1]);
     });
 
-    it('does not apply lineDasharray when not provided', () => {
+    it('applies a solid lineDasharray when not provided', () => {
         const {getByTestId} = render(
             <DirectionsLine directions={makeDirections()} />,
         );
@@ -104,7 +104,7 @@ describe('DirectionsLine rendering', () => {
         const flatStyle = Array.isArray(lineLayer.props.style)
             ? Object.assign({}, ...lineLayer.props.style)
             : lineLayer.props.style;
-        expect(flatStyle.lineDasharray).toBeUndefined();
+        expect(flatStyle.lineDasharray).toEqual([1, 0]);
     });
 
     it('includes the start endpoint when showStartEndpoint is true', () => {

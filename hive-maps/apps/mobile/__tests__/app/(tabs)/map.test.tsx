@@ -150,6 +150,9 @@ jest.mock('@/components/ui/shuttle-route-overlay', () => ({
 jest.mock('@/components/ui/directions-line', () => ({
     DirectionsLine: () => null,
 }));
+jest.mock('@/components/ui/segmented-directions-line', () => ({
+    SegmentedDirectionsLine: () => null,
+}));
 jest.mock('@/components/ui/navigation-bottom', () => {
     const { Pressable, View } = require('react-native');
     return {

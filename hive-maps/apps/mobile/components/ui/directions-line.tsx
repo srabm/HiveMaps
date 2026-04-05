@@ -24,6 +24,8 @@ interface DirectionsDisplayProps {
     showEndEndpoint?: boolean;
 }
 
+const SOLID_LINE_DASHARRAY = [1, 0] as const;
+
 /**
  * Black magic to convert polyline to geojson
  * @param encoded
@@ -186,7 +188,7 @@ export function DirectionsLine({
                         lineWidth,
                         lineCap: 'round',
                         lineJoin: 'round',
-                        ...(lineDasharray ? {lineDasharray} : {}),
+                        lineDasharray: lineDasharray ?? [...SOLID_LINE_DASHARRAY],
                     }}
                 />
             </MapboxGL.ShapeSource>

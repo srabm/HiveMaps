@@ -16,6 +16,7 @@ import {useShuttleSchedule} from '@/hooks/use-shuttle-schedule';
 import {useShuttleRouting} from '@/hooks/use-shuttle-routing';
 import {ShuttleScheduleModal} from '@/components/ui/shuttle-schedule-modal';
 import type { CampusMetaById } from '@/types/campus';
+import { ROUTE_STYLE_TOKENS } from '@/constants/route-styles';
 
 type TransportModeLabel = 'Drive' | 'Walk' | 'Transit' | 'Shuttle';
 
@@ -34,10 +35,10 @@ interface NavigationBottomProps {
 const MODES: TransportModeLabel[] = ['Drive', 'Walk', 'Transit', 'Shuttle'];
 
 const MODE_META: Record<TransportModeLabel, {label: string; indicatorColor: string}> = {
-    Drive: {label: 'Drive', indicatorColor: '#e5a712'},
-    Walk: {label: 'Walk', indicatorColor: '#e5a712'},
-    Transit: {label: 'Transit', indicatorColor: '#e5a712'},
-    Shuttle: {label: 'Shuttle', indicatorColor: '#f4b742'},
+    Drive: {label: 'Drive', indicatorColor: ROUTE_STYLE_TOKENS.driving.color},
+    Walk: {label: 'Walk', indicatorColor: ROUTE_STYLE_TOKENS.walking.color},
+    Transit: {label: 'Transit', indicatorColor: ROUTE_STYLE_TOKENS.transitBusFallback.color},
+    Shuttle: {label: 'Shuttle', indicatorColor: ROUTE_STYLE_TOKENS.shuttle.color},
 };
 
 export const mapUiModeToTransportMode = (mode: TransportModeLabel) => {

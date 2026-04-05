@@ -13,6 +13,7 @@ import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
 import { markDestinationIndoorSessionCompleted, markOriginIndoorSessionCompleted } from '@/state/indoor-route-handoff';
 import { useRouter } from 'expo-router';
+import { ROUTE_STYLE_TOKENS } from '@/constants/route-styles';
 
 export type FloorPlanViewerProps = Readonly<{
     planGeometry?: GeoJSON.Geometry | null
@@ -737,10 +738,11 @@ export function FloorPlanViewer({
 
           {activeFloorRouteView.steps.length > 0 && <DirectionsLine
             endpointId='indoor-directions-endpoints'
-            lineColor = {accessible ? '#2196F3' : undefined }
+            lineColor={ROUTE_STYLE_TOKENS.indoor.color}
+            lineDasharray={ROUTE_STYLE_TOKENS.indoor.dasharray}
+            lineWidth={ROUTE_STYLE_TOKENS.indoor.width}
             useIndoorData={true}
             IndoorDirections={activeFloorRouteView.steps}
-            lineWidth={5}
             directions={{
                 polyline: "",
                 distanceMeters: 30,
