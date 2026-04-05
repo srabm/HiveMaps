@@ -1979,6 +1979,7 @@ export default function MapScreen() {
             >
                 <View style={styles.modalBackdrop}>
                     <Pressable
+                        testID="accessibility-modal-backdrop"
                         style={StyleSheet.absoluteFill}
                         onPress={() => setShowAccessibilityModal(false)}
                     />
