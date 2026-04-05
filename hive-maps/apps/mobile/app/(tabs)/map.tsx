@@ -49,6 +49,51 @@ import { parseLocationReference, type NextClassResult } from '@/services/next-cl
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
+const SHOW_ALL_BUILDING_MARKERS_ZOOM = 16.7;
+
+function getPolygonRingCoordinates(location: any): [number, number][] | null {
+    if (!location?.coordinates) return null;
+
+    if (location.type === 'Polygon') {
+        return Array.isArray(location.coordinates?.[0]) ? location.coordinates[0] as [number, number][] : null;
+    }
+
+    if (location.type === 'MultiPolygon') {
+        return Array.isArray(location.coordinates?.[0]?.[0]) ? location.coordinates[0][0] as [number, number][] : null;
+    }
+
+    return null;
+}
+
+function getRingCentroid(ring: [number, number][]): Coordinates | null {
+    if (ring.length < 3) return null;
+
+    let twiceArea = 0;
+    let centroidX = 0;
+    let centroidY = 0;
+
+    for (let index = 0; index < ring.length; index += 1) {
+        const [x1, y1] = ring[index];
+        const [x2, y2] = ring[(index + 1) % ring.length];
+        const cross = x1 * y2 - x2 * y1;
+        twiceArea += cross;
+        centroidX += (x1 + x2) * cross;
+        centroidY += (y1 + y2) * cross;
+    }
+
+    if (Math.abs(twiceArea) < 1e-9) return null;
+
+    return [
+        centroidX / (3 * twiceArea),
+        centroidY / (3 * twiceArea),
+    ];
+}
+
+function getBuildingMarkerCoordinate(point: ReturnType<typeof useNavigationController>['points'][number]): Coordinates {
+    const ring = getPolygonRingCoordinates(point.building.location);
+    const centroid = ring ? getRingCentroid(ring) : null;
+    return centroid ?? point.building.center ?? point.coordinate;
+}
 
 function buildPolygonFeatures(points: ReturnType<typeof useNavigationController>['points'], userLocation: [number, number] | null) {
     const polys = [];
@@ -591,6 +636,7 @@ export default function MapScreen() {
     const [routeValidation, setRouteValidation] = useState<ValidationResult | null>(null);
     const [showValidationError, setShowValidationError] = useState(false);
     const [isNavigating, setIsNavigating] = useState(false);
+    const [currentZoomLevel, setCurrentZoomLevel] = useState(16);
     const [navigationOrigin, setNavigationOrigin] = useState<Coordinates | null>(null);
     const [navigationUsesLiveLocation, setNavigationUsesLiveLocation] = useState(false);
     const activeDestinationCoordinates = routeToCoordinates ?? toCoordinates;
@@ -623,6 +669,14 @@ export default function MapScreen() {
     const nextClassDestination = useMemo(() => {
         return resolveNextClassDestination(nextClassResult, points);
     }, [nextClassResult, points]);
+
+    const visibleBuildingMarkerPoints = useMemo(() => {
+        if (currentZoomLevel >= SHOW_ALL_BUILDING_MARKERS_ZOOM) {
+            return points;
+        }
+
+        return points.filter((point) => point.building.hasIndoorMap);
+    }, [currentZoomLevel, points]);
 
     const activeNextClassEventId = nextClassResult.status === 'none'
         ? null
@@ -937,6 +991,7 @@ export default function MapScreen() {
 
     useEffect(() => {
         if (!campusMeta) return;
+        setCurrentZoomLevel(campusMeta.zoom);
         if (suppressNextCampusCameraSync.current) {
             suppressNextCampusCameraSync.current = false;
             return;
@@ -1257,6 +1312,25 @@ export default function MapScreen() {
         // from, fromCoordinates, to, toCoordinates, directions — intentionally preserved
     }, [toCoordinates, campusMetaById, setCampus]);
 
+    const openBuildingDetails = useCallback((point: typeof points[number], coordinates?: Coordinates | null) => {
+        const details = point?.details as BuildingDetails | undefined;
+        const day = new Date().getDay();
+        const resolvedCoordinates = coordinates ?? getBuildingMarkerCoordinate(point);
+        setSelectedBuilding({
+            code: point.building.code,
+            campus: point.building.campus,
+            name: point.building.name,
+            addresses: point.building.addresses,
+            phone: details?.nationalPhoneNumber,
+            website: details?.websiteUri,
+            hours: details?.regularOpeningHours?.weekdayDescription?.[day === 0 ? 6 : day - 1]
+                ?? 'Hours not listed',
+            allHours: details?.regularOpeningHours?.weekdayDescriptions,
+            coordinates: resolvedCoordinates,
+            hasIndoorMap: !!point.building.hasIndoorMap,
+        });
+    }, []);
+
     const handleBuildingPress = useCallback((e: Parameters<NonNullable<import('react').ComponentProps<typeof MapboxGL.ShapeSource>['onPress']>>[0]) => {
         if (isNavigating) return;
         const tapPoint = (e as { point?: { x?: number; y?: number } }).point;
@@ -1274,21 +1348,10 @@ export default function MapScreen() {
         }
         const f = e.features[0];
         const point = points.find(p => p.id === f.properties?.id);
-        const details = point?.details as BuildingDetails | undefined;
-        const day = new Date().getDay();
-        setSelectedBuilding({
-            ...f.properties,
-            phone: details?.nationalPhoneNumber,
-            website: details?.websiteUri,
-            hours: details?.regularOpeningHours?.weekdayDescription?.[day === 0 ? 6 : day - 1]
-                ?? 'Hours not listed',
-            allHours: details?.regularOpeningHours?.weekdayDescriptions,
-            coordinates: f.properties?.center as Coordinates | undefined,
-            // Read directly from point — Mapbox serialises feature properties to
-            // JSON on press, which can corrupt booleans to strings or drop them.
-            hasIndoorMap: !!point?.building?.hasIndoorMap,
-        });
-    }, [isNavigating, points]);
+        if (!point) return;
+        const featureCenter = f.properties?.center as Coordinates | undefined;
+        openBuildingDetails(point, featureCenter);
+    }, [isNavigating, openBuildingDetails, points]);
 
     const handleNavigationBottomLayout = useCallback((event: LayoutChangeEvent) => {
         navigationBottomFrame.current = event.nativeEvent.layout;
@@ -1296,6 +1359,11 @@ export default function MapScreen() {
 
     const handleMapIdle = useCallback((event: any) => {
         if (isNavigating) return;
+
+        const zoom = event?.properties?.zoom;
+        if (typeof zoom === 'number' && Number.isFinite(zoom)) {
+            setCurrentZoomLevel(zoom);
+        }
 
         const center =
             event?.properties?.center ??
@@ -1442,6 +1510,19 @@ export default function MapScreen() {
                         <DestinationPin />
                     </MapboxGL.PointAnnotation>
                 }
+
+                {!isNavigating && visibleBuildingMarkerPoints.map((point) => (
+                    <MapboxGL.PointAnnotation
+                        key={`building-marker-${point.id}`}
+                        id={`building-marker-${point.id}`}
+                        coordinate={getBuildingMarkerCoordinate(point)}
+                        onSelected={() => openBuildingDetails(point, getBuildingMarkerCoordinate(point))}
+                    >
+                        <View style={styles.markerPin}>
+                            <Text style={styles.markerText}>{point.building.code}</Text>
+                        </View>
+                    </MapboxGL.PointAnnotation>
+                ))}
 
                 {poiMarkers.length > 0 && poiMarkers.map((poi, index) => (
                     <MapboxGL.PointAnnotation
@@ -1965,12 +2046,22 @@ const styles = StyleSheet.create({
     container: {flex: 1},
     centered: {flex: 1, alignItems: 'center', justifyContent: 'center'},
     markerPin: {
-        height: 28, width: 28, backgroundColor: '#ffffff', borderRadius: 14,
-        alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-        borderColor: '#e0e0e0', shadowColor: '#000', shadowOffset: {width: 0, height: 2},
-        shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5,
+        minWidth: 30,
+        height: 30,
+        paddingHorizontal: 8,
+        backgroundColor: '#9d1e30',
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.22,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
-    markerText: {color: '#9d1e30', fontWeight: '900', fontSize: 14},
+    markerText: {color: '#ffffff', fontWeight: '900', fontSize: 12},
     topBar: {
         position: 'absolute', top: 32, left: 16, right: 16,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
