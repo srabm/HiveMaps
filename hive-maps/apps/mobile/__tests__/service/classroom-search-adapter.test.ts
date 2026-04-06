@@ -1,6 +1,7 @@
 import { fetchIndoorRooms } from '@/services/http/indoor-api';
 import { createClassroomSearchAdapter } from '@/services/maps/classroom-search-adapter';
 import type { MapsProviderPort } from '@/services/maps/maps-provider';
+import type { BuildingPoint } from '@/repositories/campus-repository';
 
 jest.mock('@/services/http/indoor-api', () => ({
   fetchIndoorRooms: jest.fn(),
@@ -18,6 +19,33 @@ const createBaseAdapter = (): jest.Mocked<MapsProviderPort> => ({
   categorySearch: jest.fn().mockResolvedValue(null),
   defaultStyleURL: '',
 });
+
+const concordiaBuildings: BuildingPoint[] = [
+  {
+    id: 'MB',
+    coordinate: [-73.5789, 45.4952],
+    building: {
+      campus: 'SGW',
+      code: 'MB',
+      name: 'John Molson Building',
+      addresses: ['1450 Guy St., Montreal, QC, Canada'],
+      center: [-73.5789, 45.4952],
+      hasIndoorMap: true,
+    },
+  },
+  {
+    id: 'H',
+    coordinate: [-73.5785, 45.4971],
+    building: {
+      campus: 'SGW',
+      code: 'H',
+      name: 'Henry F. Hall Building',
+      addresses: ['1455 De Maisonneuve Blvd W, Montreal, QC, Canada'],
+      center: [-73.5785, 45.4971],
+      hasIndoorMap: true,
+    },
+  },
+];
 
 describe('createClassroomSearchAdapter', () => {
   beforeEach(() => {
@@ -144,6 +172,77 @@ describe('createClassroomSearchAdapter', () => {
       { id: 'mapbox-1', name: 'Hall Building', address: '1455 De Maisonneuve Blvd W' },
     ]);
   });
+
+  it('shows Concordia buildings before generic map results', async () => {
+    const baseAdapter = createBaseAdapter();
+    (baseAdapter.search as jest.Mock).mockResolvedValue([
+      { id: 'mapbox-1', name: 'Coffee Shop', address: '1450 Guy St.' },
+      { id: 'mapbox-2', name: 'John Molson Building', address: '1450 Guy St., Montreal, QC, Canada' },
+    ]);
+
+    const adapter = createClassroomSearchAdapter(baseAdapter, () => concordiaBuildings);
+    const results = await adapter.search('Molson', null, 'session');
+
+    expect(results?.[0]).toEqual({
+      id: 'concordia-building:MB',
+      name: 'John Molson Building',
+      address: '1450 Guy St., Montreal, QC, Canada',
+    });
+    expect(results?.some((result) => result.id === 'mapbox-2')).toBe(false);
+    expect(results?.some((result) => result.id === 'mapbox-1')).toBe(true);
+  });
+
+  it('matches JSMB to the local John Molson building alias', async () => {
+    const adapter = createClassroomSearchAdapter(createBaseAdapter(), () => concordiaBuildings);
+    const results = await adapter.search('JSMB', null, 'session');
+
+    expect(results?.[0]).toEqual({
+      id: 'concordia-building:MB',
+      name: 'John Molson Building',
+      address: '1450 Guy St., Montreal, QC, Canada',
+    });
+  });
+
+  it('matches generated acronyms for other Concordia buildings across campus data', async () => {
+    const adapter = createClassroomSearchAdapter(createBaseAdapter(), () => concordiaBuildings);
+    const results = await adapter.search('HFH', null, 'session');
+
+    expect(results?.[0]).toEqual({
+      id: 'concordia-building:H',
+      name: 'Henry F. Hall Building',
+      address: '1455 De Maisonneuve Blvd W, Montreal, QC, Canada',
+    });
+  });
+
+  it('does not let Concordia building priority crowd out generic non-building queries', async () => {
+    const baseAdapter = createBaseAdapter();
+    (baseAdapter.search as jest.Mock).mockResolvedValue([
+      { id: 'mapbox-1', name: 'Guy-Concordia Station', address: 'Guy Street' },
+      { id: 'mapbox-2', name: 'Coffee Shop', address: 'Guy Street' },
+    ]);
+
+    const adapter = createClassroomSearchAdapter(baseAdapter, () => concordiaBuildings);
+    const results = await adapter.search('Guy', null, 'session');
+
+    expect(results).toEqual([
+      { id: 'mapbox-1', name: 'Guy-Concordia Station', address: 'Guy Street' },
+      { id: 'mapbox-2', name: 'Coffee Shop', address: 'Guy Street' },
+    ]);
+  });
+
+  it('preserves full-name external place results', async () => {
+    const baseAdapter = createBaseAdapter();
+    (baseAdapter.search as jest.Mock).mockResolvedValue([
+      { id: 'mapbox-1', name: 'Starbucks Coffee', address: '1450 Guy St.' },
+    ]);
+
+    const adapter = createClassroomSearchAdapter(baseAdapter, () => concordiaBuildings);
+    const results = await adapter.search('Starbucks Coffee', null, 'session');
+
+    expect(results).toEqual([
+      { id: 'mapbox-1', name: 'Starbucks Coffee', address: '1450 Guy St.' },
+    ]);
+  });
 });
 
 // ─── passthrough methods ──────────────────────────────────────────────────────
@@ -195,6 +294,16 @@ describe('createClassroomSearchAdapter — retrieve', () => {
     const base = createBaseAdapter();
     const result = await createClassroomSearchAdapter(base).retrieve('indoor-room:H8.999', 'session');
     expect(result).toBeNull();
+    expect(base.retrieve).not.toHaveBeenCalled();
+  });
+
+  it('returns local Concordia building coordinates for building results', async () => {
+    const base = createBaseAdapter();
+    const adapter = createClassroomSearchAdapter(base, () => concordiaBuildings);
+
+    await adapter.search('Molson', null, 'session');
+
+    await expect(adapter.retrieve('concordia-building:MB', 'session')).resolves.toEqual([-73.5789, 45.4952]);
     expect(base.retrieve).not.toHaveBeenCalled();
   });
 });
