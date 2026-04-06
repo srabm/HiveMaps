@@ -152,7 +152,7 @@ class IndoorDirectionsService(
                 DirectionType.LEFT -> "Turn left"
                 DirectionType.RIGHT -> "Turn right"
                 DirectionType.BACK -> "Turn around"
-                DirectionType.UP_OR_DOWN -> "Take the stairs/escalator/elevator to floor ${edge.endNode.floor}"
+                DirectionType.UP_OR_DOWN -> "Take the ${edge.label.lowercase()} to floor ${edge.endNode.floor}"
                 DirectionType.STRAIGHT -> "Go straight"
             }
 
@@ -214,6 +214,13 @@ class IndoorDirectionsService(
         return indoorDirectionsRepository.findIndoorNodesByBuilding(building)
             .values
             .filter { it.label == "Room" && (floor == null || it.floor == floor)}
+    }
+
+    fun getEntrances(building: String): List<IndoorNode> {
+        return indoorDirectionsRepository.findIndoorNodesByBuilding(building)
+            .values
+            .filter { it.label == "Entrance" }
+            .sortedBy { it.id }
     }
 
     private fun getDistance(startLongitude: Double, startLatitude: Double, endLongitude: Double, endLatitude: Double): Double {

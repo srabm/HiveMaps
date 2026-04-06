@@ -1,5 +1,6 @@
 import {
   fetchGoogleCalendars,
+  fetchUpcomingGoogleCalendarEvents,
   getDefaultSelectedCalendarIds,
 } from '@/services/google-calendar';
 
@@ -45,5 +46,142 @@ describe('google-calendar service', () => {
         { id: 'primary', summary: 'Personal', primary: true },
       ])
     ).toEqual(['primary']);
+  });
+  it('fetches and sorts upcoming events across selected calendars', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+          id: 'later',
+          summary: 'COMP 472 Lecture',
+          location: 'H-920',
+          start: {dateTime: '2025-01-15T10:30:00.000Z'},
+          end: {dateTime: '2025-01-15T11:45:00.000Z'},
+          },
+        ],
+      }),
+    })
+
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            id: 'soon',
+            summary: 'SOEN 341 Tutorial',
+            location: 'MB-3.255',
+            start: {dateTime: '2025-01-15T09:30:00.000Z'},
+            end: {dateTime: '2025-01-15T10:20:00.000Z'},
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      fetchUpcomingGoogleCalendarEvents(
+        'token',
+        ['calendar-a', 'calendar-b'],
+        new Date('2025-01-15T09:00:00.000Z')
+      )
+    ).resolves.toEqual([
+      {
+        id: 'soon',
+        summary: 'SOEN 341 Tutorial',
+        location: 'MB-3.255',
+        start: {dateTime: '2025-01-15T09:30:00.000Z', date: undefined},
+        end: {dateTime: '2025-01-15T10:20:00.000Z', date: undefined},
+      },
+      {
+        id: 'later',
+        summary: 'COMP 472 Lecture',
+        location: 'H-920',
+        start: {dateTime: '2025-01-15T10:30:00.000Z', date: undefined},
+        end: {dateTime: '2025-01-15T11:45:00.000Z', date: undefined},
+      },
+    ]);
+  });
+
+  it('returns an empty list when no calendar ids are selected', async () => {
+    await expect(
+      fetchUpcomingGoogleCalendarEvents(
+        'token',
+        [],
+        new Date('2025-01-15T09:00:00.000Z')
+      )
+    ).resolves.toEqual([]);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('uses the default now value when one is not provided', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-15T09:00:00.000Z'));
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ items: [] }),
+    });
+
+    await expect(
+      fetchUpcomingGoogleCalendarEvents('token', ['calendar-a'])
+    ).resolves.toEqual([]);
+
+    const [requestedUrl] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(String(requestedUrl)).toContain('timeMin=2025-01-15T09%3A00%3A00.000Z');
+    expect(String(requestedUrl)).toContain('timeMax=2025-01-15T11%3A00%3A00.000Z');
+
+    jest.useRealTimers();
+  });
+
+  it('ignores malformed event items that are missing required fields', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            summary: 'Missing identifier',
+            start: {dateTime: '2025-01-15T09:30:00.000Z'},
+            end: {dateTime: '2025-01-15T10:20:00.000Z'},
+          },
+          {
+            id: 'valid',
+            summary: 'Valid event',
+            start: {dateTime: '2025-01-15T09:45:00.000Z'},
+            end: {dateTime: '2025-01-15T10:30:00.000Z'},
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      fetchUpcomingGoogleCalendarEvents(
+        'token',
+        ['calendar-a'],
+        new Date('2025-01-15T09:00:00.000Z')
+      )
+    ).resolves.toEqual([
+      {
+        id: 'valid',
+        summary: 'Valid event',
+        location: null,
+        start: {dateTime: '2025-01-15T09:45:00.000Z', date: undefined},
+        end: {dateTime: '2025-01-15T10:30:00.000Z', date: undefined},
+      },
+    ]);
+  });
+
+  it('throws an error when the events API request fails', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+    });
+
+    await expect(
+      fetchUpcomingGoogleCalendarEvents(
+        'token',
+        ['calendar-a'],
+        new Date('2025-01-15T09:00:00.000Z')
+      )
+    ).rejects.toThrow('Unable to load Google Calendar events right now.');
   });
 });

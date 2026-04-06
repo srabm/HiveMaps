@@ -184,6 +184,16 @@ describe('Normal navigation', () => {
         expect(getByText('Arriving at destination')).toBeTruthy();
     });
 
+    it('renders "Then: Continue" when nextStep instruction is empty', () => {
+        const { getByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                nextStep={makeStep({ instruction: '' })}
+            />
+        );
+        expect(getByText('Then: Continue')).toBeTruthy();
+    });
+
     it('falls back to "Continue" when step instruction is empty', () => {
         const { getAllByText } = render(
             <StepByStepPanel
@@ -247,6 +257,43 @@ describe('Expandable step list', () => {
         fireEvent.press(getByText('Then: Step two'));
         expect(getAllByText('Step one').length).toBeGreaterThanOrEqual(1);
         expect(getAllByText('Step two').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('renders the arrival flag icon for an arrival step in the expanded list', () => {
+        const steps = [
+            makeStep({ instruction: 'Step one' }),
+            makeStep({ instruction: 'Arrive at destination', maneuver: 'arrive' }),
+        ];
+        const { getByText, getAllByTestId } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={steps}
+                currentStep={steps[0]}
+                nextStep={steps[1]}
+                currentStepIndex={0}
+            />
+        );
+        fireEvent.press(getByText('Then: Arrive at destination'));
+        expect(getAllByTestId('icon-flag').length).toBeGreaterThan(0);
+    });
+
+    it('does not render an expanded-row distance when the step distance is zero', () => {
+        const steps = [
+            makeStep({ instruction: 'Step one', distance: 0 }),
+            makeStep({ instruction: 'Step two', maneuver: 'turn', maneuverModifier: 'right' }),
+        ];
+        const { getByText, queryByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={steps}
+                currentStep={steps[0]}
+                nextStep={steps[1]}
+                currentStepIndex={0}
+                distanceToNextTurn={null}
+            />
+        );
+        fireEvent.press(getByText('Then: Step two'));
+        expect(queryByText(/^0 m$/)).toBeNull();
     });
 });
 
@@ -373,7 +420,13 @@ describe('Shuttle phase strip', () => {
 describe('TransitCard', () => {
     const transitStep = makeStep({
         transitDetails: {
-            transitLine: { name: 'Green Line', nameShort: '24', color: '#16a34a' },
+            transitLine: {
+                name: 'Green Line',
+                nameShort: '24',
+                color: '#16a34a',
+                headsign: 'North',
+                vehicle: { type: 'BUS' },
+            },
             stopDetails: {
                 departureStop: { name: 'Berri-UQAM' },
                 arrivalStop: { name: 'McGill' },
@@ -388,6 +441,20 @@ describe('TransitCard', () => {
             <StepByStepPanel {...defaultProps} currentStep={transitStep} />
         );
         expect(getByText('24')).toBeTruthy();
+    });
+
+    it('renders the full transit line name alongside the route identifier when both are present', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Green Line')).toBeTruthy();
+    });
+
+    it('renders the transit headsign direction when available', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Towards North')).toBeTruthy();
     });
 
     it('renders departure stop "Board at" label and stop name', () => {
@@ -406,6 +473,31 @@ describe('TransitCard', () => {
         expect(getByText('McGill')).toBeTruthy();
     });
 
+    it('renders the transit departure and arrival times', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText(/9:00/i)).toBeTruthy();
+        expect(getByText(/9:05/i)).toBeTruthy();
+    });
+
+    it('does not render transit times when they are absent', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: { name: 'Green Line', nameShort: '24', color: '#16a34a' },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { queryByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(queryByText(/9:00/i)).toBeNull();
+        expect(queryByText(/9:05/i)).toBeNull();
+    });
+
     it('falls back to full line name when nameShort is absent', () => {
         const step = makeStep({
             transitDetails: {
@@ -416,16 +508,293 @@ describe('TransitCard', () => {
                 },
             },
         });
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByText('Orange Line').length).toBeGreaterThan(0);
+    });
+
+    it('renders the subway icon for metro steps', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByTestId('icon-subway').length).toBeGreaterThan(0);
+    });
+
+    it('uses station-level wording for metro current-step instructions', () => {
+        const step = makeStep({
+            instruction: 'Take the subway towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
         const { getByText } = render(
             <StepByStepPanel {...defaultProps} currentStep={step} />
         );
-        expect(getByText('Orange Line')).toBeTruthy();
+        expect(getByText('Enter station Atwater towards Angrignon')).toBeTruthy();
+    });
+
+    it('uses station-level wording for metro next-step previews', () => {
+        const nextMetroStep = makeStep({
+            instruction: 'Take the subway towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    nameShort: '1',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'SUBWAY' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Atwater' },
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} nextStep={nextMetroStep} />
+        );
+        expect(getByText('Then: Enter station Atwater towards Angrignon')).toBeTruthy();
+    });
+
+    it('uses headsign-only wording for metro steps when no departure stop is available', () => {
+        const step = makeStep({
+            instruction: 'Take the metro towards Angrignon',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    color: '#00853F',
+                    headsign: 'Angrignon',
+                    vehicle: { type: 'METRO' },
+                },
+                stopDetails: {
+                    arrivalStop: { name: 'Guy-Concordia' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take metro towards Angrignon')).toBeTruthy();
+    });
+
+    it('falls back to generic station wording for metro steps without stop or headsign', () => {
+        const step = makeStep({
+            instruction: 'Take the metro',
+            transitDetails: {
+                transitLine: {
+                    name: 'Green Line',
+                    color: '#00853F',
+                    vehicle: { type: 'RAIL' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText, getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Enter station')).toBeTruthy();
+        expect(getAllByTestId('icon-train').length).toBeGreaterThan(0);
+    });
+
+    it('uses route number and headsign for bus current-step instructions', () => {
+        const step = makeStep({
+            instruction: 'Take the bus towards Nord',
+            transitDetails: {
+                transitLine: {
+                    name: 'Sherbrooke',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take bus 24 towards Nord')).toBeTruthy();
+    });
+
+    it('uses route-only wording when only a tram route number is available', () => {
+        const step = makeStep({
+            instruction: 'Board tram 55',
+            transitDetails: {
+                transitLine: {
+                    nameShort: '55',
+                    color: '#0f766e',
+                    vehicle: { type: 'TRAM' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Take tram 55')).toBeTruthy();
+    });
+
+    it('uses line-name wording when no route id is available but headsign exists', () => {
+        const step = makeStep({
+            instruction: 'Board shuttle',
+            transitDetails: {
+                transitLine: {
+                    name: 'Concordia Shuttle',
+                    color: '#9d1e30',
+                    headsign: 'Loyola',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getAllByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getAllByText('Towards Loyola').length).toBeGreaterThan(0);
+        expect(getAllByText('Take Concordia Shuttle towards Loyola').length).toBeGreaterThan(0);
+    });
+
+    it('falls back to the raw instruction when transit metadata cannot build a label', () => {
+        const step = makeStep({
+            instruction: 'Use the special shuttle service',
+            transitDetails: {
+                transitLine: {
+                    color: '#374151',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {},
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Use the special shuttle service')).toBeTruthy();
+    });
+
+    it('uses a bus icon for bus steps', () => {
+        const step = makeStep({
+            instruction: 'Take the bus towards Nord',
+            transitDetails: {
+                transitLine: {
+                    name: 'Sherbrooke',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getAllByTestId } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} nextStep={step} />
+        );
+        expect(getAllByTestId('icon-directions-bus').length).toBeGreaterThan(0);
+    });
+
+    it('shows the inline headsign text when route id and line name are the same', () => {
+        const step = makeStep({
+            transitDetails: {
+                transitLine: {
+                    name: '24',
+                    nameShort: '24',
+                    color: '#16a34a',
+                    headsign: 'Nord',
+                    vehicle: { type: 'BUS' },
+                },
+                stopDetails: {
+                    departureStop: { name: 'Berri-UQAM' },
+                    arrivalStop: { name: 'McGill' },
+                },
+            },
+        });
+        const { getByText, queryByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={step} />
+        );
+        expect(getByText('Towards Nord')).toBeTruthy();
+        expect(queryByText(/^24$/)).toBeTruthy();
+    });
+
+    it('shows a transit stop summary in the current-step panel', () => {
+        const { getByText } = render(
+            <StepByStepPanel {...defaultProps} currentStep={transitStep} />
+        );
+        expect(getByText('Board at Berri-UQAM')).toBeTruthy();
+        expect(getByText('Exit at McGill')).toBeTruthy();
+    });
+
+    it('shows a transit stop summary in the expanded directions list', () => {
+        const { getByText, getAllByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                steps={[transitStep]}
+                currentStep={transitStep}
+                nextStep={null}
+                currentStepIndex={0}
+            />
+        );
+
+        fireEvent.press(getByText('Arriving at destination'));
+        expect(getAllByText('Board at Berri-UQAM').length).toBeGreaterThan(0);
+        expect(getAllByText('Exit at McGill').length).toBeGreaterThan(0);
     });
 
     it('renders no TransitCard when step has no transitDetails', () => {
         const { queryByText } = render(<StepByStepPanel {...defaultProps} />);
         expect(queryByText('Board at')).toBeNull();
         expect(queryByText('Exit at')).toBeNull();
+    });
+
+    it('renders the shuttle ride label when shuttle transit details are active', () => {
+        const shuttleStep = makeStep({
+            instruction: 'Ride the Concordia Shuttle',
+            maneuver: 'depart',
+            transitDetails: {
+                transitLine: { name: 'Concordia Shuttle', nameShort: 'Shuttle', color: '#e5a712' },
+                stopDetails: {
+                    departureStop: { name: 'Loyola Stop' },
+                    arrivalStop: { name: 'SGW Stop' },
+                },
+            },
+        });
+        const { getByText } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                currentStep={shuttleStep}
+                shuttlePhase="shuttle"
+            />
+        );
+        expect(getByText('Ride the Concordia Shuttle')).toBeTruthy();
     });
 });
 
@@ -477,6 +846,21 @@ describe('Bottom stats bar', () => {
 });
 
 // ─── formatDist helper (via rendered output) ──────────────────────────────────
+
+describe('Maneuver fallback', () => {
+    it('falls back to the straight icon and warns for an unknown maneuver', () => {
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const { getByTestId } = render(
+            <StepByStepPanel
+                {...defaultProps}
+                currentStep={makeStep({ maneuver: 'mystery-maneuver' })}
+            />
+        );
+        expect(getByTestId('icon-straight')).toBeTruthy();
+        expect(warnSpy).toHaveBeenCalled();
+        warnSpy.mockRestore();
+    });
+});
 
 describe('formatDist display values', () => {
     // Both props set to the same value so the same text appears in both the

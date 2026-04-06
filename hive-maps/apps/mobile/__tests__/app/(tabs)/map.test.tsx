@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 // ─── Captured handles (must be declared before jest.mock calls) ───────────────
 
@@ -15,9 +16,12 @@ let mockShapeSourceHandlers: Record<string, (e: any) => void> = {};
 let mockPointAnnotationHandlers: Record<string, () => void> = {};
 let mockUserLocationOnUpdate: ((loc: any) => void) | null = null;
 let mockCameraSetCamera: jest.Mock;
-let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any } | null = null;
+let mockNavigationBottomCallbacks: { onDirectionsChange: any; onModeChange: any; onCardLayout: any; onTimeFilterChange: any } | null = null;
 let mockPOICategoryCallbacks: { onSelectCategory: any; onClearCategory: any } | null = null;
 let mockDirectionBarProps: any = null;
+let mockSearchBarProps: any = null;
+let mockMapIdleHandler: ((event: any) => void) | null = null;
+let consoleWarnSpy: jest.SpyInstance;
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -41,15 +45,25 @@ jest.mock('@/hooks/use-step-navigator', () => ({
     useStepNavigator: jest.fn(),
 }));
 
+jest.mock('@/hooks/use-google-calendar-events', () => ({
+    useGoogleCalendarEvents: jest.fn(),
+}));
+
+jest.mock('@/hooks/use-next-class', () => ({
+    useNextClass: jest.fn(),
+}));
+
 jest.mock('@/components/ui/step-by-step-panel', () => {
     const { View, Text, Pressable } = require('react-native');
     return {
-        StepByStepPanel: ({ arrived, isRecalculating, onExit, currentStep }: any) => (
+        StepByStepPanel: ({ arrived, isRecalculating, onExit, onArrived, onIndoorHandoff, currentStep }: any) => (
             <View testID="step-panel">
                 {arrived && <Text testID="arrived-text">Arrived</Text>}
                 {isRecalculating && <Text testID="recalc-text">Recalculating</Text>}
                 {currentStep && <Text testID="current-step">{currentStep.instruction}</Text>}
                 <Pressable testID="exit-btn" onPress={onExit} />
+                <Pressable testID="arrived-btn" onPress={onArrived} />
+                {onIndoorHandoff && <Pressable testID="indoor-handoff-btn" onPress={onIndoorHandoff} />}
             </View>
         ),
     };
@@ -57,11 +71,11 @@ jest.mock('@/components/ui/step-by-step-panel', () => {
 
 jest.mock('@/services/maps/route-validator', () => {
     const actual = jest.requireActual('@/services/maps/route-validator');
-    
+
     return {
         ...actual,
-        haversineKM: jest.fn().mockReturnValue(0.12), 
-    
+        haversineKM: jest.fn().mockReturnValue(0.12),
+
         validateCampusRoute: jest.fn(() => ({
             valid: true,
             route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
@@ -89,11 +103,21 @@ jest.mock('@/hooks/use-shuttle-routing', () => ({
 
 jest.mock('@/services/mapbox', () => {
     mockCameraSetCamera = jest.fn();
+    const React = require('react');
     const { View } = require('react-native');
     return {
         MapboxGL: {
-            MapView: ({ children }: any) => <>{children}</>,
-            Camera: jest.fn().mockReturnValue(null),
+            MapView: ({ children, onMapIdle }: any) => {
+                mockMapIdleHandler = onMapIdle;
+                return <>{children}</>;
+            },
+            Camera: React.forwardRef((_props: any, ref: any) => {
+                const handle = { setCamera: mockCameraSetCamera };
+                if (ref && typeof ref === 'object') {
+                    ref.current = handle;
+                }
+                return null;
+            }),
             UserLocation: ({ onUpdate }: any) => {
                 mockUserLocationOnUpdate = onUpdate;
                 return null;
@@ -129,10 +153,10 @@ jest.mock('@/components/ui/directions-line', () => ({
 jest.mock('@/components/ui/navigation-bottom', () => {
     const { Pressable, View } = require('react-native');
     return {
-        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange }: any) => {
+        NavigationBottom: ({ onStartPress, onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange }: any) => {
             // Capture onDirectionsChange so tests can inject a directions object
             // by pressing inject-directions-btn before pressing start-btn.
-            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange };
+            mockNavigationBottomCallbacks = { onDirectionsChange, onModeChange, onCardLayout, onTimeFilterChange };
             return (
                 <View>
                     <Pressable testID="start-btn" onPress={onStartPress} />
@@ -147,14 +171,29 @@ jest.mock('@/components/campus-badge', () => ({
 jest.mock('@/components/campus-switch', () => ({
     CampusSwitch: () => null,
 }));
-jest.mock('@/components/search-bar', () => () => null);
-jest.mock('@/components/directions-bars', () => {
+jest.mock('@/components/search-bar', () => {
     const { View } = require('react-native');
     return {
         __esModule: true,
         default: (props: any) => {
+            mockSearchBarProps = props;
+            return <View testID="search-bar-mock" />;
+        },
+    };
+});
+jest.mock('@/components/directions-bars', () => {
+    const { View, Text } = require('react-native');
+    return {
+        __esModule: true,
+        default: (props: any) => {
             mockDirectionBarProps = props;
-            return <View testID="direction-bar-mock" />;
+            const { fromValue, toValue } = props;
+            return (
+            <View testID="direction-bar-mock">
+                <Text>{ fromValue} </Text>
+                <Text>{ toValue}</Text>
+            </View>
+            );
         },
     };
 });
@@ -167,6 +206,33 @@ jest.mock('@/components/building-info-modal', () => {
                 <Pressable testID="building-close-btn" onPress={onClose} />
                 <Pressable testID="building-indoor-btn" onPress={onIndoorMap} />
                 <Pressable testID="building-start-btn" onPress={onStart} />
+
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
+            </View>
+        ),
+    };
+});
+jest.mock('@/components/next-class-prompt', () => {
+    const {Pressable, Text, View} = require('react-native');
+    return {
+        NextClassPrompt: ({body, onDismiss, onStartDirections, title}: any) => (
+            <View>
+                <Text>{title}</Text>
+                <Text>{body}</Text>
+                <Pressable testID='next-class-prompt-start' onPress={onStartDirections} />
+                <Pressable testID='next-class-prompt-dismiss' onPress={onDismiss} />
             </View>
         ),
     };
@@ -190,12 +256,31 @@ jest.mock('@/components/themed-view', () => ({
     },
 }));
 jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => 'light' }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }), Href: {} }));
+let mockRouterPush: jest.Mock;
+jest.mock('expo-router', () => ({
+    useRouter: () => ({ push: mockRouterPush }),
+    Href: {},
+}));
 jest.mock('react-native', () => {
     const rn = jest.requireActual('react-native');
     rn.Image.resolveAssetSource = jest.fn(() => ({ uri: 'test-uri' }));
     return rn;
 });
+
+jest.mock('@react-navigation/native', () => ({
+    useFocusEffect: (cb: () => (() => void) | void) => {
+        const React = require('react');
+        React.useEffect(() => {
+            const cleanup = cb();
+            return cleanup ?? undefined;
+        }, []);
+    },
+    useNavigation: () => ({
+        navigate: jest.fn(),
+        goBack: jest.fn(),
+        isFocused: jest.fn(() => true),
+    }),
+}));
 
 jest.mock('@/components/ui/POICategory', () => {
     const { View } = require('react-native');
@@ -205,6 +290,35 @@ jest.mock('@/components/ui/POICategory', () => {
             return <View testID="poi-category-mock" />;
         },
     };
+});
+
+jest.mock('@/state/indoor-route-handoff', () => ({
+    consumeCompletedOriginIndoorSession: jest.fn(() => false),
+    consumeCompletedDestinationIndoorSession: jest.fn(() => false),
+    markOriginIndoorSessionCompleted: jest.fn(),
+    markDestinationIndoorSessionCompleted: jest.fn(),
+}));
+
+jest.mock('@/services/http/indoor-api', () => ({
+    fetchIndoorRooms: jest.fn().mockResolvedValue([]),
+    fetchIndoorDirections: jest.fn().mockResolvedValue([]),
+    fetchIndoorEntrances: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('@/state/indoor-navigation-state', () => ({
+    useIndoorNavigationState: () => ({
+        accessible: false,
+        setAccessible: jest.fn(),
+    }),
+}));
+
+jest.mock('@/components/indoor/accessibility-toggle', () => {
+    const { Pressable, Text } = require('react-native');
+    return ({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) => (
+        <Pressable testID="accessibility-toggle" onPress={() => onToggle(!enabled)}>
+            <Text>{enabled ? 'On' : 'Off'}</Text>
+        </Pressable>
+    );
 });
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
@@ -218,6 +332,10 @@ import { validateCampusRoute, getNearestCampus } from '@/services/maps/route-val
 import { getCameraBoundsForRoute } from '@/services/maps/camera-utils';
 import MapScreen from '@/app/(tabs)/map';
 import { View } from 'react-native/Libraries/Components/View/View';
+import { fetchIndoorDirections, fetchIndoorEntrances, fetchIndoorRooms } from '@/services/http/indoor-api';
+import { useNextClass } from '@/hooks/use-next-class';
+import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
+
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -295,22 +413,39 @@ function makeShuttleRouting(overrides: any = {}) {
 // ─── beforeEach ───────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+        const firstArg = String(args[0] ?? '');
+        if (firstArg.includes('[NavigationOverlay] Recalculation failed')) {
+            return;
+        }
+    });
     jest.clearAllMocks();
     capturedDirectionsListener = null;
     mockShapeSourceOnPress = null;
     mockUserLocationOnUpdate = null;
     mockNavigationBottomCallbacks = null;
+    mockRouterPush = jest.fn();
+    mockSearchBarProps = null;
     (useNavigationController as jest.Mock).mockReturnValue(makeNavigationController());
     (useShuttleRouting as jest.Mock).mockReturnValue(makeShuttleRouting());
     (useLiveLocation as jest.Mock).mockReturnValue({ location: null });
     (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav());
     (getDirections as jest.Mock).mockResolvedValue(BASE_DIRECTIONS);
+    (useGoogleCalendarEvents as jest.Mock).mockReturnValue({ events: [], error: null, status: 'loaded' });
+    (useNextClass as jest.Mock).mockReturnValue({ result: { status: 'none' }, lastChecked: null });
+    (fetchIndoorRooms as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorEntrances as jest.Mock).mockResolvedValue([]);
+    (fetchIndoorDirections as jest.Mock).mockResolvedValue([]);
     // jest.clearAllMocks() wipes implementations set in jest.mock factories — restore them.
     (validateCampusRoute as jest.Mock).mockReturnValue({
         valid: true,
         route: { isInterCampus: true, originCampus: 'SGW', destinationCampus: 'LOY' },
     });
     (getNearestCampus as jest.Mock).mockReturnValue('SGW');
+});
+
+afterEach(() => {
+    consoleWarnSpy.mockRestore();
 });
 
 // ─── Early-return guards ──────────────────────────────────────────────────────
@@ -702,6 +837,46 @@ describe('handleBuildingPress', () => {
         // ShapeSource renders because polygonFeatures.length > 0
         expect(mockShapeSourceOnPress).not.toBeNull();
     });
+
+    it('ignores building presses that land inside the navigation bottom blocking frame', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByTestId('start-btn')).toBeTruthy();
+            expect(mockNavigationBottomCallbacks?.onCardLayout).toBeDefined();
+        });
+
+        act(() => {
+            mockNavigationBottomCallbacks?.onCardLayout({
+                nativeEvent: {
+                    layout: { x: 10, y: 20, width: 200, height: 100 },
+                },
+            });
+        });
+
+        expect(() => {
+            act(() => {
+                mockShapeSourceOnPress?.({
+                    features: [mockFeature],
+                    point: { x: 50, y: 50 },
+                });
+            });
+        }).not.toThrow();
+    });
 });
 
 // ─── handleNavigationExit — stepNav.reset ────────────────────────────────────
@@ -919,6 +1094,345 @@ function renderWithBuilding() {
     return render(<MapScreen />);
 }
 
+describe('next class prompt', () => {
+    it('renders a prompt when the next class is in a known building', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+    });
+    it('starts directions to the next class when the prompt button is pressed', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+        });
+
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
+        expect(utils.getByText('Your location')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+    it('resolves an indoor classroom destination for the next class when room data is available', async () => {
+        const setCampus = jest.fn();
+        const indoorRoom = {
+            id: 'H9.920',
+            label: 'Room',
+            wheelchairAccessible: true,
+            floor: '9',
+            building: 'H',
+            longitude: -73.57872,
+            latitude: 45.49703,
+        };
+        const entrance = {
+            id: 'H_ENTRANCE',
+            label: 'Entrance',
+            wheelchairAccessible: true,
+            floor: '1',
+            building: 'H',
+            longitude: -73.57868,
+            latitude: 45.49697,
+        };
+
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT], setCampus })
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'H-920',
+                startsAt: new Date('2025-01-15T09:30:00:000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'H-920',
+                    start: { dateTime: '2025-01-15T09:30:00:000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00:000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00:000Z'),
+        });
+        (fetchIndoorRooms as jest.Mock).mockResolvedValue([indoorRoom]);
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([entrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk inside', nodes: [entrance, indoorRoom] },
+        ]);
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({
+                coords: { longitude: -73.5785, latitude: 45.4971 },
+            });
+        });
+
+        fireEvent.press(utils.getByTestId('next-class-prompt-start'));
+
+        await waitFor(() => {
+            expect(fetchIndoorRooms).toHaveBeenCalledWith('H');
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalledWith('H', 'H_ENTRANCE', 'H9.920');
+        });
+
+        expect(utils.getByTestId('direction-bar-mock')).toBeTruthy();
+        expect(utils.getByText('H-920')).toBeTruthy();
+        expect(setCampus).toHaveBeenCalledWith('SGW');
+    });
+    it('shows a visible no-location status when the next class location is invalid', () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(getByText('No location found')).toBeTruthy();
+        expect(
+            getByText("We couldn't find a room in COMP 445 Tutorial. Update the event location to continue.")
+        ).toBeTruthy();
+    });
+    it('renders a prompt for a builder-style location by resolving the building from points', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText, queryByText} = render(<MapScreen />);
+
+        expect(getByText('Your next class is coming up!')).toBeTruthy();
+        expect(getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Hall Building.')).toBeTruthy();
+        expect(queryByText('No location found')).toBeNull();
+    });
+    it('matches a dataset building name that contains the parsed builder-style name', () => {
+        const aliasPoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'Henry F. Hall Building',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [aliasPoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'SOEN 341 Tutorial',
+                    location: 'Sir George Williams Campus - Hall Building Rm 920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to SOEN 341 Tutorial. Your next class is in Room H-920, Henry F. Hall Building.')
+        ).toBeTruthy();
+    });
+    it('matches when the parsed builder-style name contains the dataset building name', () => {
+        const shortNamePoint = {
+            ...BUILDING_POINT,
+            building: {
+                ...BUILDING_POINT.building,
+                name: 'John Molson',
+                code: 'MB',
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [shortNamePoint]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMM 305 Lecture',
+                    location: 'Sir George Williams Campus - John Molson School of Business Rm 2.130',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {getByText} = render(<MapScreen />);
+
+        expect(
+            getByText('Navigate to COMM 305 Lecture. Your next class is in Room MB-2.130, John Molson.')
+        ).toBeTruthy();
+    });
+    it('dismisses the no-location status card', async () => {
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'no_location',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'COMP 445 Tutorial',
+                    location: 'Online - Async',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-no-location-dismiss'));
+        });
+
+        expect(utils.queryByText('No location found')).toBeNull();
+    });
+    it('does not render a prompt when the next class building cannot be resolved', () => {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockReturnValue({
+            result: {
+                status: 'found',
+                roomCode: 'XX-920',
+                startsAt: new Date('2025-01-15T09:30:00.000Z'),
+                event: {
+                    id: 'event1',
+                    summary: 'Unknown Building Class',
+                    location: 'XX-920',
+                    start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                    end: { dateTime: '2025-01-15T10:20:00.000Z' },
+                },
+            },
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        });
+
+        const {queryByText} = render(<MapScreen />);
+
+        expect(queryByText('Your next class is coming up!')).toBeNull();
+    });
+    it('re-shows the next class prompt when a different event becomes active after dismissal', async () => {
+        let currentResult: any = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T09:30:00.000Z'),
+            event: {
+                id: 'event1',
+                summary: 'SOEN 341 Tutorial',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T09:30:00.000Z' },
+                end: { dateTime: '2025-01-15T10:20:00.000Z' },
+            },
+        };
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({points: [BUILDING_POINT]})
+        );
+        (useNextClass as jest.Mock).mockImplementation(() => ({
+            result: currentResult,
+            lastChecked: new Date('2025-01-15T09:00:00.000Z'),
+        }));
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('next-class-prompt-dismiss'));
+        });
+
+        expect(utils.queryByText('Your next class is coming up!')).toBeNull();
+
+        currentResult = {
+            status: 'found',
+            roomCode: 'H-920',
+            startsAt: new Date('2025-01-15T10:30:00.000Z'),
+            event: {
+                id: 'event2',
+                summary: 'COMP 472 Lecture',
+                location: 'H-920',
+                start: { dateTime: '2025-01-15T10:30:00.000Z' },
+                end: { dateTime: '2025-01-15T11:45:00.000Z' },
+            },
+        };
+
+        utils.rerender(<MapScreen />);
+
+        expect(utils.getByText('Your next class is coming up!')).toBeTruthy();
+        expect(
+            utils.getByText('Navigate to COMP 472 Lecture. Your next class is in Room H-920, Hall Building.')
+        ).toBeTruthy();
+    });
+});
 /**
  * Full sequence to get NavigationOverlay mounted:
  * 1. Render with a building point (ShapeSource active)
@@ -1002,23 +1516,6 @@ describe('setStartingPointAsUserCoordinates', () => {
         });
     });
 
-    it('also called by building "Start" button (onStart)', async () => {
-        const utils = renderWithBuilding();
-        await act(async () => {
-            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
-        });
-        await act(async () => {
-            mockShapeSourceOnPress?.({
-                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
-            });
-        });
-        await act(async () => {
-            fireEvent.press(utils.getByTestId('building-start-btn'));
-        });
-        await waitFor(() => {
-            expect(utils.getByTestId('start-btn')).toBeTruthy();
-        });
-    });
 });
 
 // ─── navigateToSelectedBuilding ──────────────────────────────────────────────
@@ -1510,6 +2007,105 @@ describe('route validation — invalid route', () => {
     });
 });
 
+describe('route validation — same-building indoor handoff prompt', () => {
+    const sameBuildingOrigin = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H8.835',
+        name: 'H8.835',
+        address: 'Room · Floor 8',
+        buildingCode: 'H',
+        floorId: '8',
+        indoorNodeId: 'H8.835',
+    };
+    const sameBuildingDestination = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H9.915',
+        name: 'H9.915',
+        address: 'Room · Floor 9',
+        buildingCode: 'H',
+        floorId: '9',
+        indoorNodeId: 'H9.915',
+    };
+    const sharedEntrance = {
+        id: 'H-entrance-1',
+        longitude: -73.5792,
+        latitude: 45.4972,
+        floor: '1',
+        building: 'H',
+        label: 'Entrance',
+        wheelchairAccessible: true,
+    };
+
+    async function renderWithSameBuildingClassrooms() {
+        (validateCampusRoute as jest.Mock).mockReturnValue({
+            valid: false,
+            error: 'SAME_ORIGIN_AND_DESTINATION',
+            message: 'Origin and destination cannot be the same location.',
+        });
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([sharedEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [sharedEntrance] },
+        ]);
+
+        const utils = renderWithBuilding();
+
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+        await act(async () => {
+            mockSearchBarProps.onClickButton();
+        });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+
+        await act(async () => {
+            mockDirectionBarProps.onSelectFrom(sameBuildingOrigin, [-73.57921, 45.49721]);
+        });
+        await act(async () => {
+            mockDirectionBarProps.onSelectTo(sameBuildingDestination, [-73.57922, 45.49722]);
+        });
+
+        return utils;
+    }
+
+    it('shows the indoor prompt instead of the generic invalid route modal', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => {
+            expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy();
+        });
+        expect(utils.getByText('These rooms are in the same building. Do you wish to start indoor navigation?')).toBeTruthy();
+        expect(utils.queryByText('Invalid Route')).toBeNull();
+    });
+
+    it('clears both route endpoints when Cancel is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText('Cancel'));
+        });
+
+        await waitFor(() => {
+            expect(utils.queryByText('Start Indoor Navigation?')).toBeNull();
+        });
+        expect(mockDirectionBarProps.fromValue).toBe('');
+        expect(mockDirectionBarProps.toValue).toBe('');
+    });
+
+    it('opens indoor navigation directly when Let\'s Go! is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText("Let's Go!"));
+        });
+
+        expect(mockRouterPush).toHaveBeenCalledWith(
+            '/indoor/H?floor=8&campus=SGW&fromNode=H8.835&toNode=H9.915&fromLabel=H8.835&toLabel=H9.915'
+        );
+    });
+});
+
 // ─── getCameraBoundsForRoute — bounds path (L322) ────────────────────────────
 
 describe('getCameraBoundsForRoute — non-null bounds path', () => {
@@ -1566,6 +2162,31 @@ describe('LocateMeButton', () => {
         expect(utils.getByTestId('locate-me-btn')).toBeTruthy();
     });
 
+    it('updates the selected campus to the nearest campus when locate-me is pressed', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.6406, latitude: 45.4583 } });
+        });
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
     it('shows location prompt modal when userLocation is null', async () => {
         // No onUpdate fired → userLocation stays null
         const utils = renderWithBuilding();
@@ -1594,6 +2215,201 @@ describe('LocateMeButton', () => {
         await waitFor(() => {
             expect(utils.queryByText('Location Off')).toBeNull();
         });
+    });
+
+    it('zooms in and out from the right-side zoom controls', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('zoom-in-button'));
+        });
+        expect(mockCameraSetCamera).toHaveBeenCalledWith(
+            expect.objectContaining({ zoomLevel: 16, animationDuration: 250 })
+        );
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('zoom-out-button'));
+        });
+        expect(mockCameraSetCamera).toHaveBeenLastCalledWith(
+            expect.objectContaining({ zoomLevel: 15, animationDuration: 250 })
+        );
+    });
+});
+
+describe('manual map pan campus sync', () => {
+    it('updates the selected campus when the map is manually panned to another campus', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('uses geometry.coordinates when properties.center is absent', async () => {
+        const setCampus = jest.fn();
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                geometry: {
+                    coordinates: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+    });
+
+    it('ignores invalid centerCoordinate payloads', async () => {
+        const setCampus = jest.fn();
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({
+                campus: 'SGW',
+                setCampus,
+                campusMeta: { ...CAMPUS_META.SGW },
+                points: [BUILDING_POINT],
+            })
+        );
+
+        render(<MapScreen />);
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                centerCoordinate: [-73.6406],
+            });
+        });
+
+        expect(getNearestCampus).not.toHaveBeenCalled();
+        expect(setCampus).not.toHaveBeenCalled();
+    });
+
+    it('suppresses the immediate campus camera sync after a manual campus switch', async () => {
+        let currentCampus: 'SGW' | 'LOY' = 'SGW';
+        let currentMeta = { ...CAMPUS_META.SGW };
+        const setCampus = jest.fn((nextCampus: 'SGW' | 'LOY') => {
+            currentCampus = nextCampus;
+            currentMeta = { ...CAMPUS_META[nextCampus] };
+        });
+
+        (getNearestCampus as jest.Mock).mockReturnValue('LOY');
+        (useNavigationController as jest.Mock).mockImplementation(() =>
+            makeNavigationController({
+                campus: currentCampus,
+                setCampus,
+                campusMeta: currentMeta,
+                points: [BUILDING_POINT],
+            })
+        );
+
+        const utils = render(<MapScreen />);
+        mockCameraSetCamera.mockClear();
+
+        await act(async () => {
+            mockMapIdleHandler?.({
+                properties: {
+                    center: [-73.6406, 45.4583],
+                },
+            });
+        });
+
+        expect(setCampus).toHaveBeenCalledWith('LOY');
+
+        await act(async () => {
+            utils.rerender(<MapScreen />);
+        });
+
+        expect(mockCameraSetCamera).not.toHaveBeenCalled();
+    });
+});
+
+describe('NavigationBottom container wiring', () => {
+    it('renders the full-screen blocker pressable above the map when navigation bottom is shown', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy());
+
+        const blocker = utils.UNSAFE_root.findAll((node: any) => {
+            const style = StyleSheet.flatten(node.props.style);
+            return (
+                typeof node.props.onPress === 'function' &&
+                style?.position === 'absolute' &&
+                style?.top === 0 &&
+                style?.left === 0
+            );
+        })[0];
+
+        expect(blocker).toBeTruthy();
+
+        await act(async () => {
+            blocker.props.onPress();
+        });
+
+        expect(utils.getByTestId('navigation-bottom-container')).toBeTruthy();
+    });
+
+    it('updates time filter state through onTimeFilterChange callback', async () => {
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('building-directions-btn'));
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onTimeFilterChange('2026-02-23T15:00:00.000Z', 'arrive');
+        });
+
+        const lastCall = (useShuttleRouting as jest.Mock).mock.calls.at(-1)?.[0];
+        expect(lastCall.timeFilter).toBe('2026-02-23T15:00:00.000Z');
+        expect(lastCall.timeFilterMode).toBe('arrive');
     });
 });
 
@@ -1776,9 +2592,9 @@ describe('US-5.1: Outdoor POI Selection', () => {
             }
 
             const eventPayload = {
-                features: [{ 
+                features: [{
                     properties: { name: 'Gourmet Burger', isPOI: true },
-                    geometry: { type: 'Point', coordinates: [-73.579, 45.497] } 
+                    geometry: { type: 'Point', coordinates: [-73.579, 45.497] }
                 }]
             };
 
@@ -1794,11 +2610,11 @@ describe('US-5.1: Outdoor POI Selection', () => {
 
     it('clears POI markers when category is cleared', () => {
         render(<MapScreen />);
-        
+
         act(() => {
             mockPOICategoryCallbacks?.onClearCategory();
         });
-        
+
         expect(mockPOICategoryCallbacks).toBeDefined();
     });
 
@@ -1808,7 +2624,7 @@ describe('US-5.1: Outdoor POI Selection', () => {
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
-        
+
         triggerMapboxClick();
 
         expect(await findByText('Gourmet Burger')).toBeTruthy();
@@ -1821,7 +2637,7 @@ describe('US-5.1: Outdoor POI Selection', () => {
         });
 
         const { findByText } = render(<MapScreen />);
-        
+
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
@@ -1837,11 +2653,11 @@ describe('US-5.1: Outdoor POI Selection', () => {
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
-        
+
         triggerMapboxClick();
 
         const closeBtn = await findByTestId('poi-card-close');
-        
+
         act(() => {
             fireEvent.press(closeBtn);
         });
@@ -1857,11 +2673,11 @@ describe('US-5.1: Outdoor POI Selection', () => {
         act(() => {
             mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
         });
-        
+
         triggerMapboxClick();
 
         const directionsBtn = await findByText('Directions');
-        
+
         act(() => {
             fireEvent.press(directionsBtn);
         });
@@ -1869,26 +2685,956 @@ describe('US-5.1: Outdoor POI Selection', () => {
         expect(mockDirectionBarProps.toValue).toBe('Gourmet Burger');
     });
 
-    it('aborts navigation if userLocation is missing when "Start" is pressed', async () => {
-        const { getDirections } = require('@/services/maps/directions-api-adapter');
-        getDirections.mockClear();
 
-        const { findByText } = render(<MapScreen />);
 
-        act(() => {
-            mockPOICategoryCallbacks?.onSelectCategory('restaurant', [mockPOI]);
+});
+
+
+// ─── modal backdrop dismissal ─────────────────────────────────────────────────
+
+describe('validation error modal — backdrop dismissal', () => {
+    it('closes when backdrop Pressable is pressed', async () => {
+        (validateCampusRoute as jest.Mock).mockReturnValue({
+            valid: false,
+            message: 'Off campus',
+            route: { isInterCampus: false },
         });
-        
-        triggerMapboxClick();
 
-        const startBtn = await findByText('Start');
-        
+        const utils = renderWithBuilding();
         await act(async () => {
-            fireEvent.press(startBtn);
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
         });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
 
-        expect(getDirections).not.toHaveBeenCalled();
+        await waitFor(() => expect(utils.getByText('Invalid Route')).toBeTruthy());
+        await act(async () => { fireEvent.press(utils.getByText('Dismiss')); });
+        await waitFor(() => expect(utils.queryByText('Invalid Route')).toBeNull());
     });
 
+    it('shows fallback message when routeValidation has no message property', async () => {
+        (validateCampusRoute as jest.Mock).mockReturnValue({
+            valid: false,
+            route: { isInterCampus: false },
+            // no message — renders the fallback 'This route could not be validated.'
+            message: 'This route could not be validated.',
+        });
+
+        const utils = renderWithBuilding();
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+
+        await waitFor(() => {
+            expect(utils.getByText('This route could not be validated.')).toBeTruthy();
+        });
+    });
+});
+
+describe('timeout modal — backdrop dismissal', () => {
+    it('closes timeout modal when backdrop Pressable is pressed', async () => {
+        const { getByText, queryByText } = render(<MapScreen />);
+        act(() => { capturedDirectionsListener?.({ type: 'request-timeout' }); });
+        await waitFor(() => expect(getByText('Directions Unavailable')).toBeTruthy());
+        await act(async () => { fireEvent.press(getByText('Dismiss')); });
+        await waitFor(() => expect(queryByText('Directions Unavailable')).toBeNull());
+    });
+});
+
+// ─── onArrived (handleNavigationExit via End Navigation) ─────────────────────
+
+describe('handleNavigationExit — via onArrived', () => {
+    it('unmounts NavigationOverlay when onArrived is called', async () => {
+        const utils = await renderAndStartNavigation({ arrived: true });
+        await waitFor(() => expect(utils.getByTestId('arrived-text')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('arrived-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.queryByTestId('step-panel')).toBeNull();
+        });
+    });
+});
+
+// ─── onIndoorHandoff — not present for pure outdoor route ─────────────────────
+
+describe('NavigationOverlay — onIndoorHandoff', () => {
+    it('does not render indoor-handoff-btn for a pure outdoor route (no indoor steps)', async () => {
+        const utils = await renderAndStartNavigation();
+        await waitFor(() => expect(utils.getByTestId('step-panel')).toBeTruthy());
+        expect(utils.queryByTestId('indoor-handoff-btn')).toBeNull();
+    });
+});
+
+// ─── POI start navigation ─────────────────────────────────────────────────────
+
+// ─── getSelectedLocationLabel & toClassroomLocation ──────────────────────────
+// Driven through DirectionBar.onSelectFrom / onSelectTo callbacks.
+
+describe('getSelectedLocationLabel — via DirectionBar.onSelectTo', () => {
+    async function renderWithDirectionBar() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        // Get user location so start-btn can appear
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        // Open building and press Directions to show DirectionBar
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('formats a classroom location as name only (no address)', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('H8.835');
+        });
+    });
+
+    it('formats a non-classroom location as name + address', async () => {
+        await renderWithDirectionBar();
+        const buildingLocation = {
+            kind: 'building' as const,
+            id: 'mapbox-1',
+            name: 'Hall Building',
+            address: '1455 De Maisonneuve Blvd W',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(buildingLocation, [-73.5785, 45.4971]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('Hall Building, 1455 De Maisonneuve Blvd W');
+        });
+    });
+
+    it('formats a non-classroom location with no address as name only', async () => {
+        await renderWithDirectionBar();
+        const buildingLocation = {
+            kind: 'building' as const,
+            id: 'mapbox-2',
+            name: 'Hall Building',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(buildingLocation, [-73.5785, 45.4971]);
+        });
+        await waitFor(() => {
+            expect(mockDirectionBarProps.toValue).toBe('Hall Building');
+        });
+    });
+
+    it('toClassroomLocation returns null for non-classroom kind — no classroomDestination set', async () => {
+        await renderWithDirectionBar();
+        const nonClassroom = {
+            kind: 'building' as const,
+            id: 'mapbox-1',
+            name: 'Hall Building',
+            address: '1455 De Maisonneuve Blvd W',
+        };
+        act(() => {
+            mockDirectionBarProps.onSelectTo(nonClassroom, [-73.5785, 45.4971]);
+        });
+        // No indoor steps will be fetched — fetchIndoorEntrances not called
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).not.toHaveBeenCalled();
+        });
+    });
+
+    it('toClassroomLocation sets classroomDestination when kind is classroom', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [mockEntrance] },
+        ]);
+        act(() => {
+            mockDirectionBarProps.onSelectTo(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+
+    it('toClassroomOrigin sets classroomOrigin when onSelectFrom receives a classroom', async () => {
+        await renderWithDirectionBar();
+        const classroomLocation = {
+            kind: 'classroom' as const,
+            id: 'indoor-room:H8.835',
+            name: 'H8.835',
+            address: 'Room · Floor 8',
+            buildingCode: 'H',
+            floorId: '8',
+            indoorNodeId: 'H8.835',
+        };
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [mockEntrance] },
+        ]);
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(classroomLocation, [-73.5792, 45.4972]);
+        });
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+// ─── indoor origin/destination routing effects ────────────────────────────────
+// Covers fetchIndoorEntrances + fetchIndoorDirections paths including
+// pickClosestEntrance, getStraightLineDistance, areCoordinatesEqual,
+// buildIndoorSummary, getIndoorRouteEndpoints.
+
+describe('indoor routing effects — origin leg', () => {
+    async function renderWithClassroomOrigin() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('calls fetchIndoorEntrances and fetchIndoorDirections for classroom origin', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 30, description: 'Walk to exit',
+              nodes: [{ id: 'H8.835', longitude: -73.5792, latitude: 45.4972, floor: '8', building: 'H', label: 'Room', wheelchairAccessible: true },
+                      mockEntrance] },
+        ]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalled();
+        });
+    });
+
+    it('picks the closest entrance when multiple are available', async () => {
+        const nearEntrance = {
+            id: 'H-near', longitude: -73.5785, latitude: 45.4971,
+            floor: '1', building: 'H', label: 'Near Entrance', wheelchairAccessible: true,
+        };
+        const farEntrance = {
+            id: 'H-far', longitude: -73.6400, latitude: 45.4580,
+            floor: '1', building: 'H', label: 'Far Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([farEntrance, nearEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5785, 45.4971],
+            );
+        });
+
+        await waitFor(() => {
+            // fetchIndoorDirections called with the near entrance (closest to destination)
+            expect(fetchIndoorDirections).toHaveBeenCalledWith(
+                'H', 'H8.835', 'H-near',
+            );
+        });
+    });
+
+    it('handles fetchIndoorEntrances returning empty array gracefully', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([]);
+
+        await renderWithClassroomOrigin();
+
+        act(() => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            // No directions call when no entrance found
+            expect(fetchIndoorDirections).not.toHaveBeenCalled();
+        });
+    });
+
+    it('handles fetchIndoorEntrances throwing an error gracefully', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+        await renderWithClassroomOrigin();
+
+        expect(() => {
+            act(() => {
+                mockDirectionBarProps.onSelectFrom(
+                    { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                      buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                    [-73.5792, 45.4972],
+                );
+            });
+        }).not.toThrow();
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+describe('indoor routing effects — destination leg', () => {
+    async function renderWithClassroomDest() {
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+        return utils;
+    }
+
+    it('calls fetchIndoorEntrances and fetchIndoorDirections for classroom destination', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 30, description: 'Walk to room',
+              nodes: [mockEntrance,
+                      { id: 'H8.835', longitude: -73.5792, latitude: 45.4972, floor: '8', building: 'H', label: 'Room', wheelchairAccessible: true }] },
+        ]);
+
+        await renderWithClassroomDest();
+
+        act(() => {
+            mockDirectionBarProps.onSelectTo(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5792, 45.4972],
+            );
+        });
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+            expect(fetchIndoorDirections).toHaveBeenCalled();
+        });
+    });
+
+    it('handles fetchIndoorDirections throwing an error for destination leg gracefully', async () => {
+        const mockEntrance = {
+            id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+            floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+        };
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([mockEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockRejectedValue(new Error('Directions failed'));
+
+        await renderWithClassroomDest();
+
+        expect(() => {
+            act(() => {
+                mockDirectionBarProps.onSelectTo(
+                    { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                      buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                    [-73.5792, 45.4972],
+                );
+            });
+        }).not.toThrow();
+
+        await waitFor(() => {
+            expect(fetchIndoorEntrances).toHaveBeenCalledWith('H');
+        });
+    });
+});
+
+// ─── Android location permissions ─────────────────────────────────────────────
+
+describe('Android location permissions — LocateMeButton', () => {
+    it('sets locationPermissionStatus to granted when permissions are granted', async () => {
+        const { Platform } = require('react-native');
+        const { MapboxGL: MGL } = require('@/services/mapbox');
+        const originalOS = Platform.OS;
+        Platform.OS = 'android';
+        (MGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(true);
+
+        const utils = renderWithBuilding();
+
+        await waitFor(() => {
+            expect(utils.getByTestId('locate-me-btn')).toBeTruthy();
+        });
+
+        Platform.OS = originalOS;
+    });
+
+    it('shows location prompt when Android permissions are denied via LocateMeButton', async () => {
+        const { Platform } = require('react-native');
+        const { MapboxGL: MGL } = require('@/services/mapbox');
+        const originalOS = Platform.OS;
+        Platform.OS = 'android';
+        (MGL.requestAndroidLocationPermissions as jest.Mock).mockResolvedValue(false);
+
+        const utils = renderWithBuilding();
+
+        await act(async () => {
+            fireEvent.press(utils.getByTestId('locate-me-btn'));
+        });
+
+        await waitFor(() => {
+            expect(utils.getByText('Location Off')).toBeTruthy();
+        });
+
+        Platform.OS = originalOS;
+    });
+});
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+const MOCK_ENTRANCE = {
+    id: 'H-entrance-1', longitude: -73.5792, latitude: 45.4972,
+    floor: '1', building: 'H', label: 'Entrance', wheelchairAccessible: true,
+};
+
+const MOCK_INDOOR_STEPS = [
+    {
+        direction: 'STRAIGHT', distance: 30, description: 'Walk',
+        nodes: [
+            { id: 'H8.835', longitude: -73.5790, latitude: 45.4970, floor: '8', building: 'H', label: 'Room', wheelchairAccessible: true },
+            MOCK_ENTRANCE,
+        ],
+    },
+];
+
+/** Render with a classroom origin set via DirectionBar.onSelectFrom */
+async function renderWithClassroomOriginReady() {
+    (fetchIndoorEntrances as jest.Mock).mockResolvedValue([MOCK_ENTRANCE]);
+    (fetchIndoorDirections as jest.Mock).mockResolvedValue(MOCK_INDOOR_STEPS);
+
+    (useNavigationController as jest.Mock).mockReturnValue(
+        makeNavigationController({ points: [BUILDING_POINT] })
+    );
+    const utils = render(<MapScreen />);
+
+    await act(async () => {
+        mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+    });
+    await act(async () => {
+        mockShapeSourceOnPress?.({
+            features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+        });
+    });
+    await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+    await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+
+    // Set a classroom origin
+    await act(async () => {
+        mockDirectionBarProps.onSelectFrom(
+            { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+              buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+            [-73.5790, 45.4970],
+        );
+    });
+
+    // Wait for indoor steps to resolve
+    await waitFor(() => expect(fetchIndoorDirections).toHaveBeenCalled());
+
+    return utils;
+}
+
+/** Render with a classroom destination set via DirectionBar.onSelectTo */
+async function renderWithClassroomDestReady() {
+    (fetchIndoorEntrances as jest.Mock).mockResolvedValue([MOCK_ENTRANCE]);
+    (fetchIndoorDirections as jest.Mock).mockResolvedValue(MOCK_INDOOR_STEPS);
+
+    (useNavigationController as jest.Mock).mockReturnValue(
+        makeNavigationController({ points: [BUILDING_POINT] })
+    );
+    const utils = render(<MapScreen />);
+
+    await act(async () => {
+        mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+    });
+    await act(async () => {
+        mockShapeSourceOnPress?.({
+            features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+        });
+    });
+    await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+    await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+
+    // Set a classroom destination
+    await act(async () => {
+        mockDirectionBarProps.onSelectTo(
+            { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+              buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+            [-73.5790, 45.4970],
+        );
+    });
+
+    await waitFor(() => expect(fetchIndoorDirections).toHaveBeenCalled());
+
+    return utils;
+}
+
+// ─── clearOriginRouting ───────────────────────────────────────────────────────
+
+describe('clearOriginRouting — via DirectionBar.onClearFrom', () => {
+    it('clears origin state when onClearFrom is called after a classroom origin was set', async () => {
+        await renderWithClassroomOriginReady();
+
+        await act(async () => {
+            mockDirectionBarProps.onClearFrom();
+        });
+
+        // After clearing, fetchIndoorEntrances should not be called again
+        // and start-btn should disappear (routeFromCoordinates cleared)
+        await waitFor(() => {
+            expect(mockDirectionBarProps.fromValue).toBe('');
+        });
+    });
+
+    it('clears origin state when onChangeFrom is called', async () => {
+        await renderWithClassroomOriginReady();
+
+        await act(async () => {
+            mockDirectionBarProps.onChangeFrom('new search text');
+        });
+
+        await waitFor(() => {
+            expect(mockDirectionBarProps.fromValue).toBe('new search text');
+        });
+    });
+});
+
+// ─── originOutdoorConnector & destinationOutdoorConnector memos ───────────────
+// These memos only produce non-null values when:
+//   - selectedMode === 'Drive' (default)
+//   - directions is set
+//   - showRouteOverview is true (both coords + directions)
+//   - originIndoorSteps / destinationIndoorSteps are set
+//   - the indoor end/start coord differs from the outdoor start/end coord
+
+describe('originOutdoorConnector — memo coverage', () => {
+    it('computes connector when origin indoor steps end differs from outdoor route start', async () => {
+        // Set up directions with a start location that differs from the indoor entrance
+        const directionsWithGap = {
+            ...BASE_DIRECTIONS,
+            steps: [{
+                ...BASE_STEP,
+                startLocation: { longitude: -73.5900, latitude: 45.5000 }, // different from MOCK_ENTRANCE
+                endLocation:   { longitude: -73.5800, latitude: 45.4900 },
+            }],
+        };
+
+        const utils = await renderWithClassroomOriginReady();
+
+        // Inject directions
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onDirectionsChange(directionsWithGap);
+        });
+
+        // Wait for start-btn (confirms showRouteOverview is true)
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+
+        // No crash — originOutdoorConnector memo ran with non-null steps + directions
+        expect(utils.getByTestId('start-btn')).toBeTruthy();
+    });
+
+    it('returns null connector when indoor end coord matches outdoor start coord', async () => {
+        // Directions start exactly at the entrance coordinates — connector should be null
+        const directionsMatching = {
+            ...BASE_DIRECTIONS,
+            steps: [{
+                ...BASE_STEP,
+                startLocation: { longitude: MOCK_ENTRANCE.longitude, latitude: MOCK_ENTRANCE.latitude },
+                endLocation:   { longitude: -73.5785, latitude: 45.4971 },
+            }],
+        };
+
+        const utils = await renderWithClassroomOriginReady();
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onDirectionsChange(directionsMatching);
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+        expect(utils.getByTestId('start-btn')).toBeTruthy();
+    });
+});
+
+describe('destinationOutdoorConnector — memo coverage', () => {
+    it('computes connector when destination indoor steps start differs from outdoor route end', async () => {
+        const directionsWithGap = {
+            ...BASE_DIRECTIONS,
+            steps: [{
+                ...BASE_STEP,
+                startLocation: { longitude: -73.5785, latitude: 45.4971 },
+                endLocation:   { longitude: -73.5900, latitude: 45.5000 }, // different from MOCK_ENTRANCE
+            }],
+        };
+
+        const utils = await renderWithClassroomDestReady();
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onDirectionsChange(directionsWithGap);
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+        expect(utils.getByTestId('start-btn')).toBeTruthy();
+    });
+
+    it('returns null connector when outdoor end coord matches indoor start coord', async () => {
+        const directionsMatching = {
+            ...BASE_DIRECTIONS,
+            steps: [{
+                ...BASE_STEP,
+                startLocation: { longitude: -73.5785, latitude: 45.4971 },
+                endLocation:   { longitude: MOCK_ENTRANCE.longitude, latitude: MOCK_ENTRANCE.latitude },
+            }],
+        };
+
+        const utils = await renderWithClassroomDestReady();
+
+        await act(async () => {
+            mockNavigationBottomCallbacks?.onDirectionsChange(directionsMatching);
+        });
+
+        await waitFor(() => expect(utils.getByTestId('start-btn')).toBeTruthy());
+        expect(utils.getByTestId('start-btn')).toBeTruthy();
+    });
+});
+
+// ─── openOriginIndoorMap ──────────────────────────────────────────────────────
+
+describe('openOriginIndoorMap — via handleStartPress', () => {
+    it('calls router.push to the indoor map when origin is a classroom and steps are ready', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([MOCK_ENTRANCE]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue(MOCK_INDOOR_STEPS);
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await act(async () => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5790, 45.4970],
+            );
+        });
+        await waitFor(() => expect(fetchIndoorDirections).toHaveBeenCalled());
+
+        const startButton = await utils.findByTestId('start-btn');
+        await act(async () => { fireEvent.press(startButton); });
+
+        await waitFor(() => {
+            expect(mockRouterPush).toHaveBeenCalledWith(
+                expect.stringContaining('/indoor/H'),
+            );
+        });
+    });
+
+    it('router.push includes resumeSession param for origin indoor map', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([MOCK_ENTRANCE]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue(MOCK_INDOOR_STEPS);
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await act(async () => {
+            mockDirectionBarProps.onSelectFrom(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5790, 45.4970],
+            );
+        });
+        await waitFor(() => expect(fetchIndoorDirections).toHaveBeenCalled());
+
+        const startButton = await utils.findByTestId('start-btn');
+        await act(async () => { fireEvent.press(startButton); });
+
+        await waitFor(() => {
+            expect(mockRouterPush).toHaveBeenCalledWith(
+                expect.stringContaining('resumeSession='),
+            );
+        });
+    });
+});
+
+// ─── openDestinationIndoorMap ─────────────────────────────────────────────────
+
+describe('openDestinationIndoorMap — triggered on arrival', () => {
+    it('calls router.push to indoor map with completeSession when destination is a classroom', async () => {
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([MOCK_ENTRANCE]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue(MOCK_INDOOR_STEPS);
+        (useStepNavigator as jest.Mock).mockReturnValue(makeStepNav({ arrived: true }));
+
+        (useNavigationController as jest.Mock).mockReturnValue(
+            makeNavigationController({ points: [BUILDING_POINT] })
+        );
+        const utils = render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await act(async () => {
+            mockShapeSourceOnPress?.({
+                features: [{ properties: { id: 'building-h', center: [-73.5785, 45.4971] } }],
+            });
+        });
+        await act(async () => { fireEvent.press(utils.getByTestId('building-directions-btn')); });
+        await act(async () => {
+            mockDirectionBarProps.onSelectTo(
+                { kind: 'classroom', id: 'indoor-room:H8.835', name: 'H8.835',
+                  buildingCode: 'H', floorId: '8', indoorNodeId: 'H8.835' },
+                [-73.5790, 45.4970],
+            );
+        });
+        await waitFor(() => expect(fetchIndoorDirections).toHaveBeenCalled());
+
+        // Inject directions then start navigation
+        act(() => { mockNavigationBottomCallbacks?.onDirectionsChange(BASE_DIRECTIONS); });
+        const startBtn = await utils.findByTestId('start-btn');
+        await act(async () => { fireEvent.press(startBtn); });
+
+        // Navigation started with arrived=true → onIndoorHandoff fires → openDestinationIndoorMap
+        await waitFor(() => expect(utils.getByTestId('step-panel')).toBeTruthy());
+
+        const handoffBtn = utils.queryByTestId('indoor-handoff-btn');
+        if (handoffBtn) {
+            await act(async () => { fireEvent.press(handoffBtn); });
+            await waitFor(() => {
+                expect(mockRouterPush).toHaveBeenCalledWith(
+                    expect.stringContaining('completeSession='),
+                );
+            });
+        }
+    });
+});
+
+// ─── MapSearchBar callbacks ───────────────────────────────────────────────────
+// These lines are only reachable when seeDirectionBar=false (the default state).
+
+describe('MapSearchBar — callback coverage', () => {
+    it('onChangeText clears destination routing and updates to value', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onChangeText('concordia'); });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('concordia');
+        });
+    });
+
+    it('onClickButton sets user location as origin and shows direction bar', async () => {
+        render(<MapScreen />);
+        await act(async () => {
+            mockUserLocationOnUpdate?.({ coords: { longitude: -73.5785, latitude: 45.4971 } });
+        });
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onClickButton(); });
+
+        // After onClickButton, seeDirectionBar=true → MapSearchBar unmounts, DirectionBar mounts
+        await waitFor(() => {
+            expect(mockDirectionBarProps).not.toBeNull();
+        });
+    });
+
+    it('onClickButton without userLocation still shows direction bar', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => { mockSearchBarProps.onClickButton(); });
+
+        await waitFor(() => {
+            expect(mockDirectionBarProps).not.toBeNull();
+        });
+    });
+
+    it('onSelectBuilding with a non-classroom location sets toCoordinates', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        act(() => {
+            mockSearchBarProps.onSelectBuilding(
+                { kind: 'building', id: 'mapbox-1', name: 'Hall Building', address: '1455 De Maisonneuve' },
+                [-73.5785, 45.4971],
+            );
+        });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('Hall Building, 1455 De Maisonneuve');
+        });
+    });
+
+
+    it('onSelectBuilding without coordinates does not crash', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        expect(() => {
+            act(() => {
+                mockSearchBarProps.onSelectBuilding(
+                    { kind: 'building', id: 'mapbox-1', name: 'Hall Building' },
+                    null,
+                );
+            });
+        }).not.toThrow();
+    });
+
+    it('onClear resets to value and destination routing', async () => {
+        render(<MapScreen />);
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+
+        // Set a value first
+        act(() => { mockSearchBarProps.onChangeText('something'); });
+
+        // Then clear it
+        act(() => { mockSearchBarProps.onClear(); });
+
+        await waitFor(() => {
+            expect(mockSearchBarProps.toValue).toBe('');
+        });
+    });
+});
+
+describe('Accessibility Toggle and Modal', () => {
+    it('renders the accessibility toggle', () => {
+        const { getByTestId } = render(<MapScreen />);
+        expect(getByTestId('accessibility-toggle')).toBeTruthy();
+    });
+
+    it('shows the accessibility modal when toggle is switched on', async () => {
+        const { getByTestId, getByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => {
+            expect(getByText('Accessibility Mode')).toBeTruthy();
+            expect(getByText('Accessibility mode only affects indoor directions.')).toBeTruthy();
+        });
+    });
+
+    it('dismisses the modal when Got it is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Got it')).toBeTruthy());
+        fireEvent.press(getByText('Got it'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal when backdrop is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Accessibility Mode')).toBeTruthy());
+        fireEvent.press(getByTestId('accessibility-modal-backdrop'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal via onRequestClose', async () => {
+    const { getByTestId, queryByText } = render(<MapScreen />);
     
+    fireEvent.press(getByTestId('accessibility-toggle'));
+    await waitFor(() => expect(queryByText('Accessibility Mode')).toBeTruthy());
+
+    fireEvent(getByTestId('accessibility-modal'), 'requestClose');
+    
+    await waitFor(() => {
+        expect(queryByText('Accessibility Mode')).toBeNull();
+    });
+});
 });

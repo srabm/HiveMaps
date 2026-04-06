@@ -4,7 +4,7 @@ appId: com.anonymous.mobile
 
 # Open direction bar with current location as origin.
 - tapOn:
-    id: "navigate-button"
+    id: "search-button"
 - assertVisible: "Your location"
 - assertVisible: "Choose destination"
 
@@ -89,7 +89,7 @@ appId: com.anonymous.mobile
 # AC: Location-aware update using same-campus redirect.
 - tapOn: 
 - tapOn:
-    id: "navigate-button"
+    id: "search-button"
 # Destination at same location
 - tapOn: "Choose destination"
 - inputText: Henry F. Hall Building
@@ -98,7 +98,7 @@ appId: com.anonymous.mobile
 - tapOn: Dismiss
 - tapOn: 
 - tapOn:
-    id: "navigate-button"
+    id: "search-button"
 # Destination at same campus
 - tapOn: "Choose destination"
 - inputText: John Molson School of Business

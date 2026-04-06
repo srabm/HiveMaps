@@ -19,7 +19,7 @@ const token = !rawToken || PLACEHOLDER_TOKENS.has(rawToken) ? '' : rawToken;
 let configured = false;
 
 class MapboxMapsAdapter implements MapsProviderPort {
-  defaultStyleURL = MapboxGL.StyleURL.Street;
+  defaultStyleURL = MapboxGL.StyleURL.Outdoors;
 
   ensureConfigured() {
     if (!configured && token) {
@@ -167,7 +167,8 @@ class MapboxMapsAdapter implements MapsProviderPort {
     const url = `https://api.mapbox.com/search/searchbox/v1/category/${encodedCategory}?` +
         `access_token=${activeToken}` +
         `&proximity=${lon},${lat}`  +
-        `&bbox=${minLon},${minLat},${maxLon},${maxLat}`;
+        `&bbox=${minLon},${minLat},${maxLon},${maxLat}`+
+        `&limit=25`;
     try {
       const response = await fetch(url);
       if (!response.ok) {

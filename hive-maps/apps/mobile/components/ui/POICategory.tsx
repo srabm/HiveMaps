@@ -1,5 +1,5 @@
 import React, { useState,useEffect } from 'react';
-import {ScrollView, TouchableOpacity, Text, StyleSheet, View,TextInput} from 'react-native';
+import {ScrollView, TouchableOpacity, Text, StyleSheet, View} from 'react-native';
 import {mapboxMapsAdapter} from "@/services/mapbox";
 
 export type POI = {
@@ -23,6 +23,7 @@ type POICategoryChipsProps = {
     onSelectCategory?: (category: string, pois: POI[]) => void;
     onClearCategory?: () => void;
     marginTop?: number;
+    clearTrigger?: number;
 };
 
 
@@ -37,14 +38,18 @@ export function POICategory({
                                 onSelectCategory,
                                 onClearCategory,
                                 marginTop,
+                                clearTrigger,
                             }: Readonly<POICategoryChipsProps>) {
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const [radiusKm, setRadiusKm] = useState<string>(String(radius ?? 1));
+    const [radiusKm] = useState<string>(String(radius ?? 1));
     const [minLat,setMinLat] = useState<number>(0);
     const [maxLat,setMaxLat] = useState<number>(0);
     const [minLon,setMinLon] = useState<number>(0);
     const [maxLon,setMaxLon] = useState<number>(0);
-
+    useEffect(() => {
+        if (!clearTrigger) return;
+        handleClearActive();
+    }, [clearTrigger]);
     useEffect(() => {
         if (!userLocation ) return;
         const getBoundaries = (coordinates:[number, number] , distanceFromCenterToTheBorder:number)=> {
@@ -93,10 +98,6 @@ export function POICategory({
         setActiveCategory(null);
         onClearCategory?.();
     };
-    const handleRadiusChange = (text: string) => {
-        const numeric = text.replaceAll(/\D/g, '');
-        setRadiusKm(numeric);
-    };
 
 
     return (
@@ -117,20 +118,6 @@ export function POICategory({
                         <Text style={styles.chipClearLabel}>✕</Text>
                     </TouchableOpacity>
                 )}
-                <View style={styles.radiusChip}>
-                    <Text style={styles.radiusUnit}>km</Text>
-                    <TextInput
-                        style={styles.radiusInput}
-                        value={radiusKm}
-                        onChangeText={handleRadiusChange}
-                        keyboardType="number-pad"
-                        maxLength={3}
-                        placeholder="1"
-                        placeholderTextColor="#aaa"
-                        selectTextOnFocus
-                        testID="radius-input"
-                    />
-                </View>
                 {CATEGORIES.map((category) => {
                     const isActive = activeCategory === category.id;
                     return (

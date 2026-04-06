@@ -2,6 +2,10 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 
+jest.mock('@expo/vector-icons', () => ({
+    MaterialCommunityIcons: () => null,
+}));
+
 describe('AccessibilityToggle', () => {
     it('renders correctly', () => {
         const { getByTestId } = render(<AccessibilityToggle />);

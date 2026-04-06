@@ -435,6 +435,9 @@ describe('buildActiveFloorRouteView', () => {
 
 // ─── suite ────────────────────────────────────────────────────────────────────
 describe('FloorPlanViewer', () => {
+  let consoleWarnSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     latestRoomsPressHandler = undefined;
     latestUserLocationUpdate = undefined;
@@ -449,6 +452,28 @@ describe('FloorPlanViewer', () => {
     mockFetchNearestNode.mockReset();
     mockFetchIndoorDirections.mockReset();
     mockFetchIndoorDirections.mockRejectedValue(new Error('No directions found'));
+
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation((...args) => {
+      const firstArg = String(args[0] ?? '');
+      if (firstArg.includes('[IndoorDirections] No directions found:')) {
+        return;
+      }
+    });
+
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+      const firstArg = String(args[0] ?? '');
+      if (firstArg.includes('An update to FloorPlanViewer inside a test was not wrapped in act')) {
+        return;
+      }
+      if (firstArg === 'Invalid coordinates') {
+        return;
+      }
+    });
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   // ── rendering ─────────────────────────────────────────────────────────────
