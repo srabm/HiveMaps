@@ -213,6 +213,36 @@ describe('createClassroomSearchAdapter', () => {
       address: '1455 De Maisonneuve Blvd W, Montreal, QC, Canada',
     });
   });
+
+  it('does not let Concordia building priority crowd out generic non-building queries', async () => {
+    const baseAdapter = createBaseAdapter();
+    (baseAdapter.search as jest.Mock).mockResolvedValue([
+      { id: 'mapbox-1', name: 'Guy-Concordia Station', address: 'Guy Street' },
+      { id: 'mapbox-2', name: 'Coffee Shop', address: 'Guy Street' },
+    ]);
+
+    const adapter = createClassroomSearchAdapter(baseAdapter, () => concordiaBuildings);
+    const results = await adapter.search('Guy', null, 'session');
+
+    expect(results).toEqual([
+      { id: 'mapbox-1', name: 'Guy-Concordia Station', address: 'Guy Street' },
+      { id: 'mapbox-2', name: 'Coffee Shop', address: 'Guy Street' },
+    ]);
+  });
+
+  it('preserves full-name external place results', async () => {
+    const baseAdapter = createBaseAdapter();
+    (baseAdapter.search as jest.Mock).mockResolvedValue([
+      { id: 'mapbox-1', name: 'Starbucks Coffee', address: '1450 Guy St.' },
+    ]);
+
+    const adapter = createClassroomSearchAdapter(baseAdapter, () => concordiaBuildings);
+    const results = await adapter.search('Starbucks Coffee', null, 'session');
+
+    expect(results).toEqual([
+      { id: 'mapbox-1', name: 'Starbucks Coffee', address: '1450 Guy St.' },
+    ]);
+  });
 });
 
 // ─── passthrough methods ──────────────────────────────────────────────────────

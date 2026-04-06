@@ -6,6 +6,7 @@ const INDOOR_RESULT_PREFIX = 'indoor-room:';
 const CONCORDIA_BUILDING_RESULT_PREFIX = 'concordia-building:';
 const MAX_INDOOR_RESULTS = 10;
 const MAX_BUILDING_RESULTS = 6;
+const MIN_BUILDING_MATCH_SCORE = 200;
 const MAX_BUILDING_CODE_LENGTH = 4;
 const SPECIAL_FLOOR_PREFIX_PATTERN = /^[A-Z]\d/;
 const NUMERIC_FLOOR_PREFIX_PATTERN = /^\d/;
@@ -149,7 +150,6 @@ function buildBuildingSearchTokens(point: BuildingPoint): string[] {
     acronymAllWords,
     acronymCoreWords,
     ...aliases,
-    ...point.building.addresses,
   ].filter(Boolean);
 }
 
@@ -248,7 +248,7 @@ export function createClassroomSearchAdapter(
 
       const concordiaBuildingResults = getBuildingPoints()
         .map((point) => ({ point, score: scoreBuildingMatch(query, point) }))
-        .filter(({ score }) => score >= 0)
+        .filter(({ score }) => score >= MIN_BUILDING_MATCH_SCORE)
         .sort((left, right) => {
           if (right.score !== left.score) return right.score - left.score;
           return left.point.building.name.localeCompare(right.point.building.name);
