@@ -1488,6 +1488,26 @@ describe('FloorPlanViewer', () => {
     expect(onStepFloorChange).toHaveBeenCalledWith('9');
   });
 
+  it('switches to the start floor immediately when selecting a start node', () => {
+    const onStepFloorChange = jest.fn();
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'Room 9', id: 'H9.101'}, undefined);
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('9');
+  });
+
   it('keeps the original start node after destination-triggered floor switch', async () => {
     const onStepFloorChange = jest.fn();
     mockFetchNearestNode.mockResolvedValueOnce(makeNodeResponse('H8.START'));
