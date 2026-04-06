@@ -45,6 +45,8 @@ import { DestinationPin } from '@/components/ui/destination-pin';
 import { useGoogleCalendarEvents } from '@/hooks/use-google-calendar-events';
 import { useNextClass } from '@/hooks/use-next-class';
 import { parseLocationReference, type NextClassResult } from '@/services/next-class-parser';
+import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
+import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
 
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
@@ -608,6 +610,8 @@ export default function MapScreen() {
         destinationStopName: string;
         shuttleDurationSeconds: number;
     } | null>(null);
+    const { accessible, setAccessible } = useIndoorNavigationState();
+    const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
     const navigationBottomFrame = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
     const [selectedOutdoorPOI, setSelectedOutdoorPOI] = useState<POI | null>(null);
     const suppressNextCampusCameraSync = useRef(false);
@@ -1695,6 +1699,15 @@ export default function MapScreen() {
                         clearTrigger={poiClearTrigger}
                     />}
 
+                <View style={styles.accessibilityToggleContainer}>
+                    <AccessibilityToggle 
+                        enabled={accessible} 
+                        onToggle={(value) => {
+                            setAccessible(value);
+                            if (value) setShowAccessibilityModal(true);
+                        }}
+                    />
+                </View>
                 </>
                 )}
             </View>
@@ -1957,6 +1970,41 @@ export default function MapScreen() {
                     </ThemedView>
                 </View>
             </Modal>
+
+            <Modal
+                transparent
+                animationType="fade"
+                visible={showAccessibilityModal}
+                onRequestClose={() => setShowAccessibilityModal(false)}
+                testID='accessibility-modal'
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable
+                        testID="accessibility-modal-backdrop"
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowAccessibilityModal(false)}
+                    />
+                    <ThemedView
+                        style={[
+                            styles.modalCard,
+                            {backgroundColor: theme.background, borderColor: theme.icon},
+                        ]}
+                    >
+                        <ThemedText type="subtitle" style={styles.modalTitle}>
+                            Accessibility Mode
+                        </ThemedText>
+                        <ThemedText style={styles.modalBody}>
+                            Accessibility mode only affects indoor directions.
+                        </ThemedText>
+                        <Pressable
+                            style={[styles.modalButton, {backgroundColor: theme.tint}]}
+                            onPress={() => setShowAccessibilityModal(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Got it</Text>
+                        </Pressable>
+                    </ThemedView>
+                </View>
+            </Modal>
         </ThemedView>
     );
 }
@@ -2124,4 +2172,8 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
     },
+    accessibilityToggleContainer: {
+        top: 10,
+        left: 10,
+    }
 });

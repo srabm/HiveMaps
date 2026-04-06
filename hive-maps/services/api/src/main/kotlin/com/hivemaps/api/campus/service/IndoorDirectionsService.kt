@@ -152,7 +152,7 @@ class IndoorDirectionsService(
                 DirectionType.LEFT -> "Turn left"
                 DirectionType.RIGHT -> "Turn right"
                 DirectionType.BACK -> "Turn around"
-                DirectionType.UP_OR_DOWN -> "Take the stairs/escalator/elevator to floor ${edge.endNode.floor}"
+                DirectionType.UP_OR_DOWN -> "Take the ${edge.label.lowercase()} to floor ${edge.endNode.floor}"
                 DirectionType.STRAIGHT -> "Go straight"
             }
 

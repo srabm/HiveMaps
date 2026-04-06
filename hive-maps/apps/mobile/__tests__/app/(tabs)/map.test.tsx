@@ -305,6 +305,22 @@ jest.mock('@/services/http/indoor-api', () => ({
     fetchIndoorEntrances: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock('@/state/indoor-navigation-state', () => ({
+    useIndoorNavigationState: () => ({
+        accessible: false,
+        setAccessible: jest.fn(),
+    }),
+}));
+
+jest.mock('@/components/indoor/accessibility-toggle', () => {
+    const { Pressable, Text } = require('react-native');
+    return ({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) => (
+        <Pressable testID="accessibility-toggle" onPress={() => onToggle(!enabled)}>
+            <Text>{enabled ? 'On' : 'Off'}</Text>
+        </Pressable>
+    );
+});
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import { useLiveLocation } from '@/hooks/use-live-location';
@@ -3455,4 +3471,53 @@ describe('MapSearchBar — callback coverage', () => {
             expect(mockSearchBarProps.toValue).toBe('');
         });
     });
+});
+
+describe('Accessibility Toggle and Modal', () => {
+    it('renders the accessibility toggle', () => {
+        const { getByTestId } = render(<MapScreen />);
+        expect(getByTestId('accessibility-toggle')).toBeTruthy();
+    });
+
+    it('shows the accessibility modal when toggle is switched on', async () => {
+        const { getByTestId, getByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => {
+            expect(getByText('Accessibility Mode')).toBeTruthy();
+            expect(getByText('Accessibility mode only affects indoor directions.')).toBeTruthy();
+        });
+    });
+
+    it('dismisses the modal when Got it is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Got it')).toBeTruthy());
+        fireEvent.press(getByText('Got it'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal when backdrop is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Accessibility Mode')).toBeTruthy());
+        fireEvent.press(getByTestId('accessibility-modal-backdrop'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal via onRequestClose', async () => {
+    const { getByTestId, queryByText } = render(<MapScreen />);
+    
+    fireEvent.press(getByTestId('accessibility-toggle'));
+    await waitFor(() => expect(queryByText('Accessibility Mode')).toBeTruthy());
+
+    fireEvent(getByTestId('accessibility-modal'), 'requestClose');
+    
+    await waitFor(() => {
+        expect(queryByText('Accessibility Mode')).toBeNull();
+    });
+});
 });
