@@ -67,6 +67,7 @@ describe('DirectionsModal', () => {
         const {getByText} = renderModal();
         expect(getByText('Walk')).toBeTruthy();
         expect(getByText('Start')).toBeTruthy();
+        expect(getByText('Cancel')).toBeTruthy();
     });
 
     it('shows destination label on the pre-start screen', () => {
@@ -271,6 +272,20 @@ describe('DirectionsModal', () => {
         const { getByText } = renderModal({ onClose });
         fireEvent.press(getByText('Start'));
         fireEvent.press(getByText('End'));
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls onCancel when Cancel is pressed on the pre-start screen', () => {
+        const onCancel = jest.fn();
+        const { getByText } = renderModal({ onCancel });
+        fireEvent.press(getByText('Cancel'));
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to onClose when Cancel is pressed without an onCancel handler', () => {
+        const onClose = jest.fn();
+        const { getByText } = renderModal({ onClose });
+        fireEvent.press(getByText('Cancel'));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 

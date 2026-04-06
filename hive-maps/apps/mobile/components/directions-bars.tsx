@@ -177,9 +177,11 @@ const DirectionBar: React.FC<DirectionBarProps> = ({
                 </View>
 
                 <View style={styles.controls}>
-                    <TouchableOpacity testID="close-button" onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color="#000" />
-                    </TouchableOpacity>
+                    {onClose ? (
+                        <TouchableOpacity testID="close-button" onPress={onClose} style={styles.closeButton}>
+                            <Ionicons name="close" size={24} color="#000" />
+                        </TouchableOpacity>
+                    ) : null}
 
                     <TouchableOpacity testID="swap-button" onPress={onSwap} style={styles.swapButton}>
                         <Ionicons name="swap-vertical" size={22} />
