@@ -633,7 +633,7 @@ describe('FloorPlanViewer', () => {
 
   // ── selected room info card ───────────────────────────────────────────────
   it('shows selected room info card with label when a room is selected', () => {
-    const {getByTestId, getByText} = render(
+    const {queryByTestId} = render(
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={makeRooms()}
@@ -643,13 +643,12 @@ describe('FloorPlanViewer', () => {
       />,
     );
 
-    expect(getByTestId('indoor-room-info-card')).toBeTruthy();
-    expect(getByText('Selected room: H-101')).toBeTruthy();
+    expect(queryByTestId('indoor-room-info-card')).toBeNull();
   });
 
   it('shows selectedRoomId as fallback when room has no label property', () => {
     const roomsNoLabel = makeRooms({label: undefined, name: undefined, code: undefined});
-    const {getByText} = render(
+    const {queryByTestId} = render(
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={roomsNoLabel}
@@ -659,7 +658,7 @@ describe('FloorPlanViewer', () => {
       />,
     );
     // Feature id 123 is used as label fallback
-    expect(getByText('Selected room: 123')).toBeTruthy();
+    expect(queryByTestId('indoor-room-info-card')).toBeNull();
   });
 
   it('does not show info card when no room is selected', () => {
@@ -676,7 +675,7 @@ describe('FloorPlanViewer', () => {
 
   it('uses room name property as label when label is absent', () => {
     const roomsWithName = makeRooms({label: undefined, name: 'Lab 101'});
-    const {getByText} = render(
+    const {queryByTestId} = render(
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
         rooms={roomsWithName}
@@ -685,7 +684,7 @@ describe('FloorPlanViewer', () => {
         floorId="8"
       />,
     );
-    expect(getByText('Selected room: Lab 101')).toBeTruthy();
+    expect(queryByTestId('indoor-room-info-card')).toBeNull();
   });
 
   // ── nearest-node / user location ──────────────────────────────────────────
@@ -728,6 +727,37 @@ describe('FloorPlanViewer', () => {
 
     await act(async () => {
       latestUserLocationUpdate?.({coords: {longitude: -73.5799, latitude: 45.4903}});
+    });
+
+    expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the start field empty after clearing Current Location', async () => {
+    mockFetchNearestNode.mockResolvedValue(makeNodeResponse('node-1'));
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    await act(async () => {
+      latestUserLocationUpdate?.({coords: {longitude: -73.5798, latitude: 45.4902}});
+    });
+
+    await waitFor(() => {
+      expect(latestDirectionBarProps.fromValue).toBe('Current Location');
+    });
+
+    act(() => {
+      latestDirectionBarProps.onClearFrom();
+    });
+
+    await waitFor(() => {
+      expect(latestDirectionBarProps.fromValue).toBe('');
     });
 
     expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
@@ -798,6 +828,19 @@ describe('FloorPlanViewer', () => {
       />,
     );
     expect(getByTestId('direction-bar')).toBeTruthy();
+  });
+
+  it('does not pass an onClose handler to the indoor direction bar', () => {
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    expect(latestDirectionBarProps.onClose).toBeUndefined();
   });
 
   // ── POI destination tap ────────────────────────────────────────────────────
@@ -1055,6 +1098,47 @@ describe('FloorPlanViewer', () => {
     });
   });
 
+  it('clears both endpoints when the pre-start modal is cancelled', async () => {
+    mockFetchIndoorDirections.mockResolvedValue(makeIndoorSteps());
+
+    const {getByTestId, queryByTestId} = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        onPressRoom={jest.fn()}
+        buildingCode="H"
+        floorId="8"
+      />,
+    );
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{properties: {nodeID: 'node-from', roomId: 'room-1'}}],
+      });
+    });
+
+    await act(async () => {
+      latestRoomsPressHandler?.({
+        features: [{properties: {nodeID: 'node-to', roomId: 'room-2'}}],
+      });
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('directions-modal')).toBeTruthy();
+    });
+
+    act(() => {
+      latestDirectionsModalProps.onCancel?.();
+    });
+
+    await waitFor(() => {
+      expect(queryByTestId('directions-modal')).toBeNull();
+    });
+
+    expect(latestDirectionBarProps.fromValue).toBe('');
+    expect(latestDirectionBarProps.toValue).toBe('');
+  });
+
   it('uses "Navigate" pre-start label when accessibility mode is enabled', async () => {
     mockAccessible = true;
     mockFetchIndoorDirections.mockResolvedValue(makeIndoorSteps());
@@ -1263,7 +1347,7 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.toValue).toBe('From A');
   });
 
-  it('does not apply stale POI lookup result after closing direction bar', async () => {
+  it('does not apply stale POI lookup result after clearing destination', async () => {
     let resolvePoiLookup: ((value: ReturnType<typeof makeNodeResponse>) => void) | null = null;
     mockFetchNearestNode.mockImplementation(
       () => new Promise((resolve) => {
@@ -1283,7 +1367,7 @@ describe('FloorPlanViewer', () => {
     fireEvent.press(getByTestId('indoor-poi-marker-poi-fallback-0'));
 
     act(() => {
-      latestDirectionBarProps.onClose();
+      latestDirectionBarProps.onClearTo();
     });
 
     expect(latestDirectionBarProps.toValue).toBe('');
@@ -1750,7 +1834,7 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.toValue).toBe('Room A');
   });
 
-  it('onClose clears both fromQuery and toQuery', () => {
+  it('clearing both fields resets fromQuery and toQuery', () => {
     render(
       <FloorPlanViewer
         planGeometry={makePlanGeometry()}
@@ -1767,7 +1851,8 @@ describe('FloorPlanViewer', () => {
       latestDirectionBarProps.onSelectTo({name: 'Room B', id: 'node-B'}, undefined);
     });
     act(() => {
-      latestDirectionBarProps.onClose();
+      latestDirectionBarProps.onClearFrom();
+      latestDirectionBarProps.onClearTo();
     });
 
     expect(latestDirectionBarProps.fromValue).toBe('');

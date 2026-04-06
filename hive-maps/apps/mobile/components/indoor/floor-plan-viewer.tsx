@@ -437,6 +437,9 @@ export function FloorPlanViewer({
     const nearestNodeResolvedRef = useRef(Boolean(initialFromNodeId));
     // Track which floor context the fromNodeId was auto-resolved for (so we reset on floor/building change)
     const autoResolvedContextRef = useRef<string | null>(null);
+    const allowAutoResolveFromLocationRef = useRef(
+        !initialFromNodeId || initialFromQuery === 'Current Location'
+    );
     const resolveNearestNode = useCallback(async (longitude: number, latitude: number) => {
         try {
             const node = await fetchNearestNode(buildingCode, floorId, longitude, latitude);
@@ -449,6 +452,34 @@ export function FloorPlanViewer({
             setFromQuery('');
         }
     }, [buildingCode, floorId]);
+
+    const disableAutoResolvedStart = useCallback(() => {
+        allowAutoResolveFromLocationRef.current = false;
+        autoResolvedContextRef.current = null;
+        nearestNodeResolvedRef.current = true;
+    }, []);
+
+    const clearStartSelection = useCallback(() => {
+        disableAutoResolvedStart();
+        setFromQuery('');
+        setFromNodeId(null);
+    }, [disableAutoResolvedStart]);
+
+    const resetStartToCurrentLocation = useCallback(() => {
+        allowAutoResolveFromLocationRef.current = true;
+        autoResolvedContextRef.current = null;
+        setFromQuery('');
+        setFromNodeId(null);
+
+        const coords = userCoordsRef.current;
+        if (coords) {
+            nearestNodeResolvedRef.current = true;
+            void resolveNearestNode(coords[0], coords[1]);
+            return;
+        }
+
+        nearestNodeResolvedRef.current = false;
+    }, [resolveNearestNode]);
 
     const resolveDirections = useCallback(async (fromNodeId: string, toNodeId: string, accessible: boolean, fromText: string, toText: string) => {
         try {
@@ -476,7 +507,7 @@ export function FloorPlanViewer({
             setFromNodeId(null);
             setFromQuery('');
             const coords = userCoordsRef.current;
-            if (coords) {
+            if (coords && allowAutoResolveFromLocationRef.current) {
                 nearestNodeResolvedRef.current = true;
                 resolveNearestNode(coords[0], coords[1]);
             }
@@ -487,6 +518,10 @@ export function FloorPlanViewer({
             return;
         }
         if (indoorSteps) return;
+        if (!allowAutoResolveFromLocationRef.current) {
+            nearestNodeResolvedRef.current = true;
+            return;
+        }
         nearestNodeResolvedRef.current = false;
         const coords = userCoordsRef.current;
         if (coords) {
@@ -527,7 +562,12 @@ export function FloorPlanViewer({
         const latitude: number = coords.latitude;
         userCoordsRef.current = [longitude, latitude];
         // Only trigger nearest-node once per floor load
-        if (!nearestNodeResolvedRef.current && !indoorSteps && !fromNodeId) {
+        if (
+            allowAutoResolveFromLocationRef.current &&
+            !nearestNodeResolvedRef.current &&
+            !indoorSteps &&
+            !fromNodeId
+        ) {
             nearestNodeResolvedRef.current = true;
             resolveNearestNode(longitude, latitude);
         }
@@ -893,6 +933,19 @@ export function FloorPlanViewer({
                 setToNodeId(null);
                 invalidatePendingPoiSelection();
             }}
+            onCancel={() => {
+                if (resumeSessionId || completeSessionId) {
+                    router.back();
+                    return;
+                }
+                setIndoorSteps(null);
+                setCurrentNode(null);
+                setFromQuery('');
+                setFromNodeId(null);
+                setToQuery('');
+                setToNodeId(null);
+                invalidatePendingPoiSelection();
+            }}
             preStartLabel={accessible ? "Navigate" : undefined}
             autoStart={autoStartNavigation}
             stairsNotice={stairsNotice}
@@ -907,12 +960,18 @@ export function FloorPlanViewer({
             mapsAdapter={nodeAdapter}
             fromValue={fromQuery}
             toValue={toQuery}
-            onChangeFrom={setFromQuery}
+            onChangeFrom={(text) => {
+              disableAutoResolvedStart();
+              setFromQuery(text);
+              setFromNodeId(null);
+            }}
             onChangeTo={(text) => {
               setToQuery(text);
+              setToNodeId(null);
               invalidatePendingPoiSelection();
             }}
             onSelectFrom={(mapLocation, coordinates) => {
+              disableAutoResolvedStart();
               setFromQuery(mapLocation.name);
               setFromNodeId(mapLocation.id);
               if (coordinates) cameraRef.current?.setCamera({
@@ -932,32 +991,22 @@ export function FloorPlanViewer({
               });
             }}
             onClearFrom={() => {
-              setFromQuery('');
-              setFromNodeId(null);
+              clearStartSelection();
             }}
             onClearTo={() => {
               setToQuery('');
               setToNodeId(null);
               invalidatePendingPoiSelection();
             }}
-            onResetFrom={() => {
-              setFromQuery('');
-              setFromNodeId(null);
-            }}
+            onResetFrom={resetStartToCurrentLocation}
             onSwap={() => {
               const tempQuery = fromQuery;
               const tempNodeId = fromNodeId;
+              disableAutoResolvedStart();
               setFromQuery(toQuery);
               setFromNodeId(toNodeId);
               setToQuery(tempQuery);
               setToNodeId(tempNodeId);
-              invalidatePendingPoiSelection();
-            }}
-            onClose={() => {
-              setFromQuery('');
-              setFromNodeId(null);
-              setToQuery('');
-              setToNodeId(null);
               invalidatePendingPoiSelection();
             }}
             fromPlaceholder="From room (e.g. H8.835)"
@@ -969,14 +1018,6 @@ export function FloorPlanViewer({
               onToggle={setAccessible}
             />
           </View>
-        </View>
-      )}
-
-      {selectedRoomId && (
-        <View testID="indoor-room-info-card" style={styles.infoCard}>
-          <Text testID="indoor-selected-room-label" style={styles.infoCardText}>
-            {selectedRoomLabel ? `Selected room: ${selectedRoomLabel}` : `Selected room: ${selectedRoomId}`}
-          </Text>
         </View>
       )}
     </View>
@@ -993,22 +1034,6 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         alignSelf: 'center',
         marginTop: 20,
-    },
-    infoCard: {
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 12,
-        borderRadius: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#d1d5db',
-    },
-    infoCardText: {
-        color: '#111827',
-        fontWeight: '600',
     },
     directionBarContainer: {
         position: 'absolute',

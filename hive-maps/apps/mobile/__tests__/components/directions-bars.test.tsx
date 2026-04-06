@@ -357,6 +357,22 @@ describe("DirectionBar tests", () => {
     fireEvent.press(button);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('does not render the close button when onClose is not provided', () => {
+    const { queryByTestId } = render(
+      <DirectionBar
+        fromValue=''
+        toValue=''
+        onChangeFrom={jest.fn()}
+        onChangeTo={jest.fn()}
+        onSelectFrom={jest.fn()}
+        onSelectTo={jest.fn()}
+        onResetFrom={jest.fn()}
+      />
+    );
+
+    expect(queryByTestId('close-button')).toBeNull();
+  });
 });
 
 it("renders custom fromPlaceholder when provided", () => {

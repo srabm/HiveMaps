@@ -77,6 +77,7 @@ export interface DirectionsModalProps {
     origin?: string;
     destination?: string;
     onClose: () => void;
+    onCancel?: () => void;
     onArrived?: () => void;
     onCurrentNodeChange?: (node: IndoorNodeResponse) => void;
     beeImageSource?: any;
@@ -156,6 +157,7 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
     origin = "Your location",
     destination,
     onClose,
+    onCancel,
     onArrived,
     onCurrentNodeChange,
     beeImageSource,
@@ -370,9 +372,14 @@ const DirectionsModal: React.FC<DirectionsModalProps> = ({
                     <Text style={styles.preStartArrive}>Arrive at {destLabel}</Text>
                     <Text style={styles.preStartDist}>{augmentedSteps.reduce((sum, s) => sum + s.distance, 0).toFixed(0)} m</Text>
                 </View>
-                            <TouchableOpacity style={styles.startBtn} onPress={() => { setHasArrived(false); setHasStarted(true); }}>
-                                <Text style={styles.startBtnText}>Start</Text>
-                            </TouchableOpacity>
+                <View style={styles.preStartActions}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={onCancel ?? onClose}>
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.startBtn} onPress={() => { setHasArrived(false); setHasStarted(true); }}>
+                        <Text style={styles.startBtnText}>Start</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
@@ -510,6 +517,14 @@ const styles = StyleSheet.create({
     preStartInfo: { flex: 1 },
     preStartArrive: { fontSize: 14, fontWeight: "600", color: DARK },
     preStartDist: { fontSize: 12, color: MUTED, marginTop: 2 },
+    preStartActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+    cancelBtn: {
+        backgroundColor: "#F3F4F6",
+        borderRadius: 12,
+        paddingVertical: 9,
+        paddingHorizontal: 14,
+    },
+    cancelBtnText: { color: "#374151", fontSize: 14, fontWeight: "700" },
     startBtn: { backgroundColor: "#9d1e30", borderRadius: 12, paddingVertical: 9, paddingHorizontal: 18 },
     startBtnText: { color: BG, fontSize: 14, fontWeight: "700" },
     bottomBar: {
