@@ -51,6 +51,9 @@ import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
 
 const HONEYCOMB_IMAGE = require('@/assets/images/honeycomb.png');
 const BEE_IMAGE = require('@/assets/images/bee.png');
+const MIN_MAP_ZOOM = 3;
+const MAX_MAP_ZOOM = 22;
+const ZOOM_STEP = 1;
 const SHOW_ALL_BUILDING_MARKERS_ZOOM = 16.7;
 
 function getPolygonRingCoordinates(location: any): [number, number][] | null {
