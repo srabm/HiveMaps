@@ -2007,6 +2007,105 @@ describe('route validation — invalid route', () => {
     });
 });
 
+describe('route validation — same-building indoor handoff prompt', () => {
+    const sameBuildingOrigin = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H8.835',
+        name: 'H8.835',
+        address: 'Room · Floor 8',
+        buildingCode: 'H',
+        floorId: '8',
+        indoorNodeId: 'H8.835',
+    };
+    const sameBuildingDestination = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H9.915',
+        name: 'H9.915',
+        address: 'Room · Floor 9',
+        buildingCode: 'H',
+        floorId: '9',
+        indoorNodeId: 'H9.915',
+    };
+    const sharedEntrance = {
+        id: 'H-entrance-1',
+        longitude: -73.5792,
+        latitude: 45.4972,
+        floor: '1',
+        building: 'H',
+        label: 'Entrance',
+        wheelchairAccessible: true,
+    };
+
+    async function renderWithSameBuildingClassrooms() {
+        (validateCampusRoute as jest.Mock).mockReturnValue({
+            valid: false,
+            error: 'SAME_ORIGIN_AND_DESTINATION',
+            message: 'Origin and destination cannot be the same location.',
+        });
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([sharedEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [sharedEntrance] },
+        ]);
+
+        const utils = renderWithBuilding();
+
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+        await act(async () => {
+            mockSearchBarProps.onClickButton();
+        });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+
+        await act(async () => {
+            mockDirectionBarProps.onSelectFrom(sameBuildingOrigin, [-73.57921, 45.49721]);
+        });
+        await act(async () => {
+            mockDirectionBarProps.onSelectTo(sameBuildingDestination, [-73.57922, 45.49722]);
+        });
+
+        return utils;
+    }
+
+    it('shows the indoor prompt instead of the generic invalid route modal', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => {
+            expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy();
+        });
+        expect(utils.getByText('These rooms are in the same building. Do you wish to start indoor navigation?')).toBeTruthy();
+        expect(utils.queryByText('Invalid Route')).toBeNull();
+    });
+
+    it('clears both route endpoints when Cancel is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText('Cancel'));
+        });
+
+        await waitFor(() => {
+            expect(utils.queryByText('Start Indoor Navigation?')).toBeNull();
+        });
+        expect(mockDirectionBarProps.fromValue).toBe('');
+        expect(mockDirectionBarProps.toValue).toBe('');
+    });
+
+    it('opens indoor navigation directly when Let\'s Go! is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText("Let's Go!"));
+        });
+
+        expect(mockRouterPush).toHaveBeenCalledWith(
+            '/indoor/H?floor=8&campus=SGW&fromNode=H8.835&toNode=H9.915&fromLabel=H8.835&toLabel=H9.915'
+        );
+    });
+});
+
 // ─── getCameraBoundsForRoute — bounds path (L322) ────────────────────────────
 
 describe('getCameraBoundsForRoute — non-null bounds path', () => {
