@@ -5,6 +5,8 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 ('VE1.127-3', 'Room', true, '1', 'VE', -73.63865846111999, 45.45873682516396),
 ('VE1.127-2', 'Room', true, '1', 'VE', -73.63864505184284, 45.45873165393733),
 ('VE1_J1', 'Junction', true, '1', 'VE', -73.63864773369828, 45.45874035100001),
+('VE1.ENTRANCE', 'Entrance', true, '1', 'VE', -73.63843116746376, 45.45863221426273),
+('VE1_J2', 'VE1_J2', true, '1', 'VE', -73.63851229359045, 45.45866418189433),
 
 -- VANIER EXTENSION (VE) FLOOR 2 --
 ('VE2.228-4_1', 'Junction', true, '2', 'VE', -73.63838010454029, 45.4588045720822),
@@ -86,12 +88,16 @@ INSERT INTO indoor_node (id, label, wheelchair_accessible, floor, building, lon,
 INSERT INTO indoor_edge (id, label, wheelchair_accessible, start_node_id, end_node_id, building, distance) VALUES
 
 -- VANIER EXTENSION (VE) FLOOR 1 --
-('VE1-E1', 'VE2-E1', true, 'VE1.127-3', 'VE1_J1', 'VE', 0.9239821967973109),
-('VE1-E2', 'VE2-E2', true, 'VE1_J1', 'VE1.127-3', 'VE', 0.9239821967973109),
-('VE1-E3', 'VE2-E3', true, 'VE1_J1', 'VE1.127-2', 'VE', 0.9894317446565765),
-('VE1-E4', 'VE2-E4', true, 'VE1.127-2', 'VE1_J1', 'VE', 0.9894317446565765),
-('VE1-E5', 'VE2-E5', true, 'VE1.193', 'VE1_J1', 'VE', 14.008202695620803),
-('VE1-E6', 'VE2-E6', true, 'VE1_J1', 'VE1.193', 'VE', 14.008202695620803),
+('VE1-E1', 'VE1-E1', true, 'VE1.127-3', 'VE1_J1', 'VE', 0.9239821967973109),
+('VE1-E2', 'VE1-E2', true, 'VE1_J1', 'VE1.127-3', 'VE', 0.9239821967973109),
+('VE1-E3', 'VE1-E3', true, 'VE1_J1', 'VE1.127-2', 'VE', 0.9894317446565765),
+('VE1-E4', 'VE1-E4', true, 'VE1.127-2', 'VE1_J1', 'VE', 0.9894317446565765),
+('VE1-E5', 'VE1-E5', true, 'VE1.193', 'VE1_J1', 'VE', 14.008202695620803),
+('VE1-E6', 'VE1-E6', true, 'VE1_J1', 'VE1.193', 'VE', 14.008202695620803),
+('VE1-E7', 'VE1-E7', true, 'VE1.ENTRANCE', 'VE1_J2', 'VE', 7.257521698331435),
+('VE1-E8', 'VE1-E8', true, 'VE1_J2', 'VE1.ENTRANCE', 'VE', 7.257521698331435),
+('VE1-E9', 'VE1-E9', true, 'VE1_J2', 'VE1.193', 'VE', 3.113903436664209),
+('VE1-E10', 'VE1-E10', true, 'VE1.193', 'VE1_J2', 'VE', 3.113903436664209),
 
 -- VANIER EXTENSION (VE) FLOOR 2 --
 ('VE2-E1', 'VE2-E1', true, 'VE2.228-3', 'VE2_J1', 'VE', 0.8377215514096766),
