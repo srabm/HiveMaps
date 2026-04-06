@@ -305,6 +305,22 @@ jest.mock('@/services/http/indoor-api', () => ({
     fetchIndoorEntrances: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock('@/state/indoor-navigation-state', () => ({
+    useIndoorNavigationState: () => ({
+        accessible: false,
+        setAccessible: jest.fn(),
+    }),
+}));
+
+jest.mock('@/components/indoor/accessibility-toggle', () => {
+    const { Pressable, Text } = require('react-native');
+    return ({ enabled, onToggle }: { enabled: boolean; onToggle: (v: boolean) => void }) => (
+        <Pressable testID="accessibility-toggle" onPress={() => onToggle(!enabled)}>
+            <Text>{enabled ? 'On' : 'Off'}</Text>
+        </Pressable>
+    );
+});
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import { useLiveLocation } from '@/hooks/use-live-location';
@@ -1991,6 +2007,105 @@ describe('route validation — invalid route', () => {
     });
 });
 
+describe('route validation — same-building indoor handoff prompt', () => {
+    const sameBuildingOrigin = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H8.835',
+        name: 'H8.835',
+        address: 'Room · Floor 8',
+        buildingCode: 'H',
+        floorId: '8',
+        indoorNodeId: 'H8.835',
+    };
+    const sameBuildingDestination = {
+        kind: 'classroom' as const,
+        id: 'indoor-room:H9.915',
+        name: 'H9.915',
+        address: 'Room · Floor 9',
+        buildingCode: 'H',
+        floorId: '9',
+        indoorNodeId: 'H9.915',
+    };
+    const sharedEntrance = {
+        id: 'H-entrance-1',
+        longitude: -73.5792,
+        latitude: 45.4972,
+        floor: '1',
+        building: 'H',
+        label: 'Entrance',
+        wheelchairAccessible: true,
+    };
+
+    async function renderWithSameBuildingClassrooms() {
+        (validateCampusRoute as jest.Mock).mockReturnValue({
+            valid: false,
+            error: 'SAME_ORIGIN_AND_DESTINATION',
+            message: 'Origin and destination cannot be the same location.',
+        });
+        (fetchIndoorEntrances as jest.Mock).mockResolvedValue([sharedEntrance]);
+        (fetchIndoorDirections as jest.Mock).mockResolvedValue([
+            { direction: 'STRAIGHT', distance: 20, description: 'Walk', nodes: [sharedEntrance] },
+        ]);
+
+        const utils = renderWithBuilding();
+
+        await waitFor(() => expect(mockSearchBarProps).not.toBeNull());
+        await act(async () => {
+            mockSearchBarProps.onClickButton();
+        });
+        await waitFor(() => expect(mockDirectionBarProps).not.toBeNull());
+
+        await act(async () => {
+            mockDirectionBarProps.onSelectFrom(sameBuildingOrigin, [-73.57921, 45.49721]);
+        });
+        await act(async () => {
+            mockDirectionBarProps.onSelectTo(sameBuildingDestination, [-73.57922, 45.49722]);
+        });
+
+        return utils;
+    }
+
+    it('shows the indoor prompt instead of the generic invalid route modal', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => {
+            expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy();
+        });
+        expect(utils.getByText('These rooms are in the same building. Do you wish to start indoor navigation?')).toBeTruthy();
+        expect(utils.queryByText('Invalid Route')).toBeNull();
+    });
+
+    it('clears both route endpoints when Cancel is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText('Cancel'));
+        });
+
+        await waitFor(() => {
+            expect(utils.queryByText('Start Indoor Navigation?')).toBeNull();
+        });
+        expect(mockDirectionBarProps.fromValue).toBe('');
+        expect(mockDirectionBarProps.toValue).toBe('');
+    });
+
+    it('opens indoor navigation directly when Let\'s Go! is pressed', async () => {
+        const utils = await renderWithSameBuildingClassrooms();
+
+        await waitFor(() => expect(utils.getByText('Start Indoor Navigation?')).toBeTruthy());
+
+        await act(async () => {
+            fireEvent.press(utils.getByText("Let's Go!"));
+        });
+
+        expect(mockRouterPush).toHaveBeenCalledWith(
+            '/indoor/H?floor=8&campus=SGW&fromNode=H8.835&toNode=H9.915&fromLabel=H8.835&toLabel=H9.915'
+        );
+    });
+});
+
 // ─── getCameraBoundsForRoute — bounds path (L322) ────────────────────────────
 
 describe('getCameraBoundsForRoute — non-null bounds path', () => {
@@ -3455,4 +3570,53 @@ describe('MapSearchBar — callback coverage', () => {
             expect(mockSearchBarProps.toValue).toBe('');
         });
     });
+});
+
+describe('Accessibility Toggle and Modal', () => {
+    it('renders the accessibility toggle', () => {
+        const { getByTestId } = render(<MapScreen />);
+        expect(getByTestId('accessibility-toggle')).toBeTruthy();
+    });
+
+    it('shows the accessibility modal when toggle is switched on', async () => {
+        const { getByTestId, getByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => {
+            expect(getByText('Accessibility Mode')).toBeTruthy();
+            expect(getByText('Accessibility mode only affects indoor directions.')).toBeTruthy();
+        });
+    });
+
+    it('dismisses the modal when Got it is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Got it')).toBeTruthy());
+        fireEvent.press(getByText('Got it'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal when backdrop is pressed', async () => {
+        const { getByTestId, getByText, queryByText } = render(<MapScreen />);
+        fireEvent.press(getByTestId('accessibility-toggle'));
+        await waitFor(() => expect(getByText('Accessibility Mode')).toBeTruthy());
+        fireEvent.press(getByTestId('accessibility-modal-backdrop'));
+        await waitFor(() => {
+            expect(queryByText('Accessibility Mode')).toBeNull();
+        });
+    });
+
+    it('dismisses the modal via onRequestClose', async () => {
+    const { getByTestId, queryByText } = render(<MapScreen />);
+    
+    fireEvent.press(getByTestId('accessibility-toggle'));
+    await waitFor(() => expect(queryByText('Accessibility Mode')).toBeTruthy());
+
+    fireEvent(getByTestId('accessibility-modal'), 'requestClose');
+    
+    await waitFor(() => {
+        expect(queryByText('Accessibility Mode')).toBeNull();
+    });
+});
 });

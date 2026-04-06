@@ -8,6 +8,7 @@ import DirectionBar from '@/components/directions-bars';
 import { createIndoorNodeSearchAdapter } from '@/services/maps/indoor-node-search-adapter';
 import {IndoorDirectionsResponse, fetchNearestNode, fetchIndoorDirections, IndoorNodeResponse, POI_TYPES} from '@/services/http/indoor-api'
 import {DirectionsLine} from "@/components/ui/directions-line";
+import {TransportMode} from '@/services/maps/directions-api-adapter';
 import DirectionsModal from "@/components/indoor/indoor-directions-modal";
 import AccessibilityToggle from '@/components/indoor/accessibility-toggle';
 import { useIndoorNavigationState } from '@/state/indoor-navigation-state';
@@ -737,9 +738,10 @@ export function FloorPlanViewer({
 
           {activeFloorRouteView.steps.length > 0 && <DirectionsLine
             endpointId='indoor-directions-endpoints'
-            lineColor = {accessible ? '#2196F3' : undefined }
             useIndoorData={true}
             IndoorDirections={activeFloorRouteView.steps}
+            transportMode={TransportMode.WALKING}
+            accessible={accessible}
             lineWidth={5}
             directions={{
                 polyline: "",

@@ -99,6 +99,60 @@ describe('createClassroomSearchAdapter', () => {
     ]);
   });
 
+  it('supports S-prefixed floors such as MBS2', async () => {
+    (fetchIndoorRooms as jest.Mock)
+      .mockResolvedValueOnce([
+        {
+          id: 'MBS2.210',
+          label: 'Room',
+          wheelchairAccessible: true,
+          floor: 'S2',
+          building: 'MB',
+          longitude: -73.579,
+          latitude: 45.4951,
+        },
+        {
+          id: 'MBS2.330',
+          label: 'Room',
+          wheelchairAccessible: true,
+          floor: 'S2',
+          building: 'MB',
+          longitude: -73.5788,
+          latitude: 45.4952,
+        },
+      ]);
+    const adapter = createClassroomSearchAdapter(createBaseAdapter());
+
+    const results = await adapter.search('MBS2', null, 'session');
+
+    expect(fetchIndoorRooms).toHaveBeenCalledWith('MB', 'S2');
+    expect(results).toEqual([
+      {
+        id: 'indoor-room:MBS2.210',
+        name: 'MBS2.210',
+        address: 'Room · Floor S2',
+        kind: 'classroom',
+        buildingCode: 'MB',
+        floorId: 'S2',
+        indoorNodeId: 'MBS2.210',
+      },
+      {
+        id: 'indoor-room:MBS2.330',
+        name: 'MBS2.330',
+        address: 'Room · Floor S2',
+        kind: 'classroom',
+        buildingCode: 'MB',
+        floorId: 'S2',
+        indoorNodeId: 'MBS2.330',
+      },
+      {
+        id: 'mapbox-1',
+        name: 'Hall Building',
+        address: '1455 De Maisonneuve Blvd W',
+      },
+    ]);
+  });
+
   it('returns classroom coordinates for indoor results', async () => {
     const adapter = createClassroomSearchAdapter(createBaseAdapter());
 
