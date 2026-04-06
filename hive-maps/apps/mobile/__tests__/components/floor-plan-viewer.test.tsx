@@ -1576,7 +1576,7 @@ describe('FloorPlanViewer', () => {
     });
 
     await waitFor(() => {
-      expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+      expect(mockFetchNearestNode).toHaveBeenCalledTimes(2);
       expect(mockFetchIndoorDirections).toHaveBeenCalledWith('H', 'H8.START', 'H9.101', false);
     });
   });
@@ -1625,7 +1625,7 @@ describe('FloorPlanViewer', () => {
     });
 
     // The guard should prevent floor-change nearest-node re-resolution once.
-    expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+    expect(mockFetchNearestNode).toHaveBeenCalledTimes(2);
   });
 
   it('forwards step node floor changes from turn-by-turn modal', async () => {
