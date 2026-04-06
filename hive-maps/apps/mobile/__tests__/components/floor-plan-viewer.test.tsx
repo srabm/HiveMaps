@@ -752,6 +752,8 @@ describe('FloorPlanViewer', () => {
       expect(latestDirectionBarProps.fromValue).toBe('Current Location');
     });
 
+    mockFetchNearestNode.mockClear();
+
     act(() => {
       latestDirectionBarProps.onClearFrom();
     });
@@ -760,7 +762,7 @@ describe('FloorPlanViewer', () => {
       expect(latestDirectionBarProps.fromValue).toBe('');
     });
 
-    expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+    expect(mockFetchNearestNode).not.toHaveBeenCalled();
   });
 
   it('handles fetchNearestNode rejection gracefully (no crash)', async () => {
