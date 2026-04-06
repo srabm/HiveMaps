@@ -1493,6 +1493,141 @@ describe('FloorPlanViewer', () => {
     expect(latestDirectionBarProps.toValue).toBe('Room B');
   });
 
+  it('switches to the destination floor immediately when selecting a destination node', () => {
+    const onStepFloorChange = jest.fn();
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectTo({name: 'Room 9', id: 'H9.101'}, undefined);
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('9');
+  });
+
+  it('switches to the start floor immediately when selecting a start node', () => {
+    const onStepFloorChange = jest.fn();
+
+    render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    act(() => {
+      latestDirectionBarProps.onSelectFrom({name: 'Room 9', id: 'H9.101'}, undefined);
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('9');
+  });
+
+  it('keeps the original start node after destination-triggered floor switch', async () => {
+    const onStepFloorChange = jest.fn();
+    mockFetchNearestNode.mockResolvedValueOnce(makeNodeResponse('H8.START'));
+    mockFetchIndoorDirections.mockResolvedValueOnce([]);
+
+    const { rerender } = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    await act(async () => {
+      latestUserLocationUpdate?.({ coords: { longitude: -73.5798, latitude: 45.4902 } });
+    });
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+      expect(mockFetchNearestNode).toHaveBeenCalledWith('H', '8', -73.5798, 45.4902);
+    });
+
+    act(() => {
+      latestDirectionBarProps.onSelectTo({ name: 'Room 9', id: 'H9.101' }, undefined);
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('9');
+
+    await act(async () => {
+      rerender(
+        <FloorPlanViewer
+          planGeometry={makePlanGeometry()}
+          rooms={makeRooms()}
+          buildingCode="H"
+          floorId="9"
+          onStepFloorChange={onStepFloorChange}
+        />,
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledTimes(2);
+      expect(mockFetchIndoorDirections).toHaveBeenCalledWith('H', 'H8.START', 'H9.101', false);
+    });
+  });
+
+  it('skips floor-change origin re-resolve right after destination-triggered floor switch', async () => {
+    const onStepFloorChange = jest.fn();
+    mockFetchNearestNode.mockResolvedValueOnce(makeNodeResponse('H8.START'));
+
+    const { rerender } = render(
+      <FloorPlanViewer
+        planGeometry={makePlanGeometry()}
+        rooms={makeRooms()}
+        buildingCode="H"
+        floorId="8"
+        onStepFloorChange={onStepFloorChange}
+      />,
+    );
+
+    await act(async () => {
+      latestUserLocationUpdate?.({ coords: { longitude: -73.5798, latitude: 45.4902 } });
+    });
+
+    await waitFor(() => {
+      expect(mockFetchNearestNode).toHaveBeenCalledTimes(1);
+      expect(mockFetchNearestNode).toHaveBeenCalledWith('H', '8', -73.5798, 45.4902);
+    });
+
+    act(() => {
+      latestDirectionBarProps.onSelectTo({ name: 'Room 9', id: 'H9.101' }, undefined);
+    });
+
+    expect(onStepFloorChange).toHaveBeenCalledWith('9');
+
+    await act(async () => {
+      // Simulate parent screen switching to destination floor.
+      rerender(
+        <FloorPlanViewer
+          planGeometry={makePlanGeometry()}
+          rooms={makeRooms()}
+          buildingCode="H"
+          floorId="9"
+          onStepFloorChange={onStepFloorChange}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    // The guard should prevent floor-change nearest-node re-resolution once.
+    expect(mockFetchNearestNode).toHaveBeenCalledTimes(2);
+  });
+
   it('forwards step node floor changes from turn-by-turn modal', async () => {
     const onStepFloorChange = jest.fn();
     mockFetchIndoorDirections.mockResolvedValueOnce([
