@@ -28,7 +28,6 @@ function sortCampusesByPreference(remoteCampuses: CampusMeta[]): CampusMeta[] {
 
 export function useNavigationController() {
   const { state, setCampus, hydrated } = useAppState();
-  const mapsAdapter = useMemo(() => createClassroomSearchAdapter(mapboxMapsAdapter), []);
   const [points, setPoints] = useState<BuildingPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<BuildingPointsProgress>({
@@ -40,6 +39,10 @@ export function useNavigationController() {
   const [campuses, setCampuses] = useState<CampusMeta[]>([]);
   const [metadataError, setMetadataError] = useState<string | null>(null);
   const [buildingsError, setBuildingsError] = useState<string | null>(null);
+  const mapsAdapter = useMemo(
+    () => createClassroomSearchAdapter(mapboxMapsAdapter, () => points),
+    [points],
+  );
 
   useEffect(() => {
     let isMounted = true;
