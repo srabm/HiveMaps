@@ -2,6 +2,7 @@ import React from 'react';
 import {render} from '@testing-library/react-native';
 import {StyleSheet} from 'react-native';
 import {DirectionsLine} from '../../components/ui/directions-line';
+import {TransportMode} from '@/services/maps/directions-api-adapter';
 
 const treeHasStyleValue = (
     node: any,
@@ -438,5 +439,344 @@ describe('DirectionsLine — custom props', () => {
             />,
         );
         expect(mockLineLayer.mock.calls[0][0].style.lineWidth).toBe(4);
+    });
+});
+
+// ─── effectiveColor (transportMode-driven) ────────────────────────────────────
+describe('DirectionsLine — effectiveColor via transportMode', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('uses grey (#6B7280) for WALKING mode', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                transportMode={TransportMode.WALKING}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#6B7280');
+    });
+
+    it('uses driving yellow (#e5a712) for DRIVING mode', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                transportMode={TransportMode.DRIVING}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#e5a712');
+    });
+
+    it('falls back to lineColor prop when transportMode is undefined', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                lineColor="#cafeba"
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#cafeba');
+    });
+
+    it('uses accessible indoor color (#9d1e30) when useIndoorData=true and accessible=true', () => {
+        render(
+            <DirectionsLine
+                {...(indoorProps(mockIndoorSteps) as any)}
+                transportMode={TransportMode.WALKING}
+                accessible={true}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#9d1e30');
+    });
+
+    it('uses grey (#6B7280) when useIndoorData=true and accessible=false', () => {
+        render(
+            <DirectionsLine
+                {...(indoorProps(mockIndoorSteps) as any)}
+                transportMode={TransportMode.WALKING}
+                accessible={false}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#6B7280');
+    });
+
+    it('indoor accessible color takes precedence over transportMode color', () => {
+        // Even though DRIVING would normally yield yellow, indoor+accessible should yield red
+        render(
+            <DirectionsLine
+                {...(indoorProps(mockIndoorSteps) as any)}
+                transportMode={TransportMode.DRIVING}
+                accessible={true}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#9d1e30');
+    });
+});
+
+// ─── effectiveDash (transportMode-driven) ────────────────────────────────────
+describe('DirectionsLine — effectiveDash via transportMode', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('applies WALKING_DASH ([2,2]) for WALKING mode', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                transportMode={TransportMode.WALKING}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toEqual([2, 2]);
+    });
+
+    it('applies no dash for DRIVING mode', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                transportMode={TransportMode.DRIVING}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toBeUndefined();
+    });
+
+    it('applies no dash for TRANSIT mode (per-segment handles it)', () => {
+        // No per-step polylines → falls through to single-layer path with no dash
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@', steps: [] })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toBeUndefined();
+    });
+
+    it('applies WALKING_DASH when useIndoorData=true regardless of accessible flag', () => {
+        render(
+            <DirectionsLine
+                {...(indoorProps(mockIndoorSteps) as any)}
+                transportMode={TransportMode.WALKING}
+                accessible={false}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toEqual([2, 2]);
+    });
+
+    it('applies WALKING_DASH when useIndoorData=true and accessible=true', () => {
+        render(
+            <DirectionsLine
+                {...(indoorProps(mockIndoorSteps) as any)}
+                transportMode={TransportMode.WALKING}
+                accessible={true}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toEqual([2, 2]);
+    });
+
+    it('falls back to lineDasharray prop when transportMode is undefined', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                lineDasharray={[4, 4]}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toEqual([4, 4]);
+    });
+});
+
+// ─── transitSegments / buildTransitSegments ───────────────────────────────────
+
+const makeTransitStep = (polyline: string, transitColor?: string) => ({
+    polyline,
+    transitDetails: transitColor
+        ? { transitLine: { color: transitColor } }
+        : { transitLine: {} },
+});
+
+const makeWalkingStep = (polyline: string) => ({
+    polyline,
+    transitDetails: undefined,
+});
+
+describe('DirectionsLine — transitSegments gate conditions', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('does not build transit segments when transportMode is WALKING', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' })}
+                transportMode={TransportMode.WALKING}
+            />,
+        );
+        // Only one ShapeSource for the main line + one for endpoints — no per-segment sources
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(0);
+    });
+
+    it('does not build transit segments when coordinatesOverride is supplied', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0000ff')],
+                })}
+                transportMode={TransportMode.TRANSIT}
+                coordinatesOverride={[[-73.578, 45.496], [-73.579, 45.497]]}
+            />,
+        );
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(0);
+    });
+
+    it('does not build transit segments when steps array is empty', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({ polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@', steps: [] })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(0);
+    });
+
+    it('does not build transit segments when no step has a polyline', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [{ transitDetails: { transitLine: { color: '#ff0000' } } }],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(0);
+    });
+});
+
+describe('DirectionsLine — buildTransitSegments rendering', () => {
+    beforeEach(() => {
+        mockShapeSource.mockClear();
+        mockLineLayer.mockClear();
+        mockCircleLayer.mockClear();
+    });
+
+    it('renders one ShapeSource per transit step that has a polyline', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [
+                        makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0000ff'),
+                        makeTransitStep('_p~iF~ps|U', '#00ff00'),
+                    ],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(2);
+    });
+
+    it('uses the transit line color for a transit step', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0044cc')],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#0044cc');
+    });
+
+    it('falls back to DRIVING_COLOR (#e5a712) when transit step has no line color', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@')],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#e5a712');
+    });
+
+    it('uses grey + dash for a walking leg within a transit route', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [makeWalkingStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@')],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineColor).toBe('#6B7280');
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toEqual([2, 2]);
+    });
+
+    it('applies no dash for a transit leg', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0044cc')],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        expect(mockLineLayer.mock.calls[0][0].style.lineDasharray).toBeUndefined();
+    });
+
+    it('skips steps that have no polyline when building segments', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [
+                        { transitDetails: { transitLine: { color: '#red' } } }, // no polyline
+                        makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0044cc'),
+                    ],
+                })}
+                transportMode={TransportMode.TRANSIT}
+            />,
+        );
+        // Only the one step with a polyline should produce a segment source
+        const ids: string[] = mockShapeSource.mock.calls.map((c) => c[0].id as string);
+        expect(ids.filter((id) => id.includes('transit'))).toHaveLength(1);
+    });
+
+    it('uses first and last transit segment coordinates for endpoint dots', () => {
+        render(
+            <DirectionsLine
+                directions={makeDirections({
+                    // Two steps: first decodes to [-120.2, 38.5] … [-126.453, 43.252], second to [-120.2, 38.5]
+                    polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+                    steps: [
+                        makeTransitStep('_p~iF~ps|U_ulLnnqC_mqNvxq`@', '#0044cc'),
+                        makeTransitStep('_p~iF~ps|U', '#00ff00'),
+                    ],
+                })}
+                transportMode={TransportMode.TRANSIT}
+                showEndpoints={true}
+            />,
+        );
+        const endpointsCall = mockShapeSource.mock.calls.find(
+            (c) => (c[0].id as string).includes('endpoints'),
+        );
+        expect(endpointsCall).toBeDefined();
+        const features = endpointsCall![0].shape.features;
+        expect(features.find((f: any) => f.id === 'start-point')).toBeDefined();
+        expect(features.find((f: any) => f.id === 'end-point')).toBeDefined();
     });
 });

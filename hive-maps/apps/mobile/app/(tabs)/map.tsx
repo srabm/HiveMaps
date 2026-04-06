@@ -1535,6 +1535,7 @@ export default function MapScreen() {
                         infoCardPosition="top"
                         showStartEndpoint={true}
                         showEndEndpoint={false}
+                        transportMode={transportMode}
                     />
                 )}
                 {originIndoorSteps && (activeIndoorSegment === 'origin' || showRouteOverview) && (
@@ -1543,12 +1544,12 @@ export default function MapScreen() {
                         sourceId="origin-indoor-source"
                         layerId="origin-indoor-layer"
                         endpointId="origin-indoor-endpoints"
-                        lineColor="#9d1e30"
                         lineWidth={6}
                         showInfoCard={false}
                         showEndpoints={false}
                         useIndoorData={true}
                         IndoorDirections={originIndoorSteps}
+                        transportMode={TransportMode.WALKING}
                     />
                 )}
                 {destinationIndoorSteps && showRouteOverview && (
@@ -1557,12 +1558,12 @@ export default function MapScreen() {
                         sourceId="destination-indoor-source"
                         layerId="destination-indoor-layer"
                         endpointId="destination-indoor-endpoints"
-                        lineColor="#9d1e30"
                         lineWidth={6}
                         showInfoCard={false}
                         showEndpoints={false}
                         useIndoorData={true}
                         IndoorDirections={destinationIndoorSteps}
+                        transportMode={TransportMode.WALKING}
                     />
                 )}
                 {originOutdoorConnector && (
